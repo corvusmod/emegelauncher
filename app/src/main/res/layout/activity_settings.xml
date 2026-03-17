@@ -63,19 +63,37 @@
                 style="@style/SettingsRow"
                 android:layout_width="match_parent">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Dark Mode"
-                    android:textColor="?attr/colorTextPrimary"
-                    android:textSize="16sp"
-                    android:fontFamily="sans-serif" />
+                    android:orientation="vertical">
 
-                <Switch
-                    android:id="@+id/switch_theme"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Theme"
+                        android:textColor="?attr/colorTextPrimary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif" />
+
+                    <TextView
+                        android:id="@+id/theme_current"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto (follow car)"
+                        android:textColor="?attr/colorTextTertiary"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif" />
+                </LinearLayout>
+
+                <TextView
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content"
+                    android:text="CHANGE"
+                    android:textSize="13sp"
+                    android:textColor="@color/accent_blue"
+                    android:fontFamily="sans-serif-medium" />
             </LinearLayout>
 
             <!-- Section: Default Launcher -->

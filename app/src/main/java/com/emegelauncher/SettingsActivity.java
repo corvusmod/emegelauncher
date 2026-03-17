@@ -21,7 +21,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,12 +49,21 @@ public class SettingsActivity extends Activity {
 
         findViewById(R.id.btn_back).setOnClickListener(v -> finish());
 
-        // Theme toggle
-        Switch themeSwitch = findViewById(R.id.switch_theme);
-        themeSwitch.setChecked(ThemeHelper.isDarkMode(this));
-        themeSwitch.setOnCheckedChangeListener((btn, isDark) -> {
-            ThemeHelper.setDarkMode(this, isDark);
-            recreate();
+        // Theme selector: Auto (follow car) / Dark / Light
+        TextView themeLabel = findViewById(R.id.theme_current);
+        updateThemeLabel(themeLabel);
+        findViewById(R.id.row_theme).setOnClickListener(v -> {
+            String[] options = {"Auto (follow car display)", "Always Dark", "Always Light"};
+            new AlertDialog.Builder(this)
+                .setTitle("Theme")
+                .setItems(options, (d, which) -> {
+                    switch (which) {
+                        case 0: ThemeHelper.setThemeMode(this, ThemeHelper.MODE_AUTO); break;
+                        case 1: ThemeHelper.setThemeMode(this, ThemeHelper.MODE_DARK); break;
+                        case 2: ThemeHelper.setThemeMode(this, ThemeHelper.MODE_LIGHT); break;
+                    }
+                    recreate();
+                }).show();
         });
 
         // Default launcher
@@ -68,6 +76,16 @@ public class SettingsActivity extends Activity {
     }
 
     // ==================== Default Launcher ====================
+
+    private void updateThemeLabel(TextView label) {
+        String mode = ThemeHelper.getThemeMode(this);
+        switch (mode) {
+            case ThemeHelper.MODE_AUTO: label.setText("Auto (follow car)"); break;
+            case ThemeHelper.MODE_DARK: label.setText("Always Dark"); break;
+            case ThemeHelper.MODE_LIGHT: label.setText("Always Light"); break;
+            default: label.setText(mode); break;
+        }
+    }
 
     private void updateLauncherStatus() {
         TextView txt = findViewById(R.id.txt_current_launcher);
@@ -182,25 +200,25 @@ public class SettingsActivity extends Activity {
     // ==================== Storage & Export ====================
 
     private void showStorageSelectionDialog() {
-        List<File> volumes = findAllWritableVolumes();
+        List<VolumeInfo> volumes = findAllVolumes();
         if (volumes.isEmpty()) {
-            Toast.makeText(this, "No writable storage found", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No storage found", Toast.LENGTH_SHORT).show();
             return;
         }
         String[] names = new String[volumes.size()];
         for (int i = 0; i < volumes.size(); i++) {
-            File f = volumes.get(i);
-            long free = f.getFreeSpace() / (1024 * 1024);
-            names[i] = f.getAbsolutePath() + " (" + free + " MB free)";
+            VolumeInfo vi = volumes.get(i);
+            long free = vi.path.getFreeSpace() / (1024 * 1024);
+            names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
         }
 
         String[] actions = {"Export Logcat", "Export Diagnostics Dump", "Export Both"};
         new AlertDialog.Builder(this)
             .setTitle("Select storage:")
             .setItems(names, (d1, volIdx) -> {
-                File vol = volumes.get(volIdx);
+                File vol = volumes.get(volIdx).path;
                 new AlertDialog.Builder(this)
-                    .setTitle("Export to " + vol.getName())
+                    .setTitle("Export to " + volumes.get(volIdx).description)
                     .setItems(actions, (d2, actIdx) -> {
                         if (actIdx == 0 || actIdx == 2) exportLogcat(vol);
                         if (actIdx == 1 || actIdx == 2) exportDiagnostics(vol);
@@ -208,54 +226,77 @@ public class SettingsActivity extends Activity {
             }).show();
     }
 
-    private List<File> findAllWritableVolumes() {
-        List<File> results = new ArrayList<>();
-        // Use StorageManager via reflection to get all volumes
+    /** Storage volume with path and human-readable description */
+    private static class VolumeInfo {
+        File path;
+        String description;
+        VolumeInfo(File path, String description) { this.path = path; this.description = description; }
+    }
+
+    private List<VolumeInfo> findAllVolumes() {
+        List<VolumeInfo> results = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+
+        // StorageManager — list ALL volumes with their device names
         try {
             android.os.storage.StorageManager sm =
                 (android.os.storage.StorageManager) getSystemService(STORAGE_SERVICE);
-            // getVolumeList() returns StorageVolume[]
             java.lang.reflect.Method getVolumes = sm.getClass().getMethod("getVolumeList");
             Object[] volumes = (Object[]) getVolumes.invoke(sm);
             if (volumes != null) {
                 for (Object vol : volumes) {
-                    java.lang.reflect.Method getPath = vol.getClass().getMethod("getPathFile");
-                    File path = (File) getPath.invoke(vol);
-                    java.lang.reflect.Method getDesc = vol.getClass().getMethod("getDescription", Context.class);
-                    String desc = (String) getDesc.invoke(vol, this);
-                    if (path != null && path.exists() && path.canWrite()) {
-                        results.add(path);
-                        Log.d(TAG, "Volume: " + path + " desc=" + desc);
-                    }
+                    try {
+                        File path = (File) vol.getClass().getMethod("getPathFile").invoke(vol);
+                        String desc = (String) vol.getClass().getMethod("getDescription", Context.class).invoke(vol, this);
+                        boolean removable = false;
+                        try { removable = (boolean) vol.getClass().getMethod("isRemovable").invoke(vol); }
+                        catch (Exception ignored) {}
+                        if (path != null && path.exists()) {
+                            String canon = path.getCanonicalPath();
+                            if (!seen.contains(canon)) {
+                                seen.add(canon);
+                                String label = (desc != null ? desc : path.getName());
+                                if (removable) label += " (USB)";
+                                results.add(new VolumeInfo(path, label));
+                                Log.d(TAG, "Volume: " + path + " desc=" + label + " removable=" + removable);
+
+                                // For removable volumes, also try /mnt/media_rw equivalent (writable on SAIC)
+                                if (removable) {
+                                    String uuid = path.getName();
+                                    File mediaRw = new File("/mnt/media_rw/" + uuid);
+                                    if (mediaRw.exists() && mediaRw.isDirectory()) {
+                                        String mrc = mediaRw.getCanonicalPath();
+                                        if (!seen.contains(mrc)) {
+                                            seen.add(mrc);
+                                            results.add(new VolumeInfo(mediaRw, label + " [media_rw]"));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) { Log.d(TAG, "Volume enum error: " + e.getMessage()); }
                 }
             }
-        } catch (Exception e) {
-            Log.d(TAG, "StorageManager failed: " + e.getMessage());
-        }
+        } catch (Exception e) { Log.d(TAG, "StorageManager: " + e.getMessage()); }
 
-        // Fallback: scan known paths
-        String[] searchPaths = {"/mnt/media_rw", "/mnt/usb", "/storage"};
-        for (String basePath : searchPaths) {
-            File dir = new File(basePath);
-            File[] children = dir.listFiles();
-            if (children == null) continue;
-            for (File f : children) {
-                if (!f.isDirectory()) continue;
-                String name = f.getName();
-                if (name.equals("self") || name.equals("emulated") || name.equals("sdcard")) continue;
-                try {
-                    File tmp = new File(f, ".probe_" + System.currentTimeMillis());
-                    if (tmp.createNewFile()) {
-                        tmp.delete();
-                        // Check not already in list
+        // Also scan /mnt/media_rw directly for any volumes not found via StorageManager
+        File mediaRw = new File("/mnt/media_rw");
+        if (mediaRw.exists()) {
+            File[] children = mediaRw.listFiles();
+            if (children != null) {
+                for (File f : children) {
+                    if (!f.isDirectory()) continue;
+                    try {
                         String canon = f.getCanonicalPath();
-                        boolean dup = false;
-                        for (File r : results) { if (r.getCanonicalPath().equals(canon)) { dup = true; break; } }
-                        if (!dup) results.add(f);
-                    }
-                } catch (Exception ignored) {}
+                        if (!seen.contains(canon)) {
+                            seen.add(canon);
+                            results.add(new VolumeInfo(f, f.getName() + " (media_rw)"));
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
+
         return results;
     }
 

@@ -16,9 +16,17 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.TypedValue;
 
+import com.emegelauncher.vehicle.VehicleServiceManager;
+import com.emegelauncher.vehicle.YFVehicleProperty;
+
 public class ThemeHelper {
     private static final String PREFS = "emegelauncher_prefs";
-    private static final String KEY_DARK = "dark_mode";
+    private static final String KEY_THEME_MODE = "theme_mode"; // "auto", "dark", "light"
+
+    // Theme modes
+    public static final String MODE_AUTO = "auto";
+    public static final String MODE_DARK = "dark";
+    public static final String MODE_LIGHT = "light";
 
     public static void applyTheme(Activity activity) {
         activity.setTheme(isDarkMode(activity)
@@ -26,14 +34,78 @@ public class ThemeHelper {
                 : R.style.Theme_Emegelauncher_Light);
     }
 
-    public static boolean isDarkMode(Context context) {
+    /** Get the current theme mode setting ("auto", "dark", "light") */
+    public static String getThemeMode(Context context) {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getBoolean(KEY_DARK, true);
+                .getString(KEY_THEME_MODE, MODE_AUTO);
     }
 
-    public static void setDarkMode(Context context, boolean dark) {
+    public static void setThemeMode(Context context, String mode) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_DARK, dark).apply();
+                .edit().putString(KEY_THEME_MODE, mode).apply();
+    }
+
+    /**
+     * Determine if dark mode should be active.
+     * - "auto": follow the car's night mode setting
+     * - "dark": always dark
+     * - "light": always light
+     */
+    public static boolean isDarkMode(Context context) {
+        String mode = getThemeMode(context);
+        if (MODE_DARK.equals(mode)) return true;
+        if (MODE_LIGHT.equals(mode)) return false;
+        // Auto: read from car
+        return isCarNightMode(context);
+    }
+
+    /**
+     * Read the car's current night mode from multiple sources.
+     * Returns true if the car is in night/dark mode.
+     */
+    private static boolean isCarNightMode(Context context) {
+        try {
+            VehicleServiceManager vm = VehicleServiceManager.getInstance(context);
+
+            // Source 1: SystemSettings IGeneralService — getIsNightMode()
+            String nightMode = vm.callSaicMethod("sysgeneral", "getIsNightMode");
+            if (nightMode != null && !nightMode.equals("N/A")) {
+                return "true".equalsIgnoreCase(nightMode) || "1".equals(nightMode);
+            }
+
+            // Source 2: VHAL NIGHT_MODE property
+            String vhalNight = vm.getPropertyValue(YFVehicleProperty.NIGHT_MODE);
+            if (vhalNight != null && !vhalNight.equals("N/A")) {
+                return "true".equalsIgnoreCase(vhalNight) || "1".equals(vhalNight);
+            }
+
+            // Source 3: PMS day/night mode
+            String pmsNight = vm.getPropertyValue(YFVehicleProperty.PMS_SYSTEM_DAY_NIGHT_MODE);
+            if (pmsNight != null && !pmsNight.equals("N/A")) {
+                // Typically 1=day, 2=night
+                return "2".equals(pmsNight);
+            }
+
+            // Source 4: Adapter MapService getDayNightMode()
+            String mapNight = vm.callSaicMethod("adaptermap", "getDayNightMode");
+            if (mapNight != null && !mapNight.equals("N/A")) {
+                return "2".equals(mapNight) || "1".equals(mapNight); // depends on encoding
+            }
+        } catch (Exception ignored) {}
+
+        // Default to dark if car state unknown
+        return true;
+    }
+
+    /** Check if car night mode changed since last theme apply (for auto mode) */
+    private static Boolean sLastCarNight = null;
+    public static boolean hasCarThemeChanged(Context context) {
+        if (!MODE_AUTO.equals(getThemeMode(context))) return false;
+        boolean current = isCarNightMode(context);
+        if (sLastCarNight == null) { sLastCarNight = current; return false; }
+        boolean changed = (current != sLastCarNight);
+        sLastCarNight = current;
+        return changed;
     }
 
     public static int resolveColor(Context context, int attrId) {

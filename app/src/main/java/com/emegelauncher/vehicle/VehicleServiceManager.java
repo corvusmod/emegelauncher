@@ -791,6 +791,19 @@ public class VehicleServiceManager {
             case "setting": svc = mSettingService; break;
             case "control": svc = mControlService; break;
             case "charging": svc = mChargingService; break;
+            case "engmode": svc = mEngSystemSettings; break;
+            case "adaptergeneral": svc = mAdapterGeneral; break;
+            case "adaptermap": svc = mAdapterMap; break;
+            case "adaptervoice": svc = mAdapterVoice; break;
+            case "sysbt": svc = mSysBt; break;
+            case "sysgeneral": svc = mSysGeneral; break;
+            case "sysmycar": svc = mSysMycar; break;
+            case "syssound": svc = mSysSound; break;
+            case "syshotspot": svc = mSysHotspot; break;
+            case "sysgdpr": svc = mSysGdpr; break;
+            case "syswifi": svc = mSysWifi; break;
+            case "sysdata": svc = mSysDataUsage; break;
+            case "overseas": svc = mVehicleOverseas; break;
         }
         return callServiceMethod(svc, methodName);
     }

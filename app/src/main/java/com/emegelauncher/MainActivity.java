@@ -219,6 +219,8 @@ public class MainActivity extends Activity {
             @Override public void run() {
                 updateUI();
                 mWeatherManager.poll(MainActivity.this);
+                // Auto theme: check if car switched day/night
+                if (ThemeHelper.hasCarThemeChanged(MainActivity.this)) recreate();
                 mHandler.postDelayed(this, 5000);
             }
         }, 5000);

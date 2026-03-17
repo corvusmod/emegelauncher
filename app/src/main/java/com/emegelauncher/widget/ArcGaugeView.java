@@ -11,80 +11,177 @@
 
 package com.emegelauncher.widget;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.SweepGradient;
+import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 public class ArcGaugeView extends View {
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF arcRect = new RectF();
+    private final RectF glowRect = new RectF();
 
     private float value = 0f;
+    private float displayValue = 0f;
     private float maxValue = 100f;
     private String unit = "%";
     private String label = "";
     private int fgColor = 0xFF0A84FF;
+    private int fgColorEnd = 0xFF30D158;
+    private boolean useGradient = true;
 
     public ArcGaugeView(Context context) { super(context); init(); }
     public ArcGaugeView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
 
     private void init() {
         bgPaint.setStyle(Paint.Style.STROKE);
-        bgPaint.setColor(0xFF2C2C2E);
+        bgPaint.setColor(0xFF1C1C1E);
+        bgPaint.setStrokeCap(Paint.Cap.ROUND);
         fgPaint.setStyle(Paint.Style.STROKE);
         fgPaint.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint.setStyle(Paint.Style.STROKE);
+        glowPaint.setStrokeCap(Paint.Cap.ROUND);
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setColor(0xFFF5F5F7);
+        textPaint.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
         labelPaint.setTextAlign(Paint.Align.CENTER);
         labelPaint.setColor(0xFF8E8E93);
+        labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        tickPaint.setColor(0xFF3A3A3C);
+        tickPaint.setStrokeWidth(1.5f);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
-    public void setValue(float val) { this.value = Math.max(0, Math.min(val, maxValue)); invalidate(); }
-    public void setMaxValue(float max) { this.maxValue = max; invalidate(); }
-    public void setUnit(String u) { this.unit = u; invalidate(); }
-    public void setLabel(String l) { this.label = l; invalidate(); }
-    public void setFgColor(int c) { this.fgColor = c; fgPaint.setColor(c); invalidate(); }
-    public void setBgArcColor(int c) { bgPaint.setColor(c); invalidate(); }
-    public void setTextColor(int c) { textPaint.setColor(c); invalidate(); }
-    public void setLabelColor(int c) { labelPaint.setColor(c); invalidate(); }
+    public void setValue(float val) {
+        float newVal = Math.max(0, Math.min(val, maxValue));
+        if (newVal != this.value) {
+            float old = this.displayValue;
+            this.value = newVal;
+            ValueAnimator anim = ValueAnimator.ofFloat(old, newVal);
+            anim.setDuration(400);
+            anim.setInterpolator(new DecelerateInterpolator());
+            anim.addUpdateListener(a -> { displayValue = (float) a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+    }
+    public void setMaxValue(float max) { this.maxValue = max; }
+    public void setUnit(String u) { this.unit = u; }
+    public void setLabel(String l) { this.label = l; }
+    public void setFgColor(int c) { this.fgColor = c; this.fgColorEnd = lightenColor(c, 0.4f); }
+    public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.3f)); }
+    public void setTextColor(int c) { textPaint.setColor(c); }
+    public void setLabelColor(int c) { labelPaint.setColor(c); }
 
     @Override
     protected void onDraw(Canvas canvas) {
         float w = getWidth(), h = getHeight();
         float size = Math.min(w, h);
-        float strokeW = size * 0.08f;
+        float strokeW = size * 0.06f;
+        float glowStrokeW = strokeW + 8;
+
         bgPaint.setStrokeWidth(strokeW);
         fgPaint.setStrokeWidth(strokeW);
-        fgPaint.setColor(fgColor);
+        glowPaint.setStrokeWidth(glowStrokeW);
 
-        float pad = strokeW + 4;
+        float pad = glowStrokeW + 6;
         arcRect.set(pad, pad, w - pad, h - pad);
+        glowRect.set(pad - 2, pad - 2, w - pad + 2, h - pad + 2);
 
         float startAngle = 135f;
         float sweepTotal = 270f;
+        float ratio = maxValue > 0 ? displayValue / maxValue : 0;
+        float sweepFg = sweepTotal * ratio;
+
+        // Background arc
         canvas.drawArc(arcRect, startAngle, sweepTotal, false, bgPaint);
 
-        float ratio = maxValue > 0 ? value / maxValue : 0;
-        canvas.drawArc(arcRect, startAngle, sweepTotal * ratio, false, fgPaint);
-
-        textPaint.setTextSize(size * 0.22f);
-        String valStr;
-        if (value == (int) value) valStr = String.valueOf((int) value);
-        else valStr = String.format("%.1f", value);
-        canvas.drawText(valStr, w / 2, h / 2 + size * 0.04f, textPaint);
-
-        labelPaint.setTextSize(size * 0.10f);
-        canvas.drawText(unit, w / 2, h / 2 + size * 0.18f, labelPaint);
-
-        if (!label.isEmpty()) {
-            labelPaint.setTextSize(size * 0.09f);
-            canvas.drawText(label, w / 2, h * 0.15f, labelPaint);
+        // Tick marks
+        int numTicks = 20;
+        float cx = w / 2, cy = h / 2;
+        float tickInner = size / 2 - pad - strokeW / 2 - 8;
+        float tickOuter = tickInner + 6;
+        for (int i = 0; i <= numTicks; i++) {
+            float angle = (float) Math.toRadians(startAngle + sweepTotal * i / numTicks);
+            float x1 = cx + tickInner * (float) Math.cos(angle);
+            float y1 = cy + tickInner * (float) Math.sin(angle);
+            float x2 = cx + tickOuter * (float) Math.cos(angle);
+            float y2 = cy + tickOuter * (float) Math.sin(angle);
+            tickPaint.setStrokeWidth(i % 5 == 0 ? 2f : 1f);
+            tickPaint.setColor(i % 5 == 0 ? 0xFF636366 : 0xFF3A3A3C);
+            canvas.drawLine(x1, y1, x2, y2, tickPaint);
         }
+
+        if (sweepFg > 0) {
+            // Glow effect
+            glowPaint.setColor(fgColor & 0x30FFFFFF);
+            glowPaint.setShadowLayer(12, 0, 0, fgColor & 0x60FFFFFF);
+            canvas.drawArc(glowRect, startAngle, sweepFg, false, glowPaint);
+
+            // Gradient arc
+            if (useGradient) {
+                fgPaint.setShader(new SweepGradient(cx, cy, new int[]{fgColor, fgColorEnd, fgColor}, null));
+            } else {
+                fgPaint.setColor(fgColor);
+                fgPaint.setShader(null);
+            }
+            fgPaint.setShadowLayer(6, 0, 0, fgColor & 0x80FFFFFF);
+            canvas.drawArc(arcRect, startAngle, sweepFg, false, fgPaint);
+
+            // End dot
+            float endAngle = (float) Math.toRadians(startAngle + sweepFg);
+            float dotX = cx + (size / 2 - pad) * (float) Math.cos(endAngle);
+            float dotY = cy + (size / 2 - pad) * (float) Math.sin(endAngle);
+            Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            dotPaint.setColor(0xFFFFFFFF);
+            dotPaint.setShadowLayer(8, 0, 0, fgColor);
+            canvas.drawCircle(dotX, dotY, strokeW * 0.6f, dotPaint);
+        }
+
+        // Value text
+        textPaint.setTextSize(size * 0.24f);
+        String valStr;
+        if (displayValue == (int) displayValue) valStr = String.valueOf((int) displayValue);
+        else valStr = String.format("%.1f", displayValue);
+        canvas.drawText(valStr, cx, cy + size * 0.06f, textPaint);
+
+        // Unit
+        labelPaint.setTextSize(size * 0.09f);
+        canvas.drawText(unit, cx, cy + size * 0.18f, labelPaint);
+
+        // Label
+        if (!label.isEmpty()) {
+            labelPaint.setTextSize(size * 0.08f);
+            labelPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            canvas.drawText(label, cx, h * 0.12f, labelPaint);
+            labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        }
+    }
+
+    private static int lightenColor(int color, float factor) {
+        int r = Math.min(255, (int) (Color.red(color) + (255 - Color.red(color)) * factor));
+        int g = Math.min(255, (int) (Color.green(color) + (255 - Color.green(color)) * factor));
+        int b = Math.min(255, (int) (Color.blue(color) + (255 - Color.blue(color)) * factor));
+        return Color.argb(Color.alpha(color), r, g, b);
+    }
+
+    private static int darkenColor(int color, float factor) {
+        return Color.argb(Color.alpha(color),
+            (int) (Color.red(color) * (1 - factor)),
+            (int) (Color.green(color) * (1 - factor)),
+            (int) (Color.blue(color) * (1 - factor)));
     }
 }

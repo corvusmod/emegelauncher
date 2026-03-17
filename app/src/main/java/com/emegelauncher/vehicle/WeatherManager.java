@@ -66,6 +66,24 @@ public class WeatherManager {
     /** Call periodically from the main activity's polling loop */
     public void poll(Context context) {
         readCachedWeather(context);
+        // Try to trigger the weather app's service to refresh and send broadcast
+        triggerWeatherRefresh(context);
+    }
+
+    private long mLastTrigger = 0;
+    private void triggerWeatherRefresh(Context context) {
+        long now = System.currentTimeMillis();
+        if (now - mLastTrigger < 60000) return; // At most once per minute
+        mLastTrigger = now;
+        try {
+            // Start the weather service which triggers a broadcast
+            Intent svc = new Intent();
+            svc.setComponent(new android.content.ComponentName(WEATHER_PKG,
+                "com.saicmotor.weathers.service.WeathersService"));
+            context.startService(svc);
+        } catch (Exception e) {
+            Log.d(TAG, "Cannot trigger weather service: " + e.getMessage());
+        }
     }
 
     public void unregister(Context context) {

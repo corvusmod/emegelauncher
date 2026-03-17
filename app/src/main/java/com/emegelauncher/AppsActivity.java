@@ -60,11 +60,36 @@ public class AppsActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_MAIN, null);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
 
+        // Packages to hide: system services, background services, and the launcher itself
+        java.util.Set<String> hidden = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.emegelauncher",
+            "com.saicmotor.service.vehicle", "com.saicmotor.service.engmode",
+            "com.saicmotor.service.btcall", "com.saicmotor.service.radio",
+            "com.saicmotor.service.media", "com.saicmotor.service.systemsettings",
+            "com.saicmotor.service.aroundview", "com.saicmotor.adapterservice",
+            "com.saicmotor.mapservice", "com.saicmotor.voiceservice",
+            "com.saicmotor.voicetts", "com.saicmotor.voicevui", "com.saicmotor.voiceagent",
+            "com.saicmotor.hmi.eol", "com.saicmotor.hmi.hvac",
+            "com.saicmotor.hmi.clusterprojection",
+            "com.saicmotor.update", "com.saicmotor.hmi.engmode",
+            "com.saicvehicleservice",
+            "com.yfve.carotherservice", "com.yfve.usbupdate", "com.yfve.fileservice",
+            "com.yfve.server.devicemanager",
+            "com.allgo.carplay.service", "com.allgo.app.androidauto",
+            "com.allgo.rui", "com.allgo.remoteui.mediabrowserservice",
+            "com.allgo.mirroring.control.service", "com.allgo.service.mirroringcontrol",
+            "android.car.usb.handler", "com.android.shell",
+            "com.android.settings.intelligence", "com.android.statementservice"
+        ));
+
         List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
         for (ResolveInfo ri : activities) {
+            String pkg = ri.activityInfo.packageName;
+            if (hidden.contains(pkg)) continue;
+
             AppInfo info = new AppInfo();
             info.label = ri.loadLabel(pm).toString();
-            info.packageName = ri.activityInfo.packageName;
+            info.packageName = pkg;
             info.icon = ri.activityInfo.loadIcon(pm);
             mApps.add(info);
         }

@@ -41,4 +41,12 @@ public class ThemeHelper {
         context.getTheme().resolveAttribute(attrId, tv, true);
         return tv.data;
     }
+
+    /** Get accent color adjusted for current theme (darker on light bg) */
+    public static int accentBlue(Context c) { return isDarkMode(c) ? 0xFF0A84FF : 0xFF0066CC; }
+    public static int accentGreen(Context c) { return isDarkMode(c) ? 0xFF30D158 : 0xFF1B8A3A; }
+    public static int accentRed(Context c) { return isDarkMode(c) ? 0xFFFF453A : 0xFFD32F2F; }
+    public static int accentOrange(Context c) { return isDarkMode(c) ? 0xFFFF9F0A : 0xFFCC7A00; }
+    public static int accentTeal(Context c) { return isDarkMode(c) ? 0xFF64D2FF : 0xFF0077AA; }
+    public static int accentPurple(Context c) { return isDarkMode(c) ? 0xFFBF5AF2 : 0xFF7B1FA2; }
 }

@@ -15,10 +15,14 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
+
+import dalvik.system.DexClassLoader;
 
 import java.lang.reflect.Method;
 
@@ -186,6 +190,8 @@ public class VehicleServiceManager {
         public void onServiceConnected(ComponentName name, IBinder service) {
             Log.d(TAG, "SAIC VehicleService connected");
             try {
+                // Build DexClassLoaders BEFORE trying asInterface
+                buildVsClassLoaders();
                 mHubService = asInterface(HUB_STUB_CLASSES, service);
                 if (mHubService == null) { Log.e(TAG, "IHubService not found"); return; }
                 Log.d(TAG, "IHubService: " + mHubService.getClass().getName());
@@ -224,6 +230,7 @@ public class VehicleServiceManager {
 
     private void bindViaServiceManager() {
         try {
+            buildVsClassLoaders();
             Class<?> smClass = Class.forName("android.os.ServiceManager");
             Method getService = smClass.getMethod("getService", String.class);
 
@@ -432,8 +439,8 @@ public class VehicleServiceManager {
         int areaId = getAreaId(propId);
         int propType = (propId >> 20) & 0xF;
 
-        // STRING type (0x1) — use getProperty() which returns CarPropertyValue
-        if (propType == 0x1) {
+        // STRING type (0x1) or BYTES type (0x7) — use getProperty() → CarPropertyValue
+        if (propType == 0x1 || propType == 0x7) {
             Object r = callGetPropertyAsString(mgr, propId, areaId);
             if (r != null) return r;
             if (areaId != 0) { r = callGetPropertyAsString(mgr, propId, 0); if (r != null) return r; }
@@ -460,29 +467,48 @@ public class VehicleServiceManager {
         return callGetGlobalProperty(mgr, propId);
     }
 
-    /** Read a STRING-type property via getProperty() → CarPropertyValue.getValue() */
+    /** Read a STRING or BYTES property via getProperty() → CarPropertyValue.getValue() */
     private Object callGetPropertyAsString(Object mgr, int propId, int areaId) {
         // Try getProperty(Class, int, int) → CarPropertyValue
-        try {
-            Method m = mgr.getClass().getMethod("getProperty", Class.class, int.class, int.class);
-            Object cpv = m.invoke(mgr, String.class, propId, areaId);
-            if (cpv != null) {
-                Method getValue = cpv.getClass().getMethod("getValue");
-                Object val = getValue.invoke(cpv);
-                if (val != null) return val.toString();
-            }
-        } catch (Exception ignored) {}
+        for (Class<?> valClass : new Class[]{String.class, byte[].class, Object.class}) {
+            try {
+                Method m = mgr.getClass().getMethod("getProperty", Class.class, int.class, int.class);
+                Object cpv = m.invoke(mgr, valClass, propId, areaId);
+                if (cpv != null) {
+                    Object val = cpv.getClass().getMethod("getValue").invoke(cpv);
+                    if (val != null) return convertToString(val);
+                }
+            } catch (Exception ignored) {}
+        }
         // Try getProperty(int, int) → CarPropertyValue
         try {
             Method m = mgr.getClass().getMethod("getProperty", int.class, int.class);
             Object cpv = m.invoke(mgr, propId, areaId);
             if (cpv != null) {
-                Method getValue = cpv.getClass().getMethod("getValue");
-                Object val = getValue.invoke(cpv);
-                if (val != null) return val.toString();
+                Object val = cpv.getClass().getMethod("getValue").invoke(cpv);
+                if (val != null) return convertToString(val);
             }
         } catch (Exception ignored) {}
         return null;
+    }
+
+    /** Convert property value to readable string — handles byte[], String, and other types */
+    private static String convertToString(Object val) {
+        if (val instanceof String) return (String) val;
+        if (val instanceof byte[]) {
+            byte[] bytes = (byte[]) val;
+            // Try UTF-8 string first (most SAIC properties are ASCII/UTF-8)
+            try {
+                String s = new String(bytes, "UTF-8").trim();
+                // If it looks like a readable string, return it
+                if (!s.isEmpty() && s.chars().allMatch(c -> c >= 0x20 && c < 0x7F)) return s;
+            } catch (Exception ignored) {}
+            // Fallback: hex representation
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) sb.append(String.format("%02X", b));
+            return sb.toString();
+        }
+        return val.toString();
     }
 
     private Object callTypedProperty(Object mgr, String methodName, int propId, int areaId) {
@@ -808,19 +834,93 @@ public class VehicleServiceManager {
     public boolean isSaicConnected() { return mSaicBound; }
     public boolean hasAirCondition() { return mAirConditionService != null; }
 
+    // ==================== DexClassLoader approach (DriveHub pattern) ====================
+
+    /** ClassLoaders built from SAIC service APKs on the car's system partition */
+    private java.util.List<ClassLoader> mVsClassLoaders;
+
+    /**
+     * Build DexClassLoaders from known SAIC service APK packages.
+     * This allows us to load AIDL stub classes that live inside those APKs.
+     * No SAIC code is bundled in our APK — we load from APKs already installed on the car.
+     */
+    private java.util.List<ClassLoader> buildVsClassLoaders() {
+        if (mVsClassLoaders != null) return mVsClassLoaders;
+
+        java.util.List<ClassLoader> loaders = new java.util.ArrayList<>();
+        String[] saicPackages = {
+            "com.saicmotor.service.vehicle",
+            "com.saicvehicleservice",
+            "com.saicmotor.service.engmode",
+            "com.saicmotor.adapterservice",
+            "com.saicmotor.service.systemsettings",
+        };
+
+        PackageManager pm = mContext.getPackageManager();
+        for (String pkg : saicPackages) {
+            try {
+                ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                if (ai.sourceDir != null) {
+                    java.io.File optDir = new java.io.File(mContext.getCodeCacheDir(), "dexopt_" + pkg.replace('.', '_'));
+                    optDir.mkdirs();
+                    DexClassLoader dcl = new DexClassLoader(
+                        ai.sourceDir, optDir.getAbsolutePath(), null, mContext.getClassLoader());
+                    loaders.add(dcl);
+                    Log.d(TAG, "DexClassLoader created for " + pkg + " → " + ai.sourceDir);
+                }
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.d(TAG, "Package not found: " + pkg);
+            } catch (Exception e) {
+                Log.d(TAG, "DexClassLoader failed for " + pkg + ": " + e.getMessage());
+            }
+        }
+
+        // Fallback: also try the app's own classloader
+        loaders.add(mContext.getClassLoader());
+        mVsClassLoaders = loaders;
+        return loaders;
+    }
+
+    /**
+     * Find a class by trying multiple names across multiple classloaders.
+     * Returns the first successful Class, or null.
+     */
+    private Class<?> findVsClass(String[] classNames) {
+        java.util.List<ClassLoader> loaders = buildVsClassLoaders();
+        for (String name : classNames) {
+            for (ClassLoader cl : loaders) {
+                try {
+                    Class<?> c = Class.forName(name, false, cl);
+                    if (c != null) {
+                        Log.d(TAG, "findVsClass OK: " + name);
+                        return c;
+                    }
+                } catch (ClassNotFoundException ignored) {}
+            }
+        }
+        Log.d(TAG, "findVsClass FAIL: " + java.util.Arrays.toString(classNames));
+        return null;
+    }
+
     // ==================== Reflection helpers ====================
 
-    private static Object asInterface(String[] stubClassNames, IBinder binder) {
-        for (String cn : stubClassNames) {
+    /**
+     * Call Stub.asInterface(binder) using DexClassLoaders to find the Stub class.
+     */
+    private Object asInterface(String[] stubClassNames, IBinder binder) {
+        Class<?> stubClass = findVsClass(stubClassNames);
+        if (stubClass != null) {
             try {
-                Object r = Class.forName(cn).getMethod("asInterface", IBinder.class).invoke(null, binder);
-                if (r != null) { Log.d(TAG, "asInterface OK: " + cn); return r; }
-            } catch (Exception ignored) {}
+                Object r = stubClass.getMethod("asInterface", IBinder.class).invoke(null, binder);
+                if (r != null) return r;
+            } catch (Exception e) {
+                Log.d(TAG, "asInterface invoke failed: " + e.getMessage());
+            }
         }
         return null;
     }
 
-    private static Object getSubService(Object hub, String[] keys, String ifaceName) {
+    private Object getSubService(Object hub, String[] keys, String ifaceName) {
         String[] stubs = new String[STUB_PREFIXES.length];
         for (int i = 0; i < STUB_PREFIXES.length; i++) stubs[i] = STUB_PREFIXES[i] + ifaceName + "$Stub";
 

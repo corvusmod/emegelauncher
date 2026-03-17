@@ -437,7 +437,7 @@ public class VehicleInfoActivity extends Activity {
 
     private void addRow(String tag, String label) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setOrientation(LinearLayout.VERTICAL);
         row.setBackgroundColor(cCard);
         row.setPadding(16, 10, 16, 10);
 
@@ -445,14 +445,16 @@ public class VehicleInfoActivity extends Activity {
         nameView.setText(label);
         nameView.setTextSize(13);
         nameView.setTextColor(cText);
-        nameView.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-        row.addView(nameView);
+        row.addView(nameView, new LinearLayout.LayoutParams(-1, -2));
 
         TextView valView = new TextView(this);
         valView.setText("--");
         valView.setTextSize(13);
-        valView.setTextColor(0xFF64D2FF); // teal
+        valView.setTextColor(cTextSec);
         valView.setTag(tag);
+        // Wrap text for long values (VIN, Vehicle ID, MACs, etc.)
+        valView.setMaxLines(3);
+        valView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         row.addView(valView);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);

@@ -74,8 +74,8 @@ public class GraphsActivity extends Activity {
 
     // Theme colors
     private int cBg, cCard, cText, cTextSec, cTextTert, cDivider;
-    private static final int C_BLUE = 0xFF0A84FF, C_GREEN = 0xFF30D158, C_RED = 0xFFFF453A;
-    private static final int C_ORANGE = 0xFFFF9F0A, C_TEAL = 0xFF64D2FF, C_PURPLE = 0xFFBF5AF2;
+    private int C_BLUE, C_GREEN, C_RED;
+    private int C_ORANGE, C_TEAL, C_PURPLE;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,6 +116,12 @@ public class GraphsActivity extends Activity {
         cTextSec = ThemeHelper.resolveColor(this, R.attr.colorTextSecondary);
         cTextTert = ThemeHelper.resolveColor(this, R.attr.colorTextTertiary);
         cDivider = ThemeHelper.resolveColor(this, R.attr.colorDivider);
+        C_BLUE = ThemeHelper.accentBlue(this);
+        C_GREEN = ThemeHelper.accentGreen(this);
+        C_RED = ThemeHelper.accentRed(this);
+        C_ORANGE = ThemeHelper.accentOrange(this);
+        C_TEAL = ThemeHelper.accentTeal(this);
+        C_PURPLE = ThemeHelper.accentPurple(this);
     }
 
     // ==================== Tab Bar ====================
@@ -586,17 +592,22 @@ public class GraphsActivity extends Activity {
         if (gearVal == 0) gearVal = (int) readFloat(YFVehicleProperty.CURRENT_GEAR);
         mGearText.setText("Gear: " + decodeGear(gearVal));
 
-        // Range: SAIC charging → cluster → BMS
+        // Range: display value only (SAIC or cluster) — NO fallback to BMS
         float rangeSaic = readSaicFloat("charging", "getCurrentEnduranceMileage");
         String clstrRange = mVehicle.getPropertyValue(YFVehicleProperty.CLSTR_ELEC_RNG);
         String bmsRange = mVehicle.getPropertyValue(YFVehicleProperty.BMS_ESTD_ELEC_RNG);
-        String displayRange;
+        String displayRange = null;
         if (rangeSaic > 0) displayRange = fmt(rangeSaic);
         else if (isValidVal(clstrRange)) displayRange = clstrRange;
-        else displayRange = bmsRange;
-        String rangeLabel = "Range: " + displayRange + " km";
-        if (isValidVal(bmsRange) && !bmsRange.equals(displayRange)) {
-            rangeLabel += " (BMS: " + bmsRange + ")";
+
+        String rangeLabel;
+        if (displayRange != null) {
+            rangeLabel = "Range: " + displayRange + " km";
+            if (isValidVal(bmsRange)) rangeLabel += " (BMS: " + bmsRange + ")";
+        } else if (isValidVal(bmsRange)) {
+            rangeLabel = "Range (BMS only): " + bmsRange + " km";
+        } else {
+            rangeLabel = "Range: --";
         }
         mRangeText.setText(rangeLabel);
     }
@@ -612,7 +623,7 @@ public class GraphsActivity extends Activity {
         mVoltChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_VOL));
         mCurrentChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_CRNT));
         // Raw value is ~82.3 for real ~8.23 kWh/100km → divide by 10
-        mConsumptionChart.addPoint(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM) / 10f);
+        mConsumptionChart.addPoint(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM) / 100f);
     }
 
     private void updateCharging() {
@@ -860,7 +871,7 @@ public class GraphsActivity extends Activity {
 
         // Avg consumption: raw value is in Wh/km, convert to kWh/100km (/10)
         float avgRaw = readFloat(YFVehicleProperty.CRNT_AVG_ELEC_CSUMP);
-        mAvgConsumption.setText("Avg Consumption: " + String.format("%.1f", avgRaw / 10f) + " kWh/100km");
+        mAvgConsumption.setText("Avg Consumption: " + String.format("%.1f", avgRaw / 100f) + " kWh/100km");
 
         mTotalConsumed.setText("Total Consumed (trip): " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_START) + " Wh");
         mRegenEnergy.setText("Regen Energy (trip): " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_START) + " Wh");

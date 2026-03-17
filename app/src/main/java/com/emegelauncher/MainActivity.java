@@ -33,6 +33,7 @@ public class MainActivity extends Activity {
     private TextView mTempInsideText;
     private TextView mBatteryText;
     private TextView mRangeText;
+    private TextView mBatteryEtaText;
     private TextView mBmsRawText;
     private TextView mWeatherText;
     private TextView mWeatherTemp;
@@ -60,6 +61,7 @@ public class MainActivity extends Activity {
         mTempInsideText = findViewById(R.id.temp_inside);
         mBatteryText = findViewById(R.id.battery_lvl);
         mRangeText = findViewById(R.id.range_text);
+        mBatteryEtaText = findViewById(R.id.battery_eta_text);
         mBmsRawText = findViewById(R.id.bms_raw_text);
         mWeatherText = findViewById(R.id.weather_text);
         mWeatherTemp = findViewById(R.id.weather_temp);
@@ -116,25 +118,28 @@ public class MainActivity extends Activity {
     }
 
     private void updateUI() {
-        // SOC: try SAIC charging service first (matches display), then VHAL
+        // SOC: display value only (SAIC or VHAL display SOC) — NO fallback to BMS raw
         String socSaic = mVehicleManager.callSaicMethod("charging", "getCurrentElectricQuantity");
         String socDsp = mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP);
-        String socDisplay = isValid(socSaic) ? socSaic : socDsp;
-        if (isValid(socDisplay)) mBatteryText.setText(socDisplay);
+        String socDisplay = isValid(socSaic) ? socSaic : (isValid(socDsp) ? socDsp : null);
+        if (socDisplay != null) mBatteryText.setText(socDisplay);
 
-        // Range: try SAIC service first, then cluster, then BMS
+        // Range: display value only (SAIC or cluster) — NO fallback to BMS raw
         String rangeSaic = mVehicleManager.callSaicMethod("charging", "getCurrentEnduranceMileage");
         String clstrRange = mVehicleManager.getPropertyValue(YFVehicleProperty.CLSTR_ELEC_RNG);
-        String bmsRange = mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_ESTD_ELEC_RNG);
-        String displayRange = isValid(rangeSaic) ? rangeSaic : (isValid(clstrRange) ? clstrRange : bmsRange);
-        if (isValid(displayRange)) mRangeText.setText(displayRange + " km");
+        String displayRange = isValid(rangeSaic) ? rangeSaic : (isValid(clstrRange) ? clstrRange : null);
+        if (displayRange != null) mRangeText.setText(displayRange + " km");
 
-        // BMS raw as secondary
+        // BMS raw always shown as secondary info (clearly labeled)
         String bmsSoc = mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC);
+        String bmsRange = mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_ESTD_ELEC_RNG);
         StringBuilder rawInfo = new StringBuilder("BMS: ");
         if (isValid(bmsSoc)) rawInfo.append(bmsSoc).append("% SOC");
         if (isValid(bmsRange)) rawInfo.append(" | ").append(bmsRange).append(" km");
         mBmsRawText.setText(rawInfo.toString());
+
+        // Battery ETA: "With current consumption, battery will last..."
+        updateBatteryEta();
 
         // Outside temp: SAIC AirCondition → VHAL
         String outsideTemp = mVehicleManager.getOutsideTemp();
@@ -145,6 +150,64 @@ public class MainActivity extends Activity {
         String insideTemp = mVehicleManager.getDriverTemp();
         if (!isValid(insideTemp)) insideTemp = mVehicleManager.getPropertyValue(YFVehicleProperty.HVAC_TEMPERATURE_CURRENT);
         if (isValid(insideTemp)) mTempInsideText.setText(insideTemp + "\u00B0C");
+    }
+
+    private static final float NOMINAL_CAPACITY_KWH = 70.0f;
+
+    private void updateBatteryEta() {
+        try {
+            // Get SOC (prefer display, fall back to BMS raw)
+            float soc = parseFloat(mVehicleManager.callSaicMethod("charging", "getCurrentElectricQuantity"));
+            if (soc <= 0) soc = parseFloat(mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
+            if (soc <= 0) soc = parseFloat(mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC));
+            if (soc <= 0) { mBatteryEtaText.setText(""); return; }
+
+            float packVolt = parseFloat(mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_VOL));
+            float packCrnt = parseFloat(mVehicleManager.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
+            float speed = parseFloat(mVehicleManager.callSaicMethod("condition", "getCarSpeed"));
+            if (speed <= 0) speed = parseFloat(mVehicleManager.getPropertyValue(YFVehicleProperty.PERF_VEHICLE_SPEED));
+
+            // Check if charging
+            float chrgSts = parseFloat(mVehicleManager.callSaicMethod("charging", "getChargingStatus"));
+            if (chrgSts == 1 || chrgSts == 2) {
+                mBatteryEtaText.setText("\u26A1 Charging...");
+                return;
+            }
+
+            float energyKwh = soc * NOMINAL_CAPACITY_KWH / 100f;
+            float powerKw = packVolt * Math.abs(packCrnt) / 1000f;
+
+            if (powerKw < 0.01f) {
+                mBatteryEtaText.setText("Minimal power draw");
+                return;
+            }
+
+            float hours = energyKwh / powerKw;
+
+            String eta;
+            if (speed > 5) {
+                // Driving
+                if (hours < 1) eta = String.format("~%d min driving remaining", (int)(hours * 60));
+                else if (hours < 24) eta = String.format("~%dh %dm driving remaining", (int)hours, (int)((hours % 1) * 60));
+                else eta = String.format("~%.0f hours driving remaining", hours);
+            } else {
+                // Parked / standby
+                if (hours < 24) eta = String.format("~%dh %dm standby remaining", (int)hours, (int)((hours % 1) * 60));
+                else {
+                    float days = hours / 24f;
+                    if (days < 7) eta = String.format("~%.1f days standby remaining", days);
+                    else eta = String.format("~%.0f days standby remaining", days);
+                }
+            }
+            mBatteryEtaText.setText(eta);
+        } catch (Exception e) {
+            mBatteryEtaText.setText("");
+        }
+    }
+
+    private static float parseFloat(String s) {
+        if (s == null || s.equals("N/A") || s.equals("Connecting...") || s.isEmpty()) return 0f;
+        try { return Float.parseFloat(s); } catch (Exception e) { return 0f; }
     }
 
     private boolean isValid(String val) {

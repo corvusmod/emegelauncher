@@ -70,6 +70,16 @@
                 android:layout_marginTop="2dp" />
 
             <TextView
+                android:id="@+id/battery_eta_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="?attr/colorTextSecondary"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="4dp" />
+
+            <TextView
                 android:id="@+id/bms_raw_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -77,7 +87,7 @@
                 android:textColor="?attr/colorTextTertiary"
                 android:textSize="12sp"
                 android:fontFamily="sans-serif"
-                android:layout_marginTop="6dp" />
+                android:layout_marginTop="4dp" />
         </LinearLayout>
 
         <!-- ============ Weather + Temp row ============ -->

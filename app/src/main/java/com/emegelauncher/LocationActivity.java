@@ -133,16 +133,6 @@ public class LocationActivity extends Activity {
         addRow("gps_enabled", "GPS Enabled");
         addRow("network_enabled", "Network Provider");
 
-        // Vehicle telemetry alongside
-        addSection("VEHICLE TELEMETRY");
-        addRow("veh_speed", "Vehicle Speed (km/h)");
-        addRow("veh_soc", "Battery SOC (%)");
-        addRow("veh_range", "Range (km)");
-        addRow("veh_gear", "Gear");
-        addRow("veh_odometer", "Odometer (km)");
-        addRow("veh_charging", "Charging");
-        addRow("veh_ignition", "Ignition");
-
         // Coordinate formats
         addSection("COORDINATES (OTHER FORMATS)");
         addRow("coord_dms", "DMS Format");
@@ -263,44 +253,18 @@ public class LocationActivity extends Activity {
             int utmZone = (int) Math.floor((lon + 180) / 6) + 1;
             updateTag("coord_utm", "Zone " + utmZone + (lat >= 0 ? "N" : "S"));
 
-            // Vehicle telemetry
-            float vehSpeed = readSaicFloat("condition", "getCarSpeed");
-            if (vehSpeed == 0) vehSpeed = readVhalFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
-            float soc = readSaicFloat("charging", "getCurrentElectricQuantity");
-            if (soc == 0) soc = readVhalFloat(YFVehicleProperty.BMS_PACK_SOC_DSP);
-            float range = readSaicFloat("charging", "getCurrentEnduranceMileage");
-            if (range == 0) range = readVhalFloat(YFVehicleProperty.BMS_ESTD_ELEC_RNG);
-            int gear = (int) readSaicFloat("condition", "getCarGear");
-            if (gear == 0) gear = (int) readVhalFloat(YFVehicleProperty.CURRENT_GEAR);
-            float odometer = readVhalFloat(YFVehicleProperty.SENSOR_TOTAL_MILEAGE);
-            int chrgSts = (int) readSaicFloat("charging", "getChargingStatus");
-            int ignition = (int) readVhalFloat(YFVehicleProperty.IGNITION_STATE);
-
-            updateTag("veh_speed", String.format("%.1f", vehSpeed));
-            updateTag("veh_soc", String.format("%.1f", soc));
-            updateTag("veh_range", String.format("%.0f", range));
-            updateTag("veh_gear", decodeGear(gear));
-            updateTag("veh_odometer", String.format("%.0f", odometer));
-            updateTag("veh_charging", chrgSts == 1 ? "AC" : chrgSts == 2 ? "DC" : "No");
-            updateTag("veh_ignition", String.valueOf(ignition));
-
-            // JSON snapshot
+            // JSON snapshot (location only)
             try {
                 JSONObject json = new JSONObject();
                 json.put("utc", time / 1000);
-                json.put("soc", Math.round(soc * 10) / 10.0);
                 json.put("lat", Math.round(lat * 1000000) / 1000000.0);
                 json.put("lon", Math.round(lon * 1000000) / 1000000.0);
                 json.put("alt", Math.round(alt));
-                json.put("speed", Math.round(vehSpeed));
-                json.put("gps_speed", Math.round(speedKmh));
-                json.put("is_charging", chrgSts > 0 ? 1 : 0);
-                json.put("is_parked", gear == 4 ? 1 : 0);
-                json.put("accuracy", Math.round(acc));
+                json.put("speed_kmh", Math.round(speedKmh));
+                json.put("accuracy_m", Math.round(acc));
                 json.put("bearing", Math.round(bearing));
                 json.put("satellites", mSatellitesUsed);
-                json.put("odometer", Math.round(odometer));
-                json.put("range", Math.round(range));
+                json.put("provider", provider);
                 updateTag("json_snapshot", json.toString(2));
             } catch (Exception e) {
                 updateTag("json_snapshot", "Error: " + e.getMessage());

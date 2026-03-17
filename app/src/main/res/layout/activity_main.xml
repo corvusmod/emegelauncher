@@ -1,0 +1,725 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorBgPrimary"
+    android:fadeScrollbars="true"
+    android:scrollbarThumbVertical="@android:color/darker_gray"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp">
+
+        <!-- ============ HERO: Battery & Range ============ -->
+        <LinearLayout
+            android:id="@+id/card_energy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/card_bg_selector"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingTop="28dp"
+            android:paddingBottom="20dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                style="@style/CardTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ENERGY" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="4dp">
+
+                <TextView
+                    android:id="@+id/battery_lvl"
+                    style="@style/HeroValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="%"
+                    android:textSize="28sp"
+                    android:textColor="?attr/colorTextTertiary"
+                    android:fontFamily="sans-serif-thin"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginBottom="8dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/range_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Waiting for data..."
+                android:textColor="@color/accent_teal"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:id="@+id/bms_raw_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="?attr/colorTextTertiary"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <!-- ============ Weather + Temp row ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <!-- Weather card -->
+            <LinearLayout
+                android:id="@+id/btn_weather"
+                android:layout_width="0dp"
+                android:layout_height="80dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/weather_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Weather"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/weather_temp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--\u00B0C"
+                    android:textColor="@color/accent_orange"
+                    android:textSize="22sp"
+                    android:fontFamily="sans-serif-light" />
+            </LinearLayout>
+
+            <!-- Inside temp card -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="80dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Inside"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/temp_inside"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--\u00B0C"
+                    android:textColor="@color/accent_green"
+                    android:textSize="22sp"
+                    android:fontFamily="sans-serif-light" />
+            </LinearLayout>
+
+            <!-- Outside temp card -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="80dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Outside"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/temp_outside"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--\u00B0C"
+                    android:textColor="@color/accent_blue"
+                    android:textSize="22sp"
+                    android:fontFamily="sans-serif-light" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Navigation (full width) ============ -->
+        <LinearLayout
+            android:id="@+id/btn_nav"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/card_bg_selector"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@android:drawable/ic_menu_mapmode"
+                android:tint="@color/accent_blue" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="Navigation"
+                android:textColor="?attr/colorTextPrimary"
+                android:textSize="17sp"
+                android:fontFamily="sans-serif" />
+        </LinearLayout>
+
+        <!-- ============ Media Row: Radio / Music ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:id="@+id/btn_radio"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/btn_star_big_on"
+                    android:tint="@color/accent_orange" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Radio"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_music"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_media_play"
+                    android:tint="@color/accent_blue" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Music"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Connectivity: Phone / 360 ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:id="@+id/btn_phone"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_call"
+                    android:tint="@color/accent_green" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Phone"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_360view"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_gallery"
+                    android:tint="@color/accent_red" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="360 View"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ CarPlay / Android Auto / Video ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:id="@+id/btn_carplay"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_share"
+                    android:tint="@color/accent_blue" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="CarPlay" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_androidauto"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_myplaces"
+                    android:tint="@color/accent_green" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Android Auto" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_video"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_media_play"
+                    android:tint="@color/accent_orange" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Vehicle Graphs & Info Row ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:id="@+id/btn_graphs"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_recent_history"
+                    android:tint="@color/accent_teal" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Graphs"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_vehicle_info"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_info_details"
+                    android:tint="@color/accent_purple" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Vehicle Info"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_location"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center_vertical"
+                android:paddingStart="24dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_compass"
+                    android:tint="@color/accent_green" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:text="Location"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Divider ============ -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="14dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/colorDivider" />
+
+        <!-- ============ Grid: Vehicle / Sys Settings / Apps / Launcher Settings ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:id="@+id/btn_vehicle"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_manage"
+                    android:tint="@color/accent_teal" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Vehicle" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_syssettings"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_preferences"
+                    android:tint="?attr/colorTextTertiary" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Settings" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_apps"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    android:tint="@color/accent_purple" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="All Apps" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_launcher_settings"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_edit"
+                    android:tint="@color/accent_purple" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Launcher" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Grid: Rescue / Touchpoint / Manual ============ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:id="@+id/btn_rescue"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_call"
+                    android:tint="@color/accent_red" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Rescue" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_touchpoint"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_compass"
+                    android:tint="@color/accent_orange" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Touchpoint" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_manual"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_help"
+                    android:tint="?attr/colorTextTertiary" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Manual" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============ Diagnostics ============ -->
+        <LinearLayout
+            android:id="@+id/btn_debug"
+            android:layout_width="match_parent"
+            android:layout_height="68dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/card_bg_selector"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@android:drawable/ic_menu_info_details"
+                android:tint="@color/accent_red" />
+
+            <TextView
+                style="@style/GridButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Diagnostics" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

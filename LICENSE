@@ -1,0 +1,41 @@
+Emegelauncher - Custom Launcher for MG Marvel R
+
+Copyright (C) 2026 Emegelauncher Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+----------------------------------------------------------------------
+
+ADDITIONAL CONDITION: COMMONS CLAUSE
+
+This software is additionally subject to the Commons Clause License
+Condition v1.0. See LICENSE-COMMONS-CLAUSE for the full text.
+
+In summary: You may NOT sell this software or any product or service
+whose value derives substantially from its functionality. This
+includes but is not limited to:
+  - Selling copies of the software
+  - Offering paid hosting or SaaS based on the software
+  - Bundling the software in a commercial product for sale
+  - Charging consulting/support fees specifically for this software
+
+Accepting voluntary donations is explicitly permitted and does not
+constitute "selling" under the Commons Clause.
+
+----------------------------------------------------------------------
+
+License files included in this repository:
+  LICENSE              - This file (summary + Commons Clause notice)
+  LICENSE-GPL3         - Full text of the GNU General Public License v3.0
+  LICENSE-COMMONS-CLAUSE - Full text of the Commons Clause v1.0

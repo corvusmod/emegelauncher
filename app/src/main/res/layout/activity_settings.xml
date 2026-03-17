@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/colorBgPrimary"
+    android:padding="20dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Launcher Settings"
+            android:textSize="22sp"
+            android:textColor="?attr/colorTextPrimary"
+            android:fontFamily="sans-serif-light" />
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="BACK"
+            android:textSize="13sp"
+            android:textColor="@color/accent_blue"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/card_bg_selector" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Section: Appearance -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="APPEARANCE"
+                android:textSize="12sp"
+                android:textColor="?attr/colorTextTertiary"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="8dp"
+                android:layout_marginStart="4dp" />
+
+            <LinearLayout
+                android:id="@+id/row_theme"
+                style="@style/SettingsRow"
+                android:layout_width="match_parent">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Dark Mode"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="16sp"
+                    android:fontFamily="sans-serif" />
+
+                <Switch
+                    android:id="@+id/switch_theme"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- Section: Default Launcher -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DEFAULT LAUNCHER"
+                android:textSize="12sp"
+                android:textColor="?attr/colorTextTertiary"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginStart="4dp" />
+
+            <LinearLayout
+                android:id="@+id/row_set_default"
+                style="@style/SettingsRow"
+                android:layout_width="match_parent">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Set as default home"
+                        android:textColor="?attr/colorTextPrimary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif" />
+
+                    <TextView
+                        android:id="@+id/txt_current_launcher"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Current: checking..."
+                        android:textColor="?attr/colorTextTertiary"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_set_default"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:gravity="center"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="SET"
+                    android:textSize="13sp"
+                    android:textColor="@color/accent_blue"
+                    android:fontFamily="sans-serif-medium"
+                    android:background="@drawable/card_bg_selector" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_restore_default"
+                style="@style/SettingsRow"
+                android:layout_width="match_parent">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Restore original launcher"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:textSize="16sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/btn_restore_default"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:gravity="center"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="RESTORE"
+                    android:textSize="13sp"
+                    android:textColor="@color/accent_orange"
+                    android:fontFamily="sans-serif-medium"
+                    android:background="@drawable/card_bg_selector" />
+            </LinearLayout>
+
+            <!-- Section: Tools -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TOOLS"
+                android:textSize="12sp"
+                android:textColor="?attr/colorTextTertiary"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginStart="4dp" />
+
+            <LinearLayout
+                android:id="@+id/row_save_logs"
+                style="@style/SettingsRow"
+                android:layout_width="match_parent">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Export to storage"
+                        android:textColor="?attr/colorTextPrimary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Logcat, diagnostics dump, or both"
+                        android:textColor="?attr/colorTextTertiary"
+                        android:textSize="11sp"
+                        android:fontFamily="sans-serif" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_save"
+                    android:tint="?attr/colorTextTertiary" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

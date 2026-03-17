@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ============ Dark Theme ============ -->
+    <style name="Theme.Emegelauncher" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/dark_bg_primary</item>
+        <item name="android:textColor">@color/dark_text_primary</item>
+        <item name="android:colorPrimaryDark">@color/dark_bg_primary</item>
+        <item name="android:statusBarColor">@color/dark_bg_primary</item>
+        <item name="android:navigationBarColor">@color/dark_bg_primary</item>
+        <item name="colorBgPrimary">@color/dark_bg_primary</item>
+        <item name="colorBgCard">@color/dark_bg_card</item>
+        <item name="colorBgCardPressed">@color/dark_bg_card_pressed</item>
+        <item name="colorTextPrimary">@color/dark_text_primary</item>
+        <item name="colorTextSecondary">@color/dark_text_secondary</item>
+        <item name="colorTextTertiary">@color/dark_text_tertiary</item>
+        <item name="colorDivider">@color/dark_divider</item>
+    </style>
+
+    <!-- ============ Light Theme ============ -->
+    <style name="Theme.Emegelauncher.Light" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/light_bg_primary</item>
+        <item name="android:textColor">@color/light_text_primary</item>
+        <item name="android:colorPrimaryDark">@color/light_bg_primary</item>
+        <item name="android:statusBarColor">@color/light_bg_primary</item>
+        <item name="android:navigationBarColor">@color/light_bg_primary</item>
+        <item name="colorBgPrimary">@color/light_bg_primary</item>
+        <item name="colorBgCard">@color/light_bg_card</item>
+        <item name="colorBgCardPressed">@color/light_bg_card_pressed</item>
+        <item name="colorTextPrimary">@color/light_text_primary</item>
+        <item name="colorTextSecondary">@color/light_text_secondary</item>
+        <item name="colorTextTertiary">@color/light_text_tertiary</item>
+        <item name="colorDivider">@color/light_divider</item>
+    </style>
+
+    <!-- Dark palette -->
+    <color name="dark_bg_primary">#0A0A0A</color>
+    <color name="dark_bg_card">#1A1A1E</color>
+    <color name="dark_bg_card_pressed">#2A2A2E</color>
+    <color name="dark_text_primary">#F5F5F7</color>
+    <color name="dark_text_secondary">#8E8E93</color>
+    <color name="dark_text_tertiary">#636366</color>
+    <color name="dark_divider">#2C2C2E</color>
+
+    <!-- Light palette -->
+    <color name="light_bg_primary">#F2F2F7</color>
+    <color name="light_bg_card">#FFFFFF</color>
+    <color name="light_bg_card_pressed">#E5E5EA</color>
+    <color name="light_text_primary">#1C1C1E</color>
+    <color name="light_text_secondary">#636366</color>
+    <color name="light_text_tertiary">#AEAEB2</color>
+    <color name="light_divider">#D1D1D6</color>
+
+    <!-- Accent colors (shared) -->
+    <color name="accent_blue">#0A84FF</color>
+    <color name="accent_green">#30D158</color>
+    <color name="accent_red">#FF453A</color>
+    <color name="accent_orange">#FF9F0A</color>
+    <color name="accent_teal">#64D2FF</color>
+    <color name="accent_purple">#BF5AF2</color>
+
+    <!-- Compat aliases (used by old layout references) -->
+    <color name="bg_primary">@color/dark_bg_primary</color>
+    <color name="bg_card">@color/dark_bg_card</color>
+    <color name="bg_card_pressed">@color/dark_bg_card_pressed</color>
+    <color name="background_light">@color/dark_bg_primary</color>
+    <color name="card_bg">@color/dark_bg_card</color>
+    <color name="card_bg_pressed">@color/dark_bg_card_pressed</color>
+    <color name="text_primary">@color/dark_text_primary</color>
+    <color name="text_secondary">@color/dark_text_secondary</color>
+    <color name="text_tertiary">@color/dark_text_tertiary</color>
+
+    <!-- Styles -->
+    <style name="GlanceText">
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:textColor">?attr/colorTextSecondary</item>
+    </style>
+
+    <style name="CardTitle">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">?attr/colorTextSecondary</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <style name="HeroValue">
+        <item name="android:fontFamily">sans-serif-thin</item>
+        <item name="android:textSize">72sp</item>
+        <item name="android:textColor">?attr/colorTextPrimary</item>
+    </style>
+
+    <style name="GridButton">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">?attr/colorTextSecondary</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="CarControlButton">
+        <item name="android:layout_width">140dp</item>
+        <item name="android:layout_height">140dp</item>
+        <item name="android:padding">24dp</item>
+        <item name="android:background">@drawable/card_bg_selector</item>
+        <item name="android:scaleType">centerInside</item>
+    </style>
+
+    <style name="SettingsRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="android:background">@drawable/card_bg_selector</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+    </style>
+</resources>

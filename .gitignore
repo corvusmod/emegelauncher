@@ -1,0 +1,46 @@
+# Build outputs
+/build/
+/app/build/
+*.apk
+*.aab
+*.dex
+*.class
+
+# Gradle
+/.gradle/
+local.properties
+
+# IDE
+/.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Signing keys
+*.keystore
+*.jks
+*.pk8
+*.pem
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+
+# Screenshots (local testing, not needed in repo)
+/screenshoots/
+
+# Old reference APKs
+DriveHub_Dort_*.apk
+
+# Previous approach artifacts
+*.cdex-error.zip
+
+#AI files
+GEMINI.md
+CLAUDE.md
+plan.md
+.claude
+.gemini

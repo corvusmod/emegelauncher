@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/colorBgPrimary"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="All Apps"
+            android:textSize="22sp"
+            android:textColor="?attr/colorTextPrimary"
+            android:fontFamily="sans-serif-light" />
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="BACK"
+            android:textSize="13sp"
+            android:textColor="@color/accent_blue"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/card_bg_selector" />
+    </LinearLayout>
+
+    <GridView
+        android:id="@+id/apps_grid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:numColumns="4"
+        android:verticalSpacing="20dp"
+        android:horizontalSpacing="12dp"
+        android:stretchMode="columnWidth"
+        android:gravity="center" />
+
+</LinearLayout>

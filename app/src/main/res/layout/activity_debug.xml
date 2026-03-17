@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/colorBgPrimary"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Diagnostics"
+            android:textSize="22sp"
+            android:textColor="?attr/colorTextPrimary"
+            android:fontFamily="sans-serif-light" />
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="BACK"
+            android:textSize="13sp"
+            android:textColor="@color/accent_blue"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/card_bg_selector" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tab_vhal"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:text="VHAL Properties"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/card_bg_selector" />
+
+        <TextView
+            android:id="@+id/tab_saic"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:gravity="center"
+            android:text="SAIC Services"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/card_bg_selector" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/filter_input"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginBottom="8dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:hint="Filter (e.g. BMS, TIRE, HVAC...)"
+        android:textColor="?attr/colorTextPrimary"
+        android:textColorHint="?attr/colorTextTertiary"
+        android:textSize="14sp"
+        android:background="@drawable/card_bg_selector"
+        android:singleLine="true"
+        android:imeOptions="actionDone"
+        android:inputType="text" />
+
+    <ListView
+        android:id="@+id/diagnostics_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="?attr/colorDivider"
+        android:dividerHeight="1dp" />
+
+</LinearLayout>

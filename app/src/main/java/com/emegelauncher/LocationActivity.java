@@ -114,6 +114,12 @@ public class LocationActivity extends Activity {
         addSection("VEHICLE SNAPSHOT");
         addRow("json_snapshot", "JSON Data");
 
+        // Address (from navigation service)
+        addSection("ADDRESS");
+        addRow("street_address", "Street");
+        addRow("city", "City");
+        addRow("country", "Country");
+
         // Position
         addSection("GPS POSITION");
         addRow("latitude", "Latitude");
@@ -221,6 +227,21 @@ public class LocationActivity extends Activity {
         updateTag("sats_used", String.valueOf(mSatellitesUsed));
         updateTag("sats_visible", String.valueOf(mSatellitesVisible));
 
+        // Street address from navigation service (works without active navigation)
+        try {
+            String locDesc = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+            if (locDesc != null && !locDesc.equals("N/A") && locDesc.startsWith("{")) {
+                JSONObject loc = new JSONObject(locDesc);
+                String street = loc.optString("streetName", "");
+                String house = loc.optString("houseNumber", "");
+                if (!street.isEmpty()) {
+                    updateTag("street_address", street + (house.isEmpty() ? "" : " " + house));
+                }
+                updateTag("city", loc.optString("cityName", "--"));
+                updateTag("country", loc.optString("countryName", "--"));
+            }
+        } catch (Exception ignored) {}
+
         if (mLastLocation != null) {
             double lat = mLastLocation.getLatitude();
             double lon = mLastLocation.getLongitude();
@@ -288,7 +309,7 @@ public class LocationActivity extends Activity {
     }
 
     private String decodeGear(int raw) {
-        switch (raw) { case 1: return "D"; case 2: return "N"; case 3: return "R"; case 4: return "P"; default: return String.valueOf(raw); }
+        switch (raw) { case 1: return "P"; case 2: return "R"; case 3: return "N"; case 4: return "D"; default: return String.valueOf(raw); }
     }
 
     private float readSaicFloat(String svc, String method) {

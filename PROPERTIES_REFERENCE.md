@@ -35,6 +35,12 @@ Layer 6: vehicleService_overseas (IVehicleAidlInterface)
   └─ 12 read methods (AVN ID, auth, activation, server URL)
 
 Total: 21 service connections, ~1195 readable data points
+
+DexClassLoader: AIDL stub classes loaded from SAIC APKs on the car at runtime.
+  └─ Packages: com.saicmotor.service.vehicle, com.saicvehicleservice,
+     com.saicmotor.service.engmode, com.saicmotor.adapterservice,
+     com.saicmotor.service.systemsettings
+  └─ No proprietary code bundled in our APK.
 ```
 
 ---
@@ -406,8 +412,8 @@ Available via VehicleSettingsService or ServiceManager.
 | Raw Value | Conversion | Example |
 |---|---|---|
 | Tire pressure | ÷100 = bar | 264 → 2.64 bar |
-| Consumption (ELEC_CSUMP_PERKM) | ÷10 = kWh/100km | 82.3 → 8.23 |
-| Avg consumption (CRNT_AVG_ELEC_CSUMP) | ÷10 = kWh/100km | 82.3 → 8.23 |
+| Consumption (ELEC_CSUMP_PERKM) | ÷100 = kWh/100km | 82.3 → 0.82 (parked) |
+| Avg consumption (CRNT_AVG_ELEC_CSUMP) | ÷100 = kWh/100km | 82.3 → 0.82 (parked) |
 | Charge time (CHRGNG_RMNNG_TIME) | 1023 = N/A | |
 | Target SOC (CHRG_TRGT_SOC) | BMS raw scale | 7 ≈ 100% display |
 | Gear (CURRENT_GEAR) | 1=D, 2=N, 3=R, 4=P | |

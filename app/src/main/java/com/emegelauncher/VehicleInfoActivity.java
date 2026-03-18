@@ -135,7 +135,7 @@ public class VehicleInfoActivity extends Activity {
         addRow("battery_heater", "Battery Heater");
         addRow("endurance_mode", "Extended Range Mode");
         addRow("bms_warning", "BMS Warning");
-        addRow("12v_battery", "12V Battery Voltage");
+        // 12V battery not accessible from head unit (TBox only)
 
         // HVAC
         addSection("CLIMATE");
@@ -143,8 +143,8 @@ public class VehicleInfoActivity extends Activity {
         addRow("ac_switch", "AC Compressor");
         addRow("auto_mode", "Auto Mode");
         addRow("econ_mode", "Econ Mode");
-        addRow("drv_temp", "Driver Temp");
-        addRow("psg_temp", "Passenger Temp");
+        addRow("drv_temp", "Driver HVAC Set Temp");
+        addRow("psg_temp", "Passenger HVAC Set Temp");
         addRow("outside_temp", "Outside Temp");
         addRow("fan_speed", "Fan Speed");
         addRow("loop_mode", "Recirc Mode");
@@ -224,24 +224,8 @@ public class VehicleInfoActivity extends Activity {
         addRow("ecall", "eCall State");
 
         // Lights
-        addSection("LIGHTS");
-        addRow("headlights", "Headlights");
-        addRow("highbeam", "High Beam");
-        addRow("foglight", "Fog Lights");
-        addRow("turn", "Turn Signals");
-        addRow("hazard", "Hazard Lights");
-        addRow("night_mode", "Night Mode");
-        addRow("brightness", "Display Brightness");
 
         // Misc
-        addSection("SYSTEM");
-        addRow("wireless_charger", "Wireless Charger");
-        addRow("bluetooth", "Bluetooth Status");
-        addRow("power_mode", "Power Mode");
-        addRow("nav_speed_limit", "Nav Speed Limit");
-        addRow("dms_status", "Driver Monitoring");
-        addRow("seatbelt_drv", "Driver Seatbelt");
-        addRow("seatbelt_psg", "Passenger Seatbelt");
     }
 
     private void update() {
@@ -273,7 +257,7 @@ public class VehicleInfoActivity extends Activity {
         updateTag("door_lock", saic("control", "getDoorLock"));
         updateTag("parking_brake", readProp(YFVehicleProperty.PARKING_BRAKE_ON));
         updateTag("drive_mode", readProp(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE));
-        updateTag("regen_level", readProp(YFVehicleProperty.REGENERATIVE_LEVEL));
+        updateTag("regen_level", readProp(YFVehicleProperty.AAD_EPTRGTNLVL));
         updateTag("one_pedal", readProp(YFVehicleProperty.SIGNAL_PEDAL_ON));
         updateTag("auto_hold", readProp(YFVehicleProperty.AUTO_HOLD_SWITCH));
         updateTag("esp", saic("control", "getEspSwitch"));
@@ -293,27 +277,25 @@ public class VehicleInfoActivity extends Activity {
         updateTag("battery_heater", saic("charging", "getDrivingBatteryHeat"));
         updateTag("endurance_mode", readProp(YFVehicleProperty.LONGER_ENDURANCE_MODE));
         updateTag("bms_warning", readProp(YFVehicleProperty.BMS_WRNNG_INFO));
-        String v12 = mVehicle.get12VBatteryVoltage();
-        updateTag("12v_battery", v12.equals("N/A") ? v12 : v12 + " V");
 
         // HVAC
         updateTag("hvac_power", saic("aircondition", "getHvacPowerStatus"));
         updateTag("ac_switch", saic("aircondition", "getAcSwitch"));
         updateTag("auto_mode", saic("aircondition", "getAutoStatus"));
         updateTag("econ_mode", saic("aircondition", "getEconStatus"));
-        updateTag("drv_temp", saic("aircondition", "getDrvTemp"));
-        updateTag("psg_temp", saic("aircondition", "getPsgTemp"));
+        updateTag("drv_temp", hvacVal(saic("aircondition", "getDrvTemp"), "°C"));
+        updateTag("psg_temp", hvacVal(saic("aircondition", "getPsgTemp"), "°C"));
         updateTag("outside_temp", saic("aircondition", "getOutCarTemp") + "°C");
-        updateTag("fan_speed", saic("aircondition", "getAirVolumeLevel"));
+        updateTag("fan_speed", hvacVal(saic("aircondition", "getAirVolumeLevel"), ""));
         updateTag("loop_mode", saic("aircondition", "getLoopMode"));
-        updateTag("blower_dir", saic("aircondition", "getBlowerDirectionMode"));
+        updateTag("blower_dir", hvacVal(saic("aircondition", "getBlowerDirectionMode"), ""));
         updateTag("front_defrost", saic("aircondition", "getFrontWindowDefroster"));
         updateTag("rear_defrost", saic("aircondition", "getBackWindowDefroster"));
         updateTag("drv_seat_heat", saic("aircondition", "getDrvSeatHeatLevel"));
         updateTag("psg_seat_heat", saic("aircondition", "getPsgSeatHeatLevel"));
         updateTag("drv_seat_vent", saic("aircondition", "getDrvSeatWindLevel"));
         updateTag("psg_seat_vent", saic("aircondition", "getPsgSeatWindLevel"));
-        updateTag("pm25_inside", saic("aircondition", "getPm25Concentration"));
+        String pm25val = saic("aircondition", "getPm25Concentration"); try { if (Float.parseFloat(pm25val) >= 250) pm25val = "No sensor (raw: " + pm25val + ")"; } catch (Exception ignored) {} updateTag("pm25_inside", pm25val);
         updateTag("ionizer", saic("aircondition", "getAnionStatus"));
         updateTag("dual_zone", saic("aircondition", "getTempDualZoneOn"));
 
@@ -349,7 +331,7 @@ public class VehicleInfoActivity extends Activity {
         // Doors & Windows
         updateTag("door_status", readProp(YFVehicleProperty.DLOCK_DOOR_OPEN_STS));
         updateTag("drv_window", saic("control", "getDriveWindow"));
-        updateTag("psg_window", saic("control", "getPassengerWindow"));
+        String psgWin = readProp(YFVehicleProperty.VEHICLE_PSGWINDOW); try { float pv = Float.parseFloat(psgWin); psgWin = String.format("%.0f", pv / 2.0f); } catch (Exception ignored) {} updateTag("psg_window", psgWin);
         updateTag("rl_window", saic("control", "getLeftRearWindow"));
         updateTag("rr_window", saic("control", "getRightRearWindow"));
         updateTag("sunroof", saic("control", "getSunroofSwitch"));
@@ -377,22 +359,8 @@ public class VehicleInfoActivity extends Activity {
         updateTag("ecall", saic("condition", "getEcallState"));
 
         // Lights
-        updateTag("headlights", readProp(YFVehicleProperty.HEADLIGHTS_STATE));
-        updateTag("highbeam", readProp(YFVehicleProperty.HIGH_BEAM_LIGHTS_STATE));
-        updateTag("foglight", readProp(YFVehicleProperty.FOG_LIGHTS_STATE));
-        updateTag("turn", readProp(YFVehicleProperty.TURN_SIGNAL_STATE));
-        updateTag("hazard", readProp(YFVehicleProperty.HAZARD_LIGHTS_STATE));
-        updateTag("night_mode", readProp(YFVehicleProperty.NIGHT_MODE));
-        updateTag("brightness", readProp(YFVehicleProperty.DISPLAY_BRIGHTNESS));
 
         // System
-        updateTag("wireless_charger", readProp(YFVehicleProperty.PHONE_WIRELESS_CHAEGER_WORKING_STATE));
-        updateTag("bluetooth", readProp(YFVehicleProperty.BLUETOOTH_STATUS));
-        updateTag("power_mode", readProp(YFVehicleProperty.PMS_PWR_MODE));
-        updateTag("nav_speed_limit", readProp(YFVehicleProperty.NAVIGATION_SPEED_LIMIT_VALUE));
-        updateTag("dms_status", readProp(YFVehicleProperty.DMS_SYSTEM_STATUS));
-        updateTag("seatbelt_drv", readProp(YFVehicleProperty.SENSOR_SEAT_BELT_DRVR_STATE));
-        updateTag("seatbelt_psg", readProp(YFVehicleProperty.SENSOR_SEAT_BELT_PSNG_STATE));
     }
 
     // ==================== Helpers ====================
@@ -417,7 +385,14 @@ public class VehicleInfoActivity extends Activity {
     }
 
     private String decodeGear(int raw) {
-        switch (raw) { case 1: return "D"; case 2: return "N"; case 3: return "R"; case 4: return "P"; default: return String.valueOf(raw); }
+        switch (raw) { case 1: return "P"; case 2: return "R"; case 3: return "N"; case 4: return "D"; default: return String.valueOf(raw); }
+    }
+
+    /** Format HVAC value: -1 means off/not set */
+    private String hvacVal(String val, String unit) {
+        if (val == null || val.equals("N/A")) return "N/A";
+        if (val.equals("-1") || val.equals("-1.0")) return "Off";
+        return val + unit;
     }
 
     private void addSection(String title) {

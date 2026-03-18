@@ -98,8 +98,12 @@ public class ArcGaugeView extends View {
         glowPaint.setStrokeWidth(glowStrokeW);
 
         float pad = glowStrokeW + 6;
-        arcRect.set(pad, pad, w - pad, h - pad);
-        glowRect.set(pad - 2, pad - 2, w - pad + 2, h - pad + 2);
+        // Force square arc area centered in the view
+        float arcSize = size - pad * 2;
+        float ox = (w - arcSize) / 2;
+        float oy = (h - arcSize) / 2;
+        arcRect.set(ox, oy, ox + arcSize, oy + arcSize);
+        glowRect.set(ox - 2, oy - 2, ox + arcSize + 2, oy + arcSize + 2);
 
         float startAngle = 135f;
         float sweepTotal = 270f;
@@ -109,10 +113,10 @@ public class ArcGaugeView extends View {
         // Background arc
         canvas.drawArc(arcRect, startAngle, sweepTotal, false, bgPaint);
 
-        // Tick marks
+        // Tick marks (use arc center, not view center)
         int numTicks = 20;
-        float cx = w / 2, cy = h / 2;
-        float tickInner = size / 2 - pad - strokeW / 2 - 8;
+        float cx = ox + arcSize / 2, cy = oy + arcSize / 2;
+        float tickInner = arcSize / 2 - strokeW / 2 - 8;
         float tickOuter = tickInner + 6;
         for (int i = 0; i <= numTicks; i++) {
             float angle = (float) Math.toRadians(startAngle + sweepTotal * i / numTicks);
@@ -143,8 +147,9 @@ public class ArcGaugeView extends View {
 
             // End dot
             float endAngle = (float) Math.toRadians(startAngle + sweepFg);
-            float dotX = cx + (size / 2 - pad) * (float) Math.cos(endAngle);
-            float dotY = cy + (size / 2 - pad) * (float) Math.sin(endAngle);
+            float dotR = arcSize / 2;
+            float dotX = cx + dotR * (float) Math.cos(endAngle);
+            float dotY = cy + dotR * (float) Math.sin(endAngle);
             Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dotPaint.setColor(0xFFFFFFFF);
             dotPaint.setShadowLayer(8, 0, 0, fgColor);

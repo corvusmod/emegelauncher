@@ -32,7 +32,7 @@
                 style="@style/CardTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ENERGY" />
+                android:text="@string/energy" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -63,7 +63,7 @@
                 android:id="@+id/range_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Waiting for data..."
+                android:text="@string/waiting_data"
                 android:textColor="@color/accent_teal"
                 android:textSize="16sp"
                 android:fontFamily="sans-serif"
@@ -115,7 +115,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Weather"
+                    android:text="@string/weather"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -130,7 +130,6 @@
                     android:fontFamily="sans-serif-light" />
             </LinearLayout>
 
-            <!-- Inside temp card -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="80dp"
@@ -147,13 +146,11 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Inside"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
 
                 <TextView
-                    android:id="@+id/temp_inside"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="--\u00B0C"
@@ -178,7 +175,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Outside"
+                    android:text="@string/outside"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -216,7 +213,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
-                android:text="Navigation"
+                android:text="@string/navigation"
                 android:textColor="?attr/colorTextPrimary"
                 android:textSize="17sp"
                 android:fontFamily="sans-serif" />
@@ -249,7 +246,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Radio"
+                    android:text="@string/radio"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -275,7 +272,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Music"
+                    android:text="@string/music"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -309,7 +306,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Phone"
+                    android:text="@string/phone"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -335,7 +332,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="360 View"
+                    android:text="@string/view_360"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -370,7 +367,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="CarPlay" />
+                    android:text="@string/carplay" />
             </LinearLayout>
 
             <LinearLayout
@@ -395,7 +392,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Android Auto" />
+                    android:text="@string/android_auto" />
             </LinearLayout>
 
             <LinearLayout
@@ -419,7 +416,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Video" />
+                    android:text="@string/video" />
             </LinearLayout>
         </LinearLayout>
 
@@ -450,7 +447,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Graphs"
+                    android:text="@string/graphs"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -477,7 +474,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Vehicle Info"
+                    android:text="@string/vehicle_info"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -503,7 +500,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Location"
+                    android:text="@string/location"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif" />
@@ -548,7 +545,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Vehicle" />
+                    android:text="@string/vehicle" />
             </LinearLayout>
 
             <LinearLayout
@@ -573,7 +570,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Settings" />
+                    android:text="@string/settings" />
             </LinearLayout>
 
             <LinearLayout
@@ -598,7 +595,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="All Apps" />
+                    android:text="@string/all_apps" />
             </LinearLayout>
 
             <LinearLayout
@@ -622,7 +619,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Launcher" />
+                    android:text="@string/launcher" />
             </LinearLayout>
         </LinearLayout>
 
@@ -654,7 +651,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Rescue" />
+                    android:text="@string/rescue" />
             </LinearLayout>
 
             <LinearLayout
@@ -679,7 +676,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Touchpoint" />
+                    android:text="@string/touchpoint" />
             </LinearLayout>
 
             <LinearLayout
@@ -703,32 +700,64 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Manual" />
+                    android:text="@string/manual" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ============ Diagnostics ============ -->
+        <!-- ============ Diagnostics / TBox Row ============ -->
         <LinearLayout
-            android:id="@+id/btn_debug"
             android:layout_width="match_parent"
-            android:layout_height="68dp"
-            android:layout_marginBottom="8dp"
-            android:background="@drawable/card_bg_selector"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
 
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@android:drawable/ic_menu_info_details"
-                android:tint="@color/accent_red" />
+            <LinearLayout
+                android:id="@+id/btn_debug"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_info_details"
+                    android:tint="@color/accent_red" />
 
             <TextView
                 style="@style/GridButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Diagnostics" />
+                android:text="@string/diagnostics" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_tbox"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_upload"
+                    android:tint="@color/accent_orange" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/tbox" />
+            </LinearLayout>
         </LinearLayout>
 
     </LinearLayout>

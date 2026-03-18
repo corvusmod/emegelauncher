@@ -93,12 +93,9 @@ public class TireDiagramView extends View {
         canvas.drawText("TIRE PRESSURE & TEMPERATURE", cx, cy - carH / 2 - 30, textPaint);
         textPaint.setTextSize(26f);
 
-        // Car body with gradient fill
+        // Car body outline (no fill - works on both light and dark themes)
         RectF carRect = new RectF(cx - carW / 2, cy - carH / 2, cx + carW / 2, cy + carH / 2);
-        carFillPaint.setShader(new LinearGradient(cx, cy - carH / 2, cx, cy + carH / 2,
-            0xFF222226, 0xFF1A1A1E, Shader.TileMode.CLAMP));
-        canvas.drawRoundRect(carRect, carW * 0.35f, carW * 0.25f, carFillPaint);
-        carFillPaint.setShader(null);
+        carPaint.setStrokeWidth(2.5f);
         canvas.drawRoundRect(carRect, carW * 0.35f, carW * 0.25f, carPaint);
 
         // Windshield line
@@ -125,18 +122,11 @@ public class TireDiagramView extends View {
             float tx = tirePos[i][0], ty = tirePos[i][1];
             int pColor = pressureColor(pressures[i]);
 
-            // Tire glow
-            Paint glowP = new Paint(Paint.ANTI_ALIAS_FLAG);
-            glowP.setColor(pColor & 0x20FFFFFF);
-            glowP.setShadowLayer(10, 0, 0, pColor & 0x40FFFFFF);
+            // Tire body
             tireRect.set(tx - 16, ty - 32, tx + 16, ty + 32);
-            canvas.drawRoundRect(tireRect, 6, 6, glowP);
-
-            // Tire body with gradient
-            tirePaint.setShader(new LinearGradient(tx - 16, ty, tx + 16, ty,
-                pColor, darkenColor(pColor, 0.3f), Shader.TileMode.CLAMP));
-            canvas.drawRoundRect(tireRect, 6, 6, tirePaint);
+            tirePaint.setColor(pColor);
             tirePaint.setShader(null);
+            canvas.drawRoundRect(tireRect, 6, 6, tirePaint);
 
             // Tire border
             tireStrokePaint.setColor(pColor);

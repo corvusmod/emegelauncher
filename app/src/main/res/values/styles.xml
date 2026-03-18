@@ -47,8 +47,8 @@
     <color name="light_bg_card">#FFFFFF</color>
     <color name="light_bg_card_pressed">#E5E5EA</color>
     <color name="light_text_primary">#1C1C1E</color>
-    <color name="light_text_secondary">#636366</color>
-    <color name="light_text_tertiary">#AEAEB2</color>
+    <color name="light_text_secondary">#48484A</color>
+    <color name="light_text_tertiary">#8E8E93</color>
     <color name="light_divider">#D1D1D6</color>
 
     <!-- Accent colors for dark theme (bright on dark bg) -->

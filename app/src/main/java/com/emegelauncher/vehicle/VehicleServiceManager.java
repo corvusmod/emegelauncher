@@ -95,6 +95,7 @@ public class VehicleServiceManager {
 
     // Layer 3: EngineerMode service
     private volatile Object mEngSystemSettings;
+    private volatile Object mEngSystemHardware;
 
     // Layer 4: SaicAdapterService (3 separate services)
     private volatile Object mAdapterGeneral;
@@ -283,10 +284,19 @@ public class VehicleServiceManager {
                         if (mEngSystemSettings != null) Log.d(TAG, "EngMode SystemSettings acquired");
                     }
                 } catch (Exception e) { Log.d(TAG, "EngMode system_setting failed: " + e.getMessage()); }
+                // Get system_hardware sub-service (has TBox, GNSS, BT, WiFi info)
+                try {
+                    Object hwBinder = engHub.getClass().getMethod("getService", String.class).invoke(engHub, "system_hardware");
+                    if (hwBinder instanceof IBinder) {
+                        String[] hwStubs = {"com.saicmotor.sdk.engmode.ISystemHardwareManager$Stub"};
+                        mEngSystemHardware = asInterface(hwStubs, (IBinder) hwBinder);
+                        if (mEngSystemHardware != null) Log.d(TAG, "EngMode SystemHardware acquired");
+                    }
+                } catch (Exception e) { Log.d(TAG, "EngMode system_hardware failed: " + e.getMessage()); }
             } catch (Exception e) { Log.d(TAG, "EngMode init failed: " + e.getMessage()); }
         }
         @Override
-        public void onServiceDisconnected(ComponentName name) { mEngSystemSettings = null; }
+        public void onServiceDisconnected(ComponentName name) { mEngSystemSettings = null; mEngSystemHardware = null; }
     };
 
     private void bindEngModeService() {
@@ -329,30 +339,33 @@ public class VehicleServiceManager {
 
     private static final String SYSSETTINGS_PKG = "com.saicmotor.service.systemsettings";
 
+    private static final String SYSSETTINGS_CLS = "com.saicmotor.service.systemsettings.SettingsService";
+
     private void bindSystemSettingsServices() {
-        // Each sub-service bound via a different intent action
+        // SystemSettingsService requires BOTH action AND explicit className
+        // (discovered from decompiled com.saicmotor.sdk.systemsettings.BaseManager.bindService)
         String[][] sysServices = {
             {"com.saicmotor.service.systemsettings.IBtService",
-             "com.saicmotor.service.systemsettings.IBtService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IBtService$Stub"},
             {"com.saicmotor.service.systemsettings.IGeneralService",
-             "com.saicmotor.service.systemsettings.IGeneralService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IGeneralService$Stub"},
             {"com.saicmotor.service.systemsettings.IMyCarService",
-             "com.saicmotor.service.systemsettings.IMyCarService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IMyCarService$Stub"},
             {"com.saicmotor.service.systemsettings.ISmartSoundService",
-             "com.saicmotor.service.systemsettings.ISmartSoundService$Stub"},
+             "com.saicmotor.sdk.systemsettings.ISmartSoundService$Stub"},
             {"com.saicmotor.service.systemsettings.IHotspotService",
-             "com.saicmotor.service.systemsettings.IHotspotService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IHotspotService$Stub"},
             {"com.saicmotor.service.systemsettings.IGdprService",
-             "com.saicmotor.service.systemsettings.IGdprService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IGdprService$Stub"},
             {"com.saicmotor.service.systemsettings.IWiFiService",
-             "com.saicmotor.service.systemsettings.IWiFiService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IWiFiService$Stub"},
             {"com.saicmotor.service.systemsettings.IDataUsageService",
-             "com.saicmotor.service.systemsettings.IDataUsageService$Stub"},
+             "com.saicmotor.sdk.systemsettings.IDataUsageService$Stub"},
         };
         for (String[] s : sysServices) {
             String action = s[0];
             String stubClass = s[1];
-            bindByAction(SYSSETTINGS_PKG, action, new String[]{stubClass}, svc -> {
+            bindByActionAndClass(SYSSETTINGS_PKG, SYSSETTINGS_CLS, action, new String[]{stubClass}, svc -> {
                 if (action.contains("IBtService")) { mSysBt = svc; Log.d(TAG, "SysBt acquired"); }
                 else if (action.contains("IGeneralService")) { mSysGeneral = svc; Log.d(TAG, "SysGeneral acquired"); }
                 else if (action.contains("IMyCarService")) { mSysMycar = svc; Log.d(TAG, "SysMycar acquired"); }
@@ -406,6 +419,23 @@ public class VehicleServiceManager {
                 @Override public void onServiceDisconnected(ComponentName n) {}
             }, Context.BIND_AUTO_CREATE);
         } catch (Exception e) { Log.d(TAG, "bindByAction " + action + " failed: " + e.getMessage()); }
+    }
+
+    /** Bind with both action AND explicit className (required by SystemSettingsService) */
+    private void bindByActionAndClass(String pkg, String cls, String action, String[] stubs, ServiceCallback cb) {
+        try {
+            Intent intent = new Intent();
+            intent.setAction(action);
+            intent.setClassName(pkg, cls);
+            mContext.bindService(intent, new ServiceConnection() {
+                @Override public void onServiceConnected(ComponentName n, IBinder s) {
+                    Object svc = asInterface(stubs, s);
+                    if (svc != null) cb.onConnected(svc);
+                    else Log.d(TAG, "bindByActionAndClass: asInterface null for " + action);
+                }
+                @Override public void onServiceDisconnected(ComponentName n) {}
+            }, Context.BIND_AUTO_CREATE);
+        } catch (Exception e) { Log.d(TAG, "bindByActionAndClass " + action + " failed: " + e.getMessage()); }
     }
 
     // ==================== Property reading ====================
@@ -792,6 +822,7 @@ public class VehicleServiceManager {
             case "control": svc = mControlService; break;
             case "charging": svc = mChargingService; break;
             case "engmode": svc = mEngSystemSettings; break;
+            case "enghardware": svc = mEngSystemHardware; break;
             case "adaptergeneral": svc = mAdapterGeneral; break;
             case "adaptermap": svc = mAdapterMap; break;
             case "adaptervoice": svc = mAdapterVoice; break;

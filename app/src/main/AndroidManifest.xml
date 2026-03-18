@@ -58,6 +58,12 @@
             android:exported="false" />
 
         <activity
+            android:name=".TboxActivity"
+            android:label="TBox Telematics"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".LocationActivity"
             android:label="Location &amp; GPS"
             android:screenOrientation="portrait"

@@ -433,22 +433,19 @@ public class GraphsActivity extends Activity {
     // ==================== Climate ====================
 
     private void buildClimate() {
-        mTempChart = newChart("Temperature", "°C", C_ORANGE);
-        mContent.addView(mTempChart, chartLP());
+        // No temperature chart — getDrvTemp only returns HVAC set temp, not measured cabin temp
+        // Cabin temp sensor exists but is only accessible via TBox (cloud), not head unit
 
         // Temp info labels
         LinearLayout row = newRow();
         row.setPadding(20, 12, 20, 12);
-        TextView insideLabel = newInfoLabel("Inside: --");
+        TextView insideLabel = newInfoLabel("HVAC Set: --");
         TextView outsideLabel = newInfoLabel("Outside: --");
-        TextView coolantLabel = newInfoLabel("Coolant: --");
         row.addView(insideLabel, new LinearLayout.LayoutParams(0, -2, 1f));
         row.addView(outsideLabel, new LinearLayout.LayoutParams(0, -2, 1f));
-        row.addView(coolantLabel, new LinearLayout.LayoutParams(0, -2, 1f));
         mContent.addView(row);
         insideLabel.setTag("climate_inside");
         outsideLabel.setTag("climate_outside");
-        coolantLabel.setTag("climate_coolant");
 
         // Air Quality section
         addDivider();
@@ -457,8 +454,7 @@ public class GraphsActivity extends Activity {
         aqHeader.setTextSize(12);
         mContent.addView(aqHeader, infoLP());
 
-        mPm25Chart = newChart("PM2.5 Inside", "µg/m³", C_TEAL);
-        mContent.addView(mPm25Chart, chartLP());
+        // PM2.5 chart removed — car has dust filter but no active PM2.5 sensor (CAL_AQS=00, value=253=sentinel)
 
         // Air quality detail labels
         TextView pm25InLabel = newInfoLabel("PM2.5 Inside: --");
@@ -589,7 +585,7 @@ public class GraphsActivity extends Activity {
 
         // Gear: SAIC condition → VHAL
         int gearVal = (int) readSaicFloat("condition", "getCarGear");
-        if (gearVal == 0) gearVal = (int) readFloat(YFVehicleProperty.CURRENT_GEAR);
+        if (gearVal == 0) gearVal = (int) readFloat(YFVehicleProperty.SENSOR_GEAR_STS);
         mGearText.setText("Gear: " + decodeGear(gearVal));
 
         // Range: display value only (SAIC or cluster) — NO fallback to BMS
@@ -673,12 +669,15 @@ public class GraphsActivity extends Activity {
 
         float targetSoc = readFloat(YFVehicleProperty.BMS_DISCHRG_TRGT_SOC_RESP);
         if (targetSoc <= 0) targetSoc = readFloat(YFVehicleProperty.CHRG_TRGT_SOC);
-        if (socRaw > 0 && socDsp > 0 && targetSoc > 0) {
-            float ratio = socDsp / socRaw;
-            int estDisplay = Math.min(100, Math.round(targetSoc * ratio));
-            mTargetSoc.setText("Target SOC: ~" + estDisplay + "% (BMS raw: " + (int) targetSoc + "%)");
+        // Target SOC mapping: 5=80%, 6=90%, 7=100% → (value+3)*10
+        if (targetSoc > 0 && targetSoc <= 10) {
+            int displayTarget = (int)((targetSoc + 3) * 10);
+            displayTarget = Math.min(100, displayTarget);
+            mTargetSoc.setText("Target SOC: " + displayTarget + "% (raw: " + (int) targetSoc + ")");
+        } else if (targetSoc > 10) {
+            mTargetSoc.setText("Target SOC: " + (int) targetSoc + "%");
         } else {
-            mTargetSoc.setText("Target SOC: " + (int) targetSoc + "% (BMS raw)");
+            mTargetSoc.setText("Target SOC: --");
         }
 
         mPlugStatus.setText("Plug: " + (readFloat(YFVehicleProperty.EV_CHARGE_PORT_CONNECTED) > 0 ? "Connected" : "Disconnected"));
@@ -827,25 +826,19 @@ public class GraphsActivity extends Activity {
     }
 
     private void updateClimate() {
-        if (mTempChart == null) return;
-        // Use SAIC AirCondition service (most reliable for HVAC data)
+        // Temperature chart removed - HVAC set temp only
+        // getDrvTemp returns HVAC SET temp (-1 when HVAC off)
         float inside = readServiceFloat("getDriverTemp");
-        if (inside == 0) inside = readFloat(YFVehicleProperty.HVAC_TEMPERATURE_CURRENT);
         float outside = readServiceFloat("getOutsideTemp");
         if (outside == 0) outside = readFloat(YFVehicleProperty.ENV_OUTSIDE_TEMPERATURE);
-        float coolant = readFloat(YFVehicleProperty.ENGINE_COOLANT_TEMP);
-        mTempChart.addPoint(inside);
 
-        updateTaggedLabel("climate_inside", "Inside: " + fmt(inside) + "°C");
+        updateTaggedLabel("climate_inside", "HVAC Set: " + (inside > 0 ? fmt(inside) + "°C" : "Off"));
         updateTaggedLabel("climate_outside", "Outside: " + fmt(outside) + "°C");
-        updateTaggedLabel("climate_coolant", "Coolant: " + fmt(coolant) + "°C");
 
-        float pm25in = readFloat(YFVehicleProperty.HVAC_PM25_CONCENTRATION);
-        mPm25Chart.addPoint(pm25in);
-
-        // Air quality — try SAIC service first, fallback to VHAL
-        String pm25InStr = mVehicle.getPm25Concentration();
-        if (pm25InStr.equals("N/A")) pm25InStr = fmt(readFloat(YFVehicleProperty.HVAC_PM25_CONCENTRATION));
+        // PM2.5: value 253 = no sensor (CAN sentinel 0xFD)
+        float pm25inSaic = readSaicFloat("aircondition", "getPm25Concentration");
+        String pm25InStr = (pm25inSaic >= 253 || pm25inSaic < 0) ? "No sensor" :
+            (pm25inSaic > 0 ? fmt(pm25inSaic) : "0");
         updateTaggedLabel("aq_pm25_in", "PM2.5 Inside: " + pm25InStr + " µg/m³");
         updateTaggedLabel("aq_pm25_out", "PM2.5 Outside: " + fmt(readFloat(YFVehicleProperty.HVAC_PM25_OUTCAR)) + " µg/m³");
 
@@ -886,10 +879,10 @@ public class GraphsActivity extends Activity {
 
     private static String decodeGear(int raw) {
         switch (raw) {
-            case 1: return "D";
-            case 2: return "N";
-            case 3: return "R";
-            case 4: return "P";
+            case 1: return "P";
+            case 2: return "R";
+            case 3: return "N";
+            case 4: return "D";
             default: return String.valueOf(raw);
         }
     }

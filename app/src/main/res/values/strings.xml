@@ -1,3 +1,66 @@
 <resources>
     <string name="app_name">Emegelauncher</string>
+    <!-- Main screen -->
+    <string name="energy">ENERGY</string>
+    <string name="waiting_data">Waiting for data…</string>
+    <string name="weather">Weather</string>
+    <string name="outside">Outside</string>
+    <string name="navigation">Navigation</string>
+    <string name="radio">Radio</string>
+    <string name="music">Music</string>
+    <string name="phone">Phone</string>
+    <string name="view_360">360 View</string>
+    <string name="carplay">CarPlay</string>
+    <string name="android_auto">Android Auto</string>
+    <string name="video">Video</string>
+    <string name="graphs">Graphs</string>
+    <string name="vehicle_info">Vehicle Info</string>
+    <string name="location">Location</string>
+    <string name="vehicle">Vehicle</string>
+    <string name="settings">Settings</string>
+    <string name="all_apps">All Apps</string>
+    <string name="launcher">Launcher</string>
+    <string name="rescue">Rescue</string>
+    <string name="touchpoint">Touchpoint</string>
+    <string name="manual">Manual</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="tbox">TBox</string>
+    <string name="back">BACK</string>
+    <!-- Settings -->
+    <string name="launcher_settings">Launcher Settings</string>
+    <string name="appearance">APPEARANCE</string>
+    <string name="theme">Theme</string>
+    <string name="auto_follow_car">Auto (follow car)</string>
+    <string name="change">CHANGE</string>
+    <string name="default_launcher">DEFAULT LAUNCHER</string>
+    <string name="set_as_default">Set as default home</string>
+    <string name="current_checking">Current: checking…</string>
+    <string name="restore_original">Restore original launcher</string>
+    <string name="set">SET</string>
+    <string name="restore">RESTORE</string>
+    <string name="tools">TOOLS</string>
+    <string name="export_storage">Export to storage</string>
+    <string name="export_desc">Logcat, diagnostics dump, or both</string>
+    <!-- Diagnostics -->
+    <string name="vhal_properties">VHAL Properties</string>
+    <string name="saic_services">SAIC Services</string>
+    <string name="filter_hint">Filter (e.g. BMS, TIRE, HVAC…)</string>
+    <!-- Theme dialog -->
+    <string name="theme_auto">Auto (follow car display)</string>
+    <string name="theme_dark">Always Dark</string>
+    <string name="theme_light">Always Light</string>
+    <!-- Export dialog -->
+    <string name="select_storage">Select storage:</string>
+    <string name="export_logcat">Export Logcat</string>
+    <string name="export_diag">Export Diagnostics Dump</string>
+    <string name="export_both">Export Both</string>
+    <!-- Battery ETA -->
+    <string name="minimal_power">Minimal power draw</string>
+    <string name="charging_active">⚡ Charging…</string>
+    <string name="min_driving">~%1$d min driving remaining</string>
+    <string name="hours_driving">~%1$dh %2$dm driving remaining</string>
+    <string name="hours_driving_long">~%1$.0f hours driving remaining</string>
+    <string name="hours_standby">~%1$dh %2$dm standby remaining</string>
+    <string name="days_standby">~%1$.1f days standby remaining</string>
+    <string name="days_standby_long">~%1$.0f days standby remaining</string>
 </resources>

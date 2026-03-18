@@ -17,7 +17,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="All Apps"
+            android:text="@string/all_apps"
             android:textSize="22sp"
             android:textColor="?attr/colorTextPrimary"
             android:fontFamily="sans-serif-light" />
@@ -29,7 +29,7 @@
             android:gravity="center"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:text="BACK"
+            android:text="@string/back"
             android:textSize="13sp"
             android:textColor="@color/accent_blue"
             android:fontFamily="sans-serif-medium"

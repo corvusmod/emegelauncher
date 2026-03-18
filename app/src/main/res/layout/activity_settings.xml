@@ -18,7 +18,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Launcher Settings"
+            android:text="@string/launcher_settings"
             android:textSize="22sp"
             android:textColor="?attr/colorTextPrimary"
             android:fontFamily="sans-serif-light" />
@@ -30,7 +30,7 @@
             android:gravity="center"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:text="BACK"
+            android:text="@string/back"
             android:textSize="13sp"
             android:textColor="@color/accent_blue"
             android:fontFamily="sans-serif-medium"
@@ -50,7 +50,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="APPEARANCE"
+                android:text="@string/appearance"
                 android:textSize="12sp"
                 android:textColor="?attr/colorTextTertiary"
                 android:fontFamily="sans-serif-medium"
@@ -72,7 +72,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Theme"
+                        android:text="@string/theme"
                         android:textColor="?attr/colorTextPrimary"
                         android:textSize="16sp"
                         android:fontFamily="sans-serif" />
@@ -81,7 +81,7 @@
                         android:id="@+id/theme_current"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Auto (follow car)"
+                        android:text="@string/auto_follow_car"
                         android:textColor="?attr/colorTextTertiary"
                         android:textSize="12sp"
                         android:fontFamily="sans-serif" />
@@ -90,7 +90,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="CHANGE"
+                    android:text="@string/change"
                     android:textSize="13sp"
                     android:textColor="@color/accent_blue"
                     android:fontFamily="sans-serif-medium" />
@@ -100,7 +100,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="DEFAULT LAUNCHER"
+                android:text="@string/default_launcher"
                 android:textSize="12sp"
                 android:textColor="?attr/colorTextTertiary"
                 android:fontFamily="sans-serif-medium"
@@ -123,7 +123,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Set as default home"
+                        android:text="@string/set_as_default"
                         android:textColor="?attr/colorTextPrimary"
                         android:textSize="16sp"
                         android:fontFamily="sans-serif" />
@@ -132,7 +132,7 @@
                         android:id="@+id/txt_current_launcher"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Current: checking..."
+                        android:text="@string/current_checking"
                         android:textColor="?attr/colorTextTertiary"
                         android:textSize="12sp"
                         android:fontFamily="sans-serif" />
@@ -145,7 +145,7 @@
                     android:gravity="center"
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
-                    android:text="SET"
+                    android:text="@string/set"
                     android:textSize="13sp"
                     android:textColor="@color/accent_blue"
                     android:fontFamily="sans-serif-medium"
@@ -161,7 +161,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Restore original launcher"
+                    android:text="@string/restore_original"
                     android:textColor="?attr/colorTextPrimary"
                     android:textSize="16sp"
                     android:fontFamily="sans-serif" />
@@ -173,7 +173,7 @@
                     android:gravity="center"
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
-                    android:text="RESTORE"
+                    android:text="@string/restore"
                     android:textSize="13sp"
                     android:textColor="@color/accent_orange"
                     android:fontFamily="sans-serif-medium"
@@ -184,7 +184,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="TOOLS"
+                android:text="@string/tools"
                 android:textSize="12sp"
                 android:textColor="?attr/colorTextTertiary"
                 android:fontFamily="sans-serif-medium"
@@ -207,7 +207,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Export to storage"
+                        android:text="@string/export_storage"
                         android:textColor="?attr/colorTextPrimary"
                         android:textSize="16sp"
                         android:fontFamily="sans-serif" />
@@ -215,7 +215,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Logcat, diagnostics dump, or both"
+                        android:text="@string/export_desc"
                         android:textColor="?attr/colorTextTertiary"
                         android:textSize="11sp"
                         android:fontFamily="sans-serif" />

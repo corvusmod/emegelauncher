@@ -30,7 +30,6 @@ public class MainActivity extends Activity {
     private WeatherManager mWeatherManager;
 
     private TextView mTempText;
-    private TextView mTempInsideText;
     private TextView mBatteryText;
     private TextView mRangeText;
     private TextView mBatteryEtaText;
@@ -58,7 +57,6 @@ public class MainActivity extends Activity {
         });
 
         mTempText = findViewById(R.id.temp_outside);
-        mTempInsideText = findViewById(R.id.temp_inside);
         mBatteryText = findViewById(R.id.battery_lvl);
         mRangeText = findViewById(R.id.range_text);
         mBatteryEtaText = findViewById(R.id.battery_eta_text);
@@ -88,7 +86,7 @@ public class MainActivity extends Activity {
         findViewById(R.id.btn_vehicle_info).setOnClickListener(v -> startActivity(new Intent(this, VehicleInfoActivity.class)));
         findViewById(R.id.btn_location).setOnClickListener(v -> startActivity(new Intent(this, LocationActivity.class)));
         findViewById(R.id.btn_apps).setOnClickListener(v -> startActivity(new Intent(this, AppsActivity.class)));
-        findViewById(R.id.btn_debug).setOnClickListener(v -> startActivity(new Intent(this, DebugActivity.class)));
+        findViewById(R.id.btn_debug).setOnClickListener(v -> startActivity(new Intent(this, DebugActivity.class))); findViewById(R.id.btn_tbox).setOnClickListener(v -> startActivity(new Intent(this, TboxActivity.class)));
         findViewById(R.id.btn_launcher_settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
     }
 
@@ -147,9 +145,6 @@ public class MainActivity extends Activity {
         if (isValid(outsideTemp)) mTempText.setText(outsideTemp + "\u00B0C");
 
         // Inside temp: SAIC driver temp → VHAL
-        String insideTemp = mVehicleManager.getDriverTemp();
-        if (!isValid(insideTemp)) insideTemp = mVehicleManager.getPropertyValue(YFVehicleProperty.HVAC_TEMPERATURE_CURRENT);
-        if (isValid(insideTemp)) mTempInsideText.setText(insideTemp + "\u00B0C");
     }
 
     private static final float NOMINAL_CAPACITY_KWH = 70.0f;
@@ -178,7 +173,7 @@ public class MainActivity extends Activity {
             float powerKw = packVolt * Math.abs(packCrnt) / 1000f;
 
             if (powerKw < 0.01f) {
-                mBatteryEtaText.setText("Minimal power draw");
+                mBatteryEtaText.setText(getString(R.string.minimal_power));
                 return;
             }
 

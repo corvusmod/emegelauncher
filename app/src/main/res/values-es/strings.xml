@@ -1,0 +1,66 @@
+<resources>
+    <string name="app_name">Emegelauncher</string>
+    <!-- Pantalla principal -->
+    <string name="energy">ENERGÍA</string>
+    <string name="waiting_data">Esperando datos…</string>
+    <string name="weather">Clima</string>
+    <string name="outside">Exterior</string>
+    <string name="navigation">Navegación</string>
+    <string name="radio">Radio</string>
+    <string name="music">Música</string>
+    <string name="phone">Teléfono</string>
+    <string name="view_360">Vista 360</string>
+    <string name="carplay">CarPlay</string>
+    <string name="android_auto">Android Auto</string>
+    <string name="video">Vídeo</string>
+    <string name="graphs">Gráficos</string>
+    <string name="vehicle_info">Info Vehículo</string>
+    <string name="location">Ubicación</string>
+    <string name="vehicle">Vehículo</string>
+    <string name="settings">Ajustes</string>
+    <string name="all_apps">Aplicaciones</string>
+    <string name="launcher">Launcher</string>
+    <string name="rescue">Rescate</string>
+    <string name="touchpoint">Touchpoint</string>
+    <string name="manual">Manual</string>
+    <string name="diagnostics">Diagnósticos</string>
+    <string name="tbox">TBox</string>
+    <string name="back">VOLVER</string>
+    <!-- Ajustes -->
+    <string name="launcher_settings">Ajustes del Launcher</string>
+    <string name="appearance">APARIENCIA</string>
+    <string name="theme">Tema</string>
+    <string name="auto_follow_car">Auto (seguir pantalla del coche)</string>
+    <string name="change">CAMBIAR</string>
+    <string name="default_launcher">LAUNCHER PREDETERMINADO</string>
+    <string name="set_as_default">Establecer como pantalla de inicio</string>
+    <string name="current_checking">Actual: comprobando…</string>
+    <string name="restore_original">Restaurar launcher original</string>
+    <string name="set">ESTABLECER</string>
+    <string name="restore">RESTAURAR</string>
+    <string name="tools">HERRAMIENTAS</string>
+    <string name="export_storage">Exportar a almacenamiento</string>
+    <string name="export_desc">Logcat, volcado de diagnósticos, o ambos</string>
+    <!-- Diagnósticos -->
+    <string name="vhal_properties">Propiedades VHAL</string>
+    <string name="saic_services">Servicios SAIC</string>
+    <string name="filter_hint">Filtrar (ej. BMS, TIRE, HVAC…)</string>
+    <!-- Diálogo de tema -->
+    <string name="theme_auto">Auto (seguir pantalla del coche)</string>
+    <string name="theme_dark">Siempre Oscuro</string>
+    <string name="theme_light">Siempre Claro</string>
+    <!-- Diálogo de exportación -->
+    <string name="select_storage">Seleccionar almacenamiento:</string>
+    <string name="export_logcat">Exportar Logcat</string>
+    <string name="export_diag">Exportar Volcado de Diagnósticos</string>
+    <string name="export_both">Exportar Ambos</string>
+    <!-- Batería ETA -->
+    <string name="minimal_power">Consumo mínimo</string>
+    <string name="charging_active">⚡ Cargando…</string>
+    <string name="min_driving">~%1$d min conduciendo</string>
+    <string name="hours_driving">~%1$dh %2$dm conduciendo</string>
+    <string name="hours_driving_long">~%1$.0f horas conduciendo</string>
+    <string name="hours_standby">~%1$dh %2$dm en reposo</string>
+    <string name="days_standby">~%1$.1f días en reposo</string>
+    <string name="days_standby_long">~%1$.0f días en reposo</string>
+</resources>

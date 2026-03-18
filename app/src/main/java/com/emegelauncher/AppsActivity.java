@@ -60,26 +60,47 @@ public class AppsActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_MAIN, null);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
 
-        // Packages to hide: system services, background services, and the launcher itself
+        // Hide system/service/OEM apps. User-installed apps always show.
         java.util.Set<String> hidden = new java.util.HashSet<>(java.util.Arrays.asList(
+            // This launcher
             "com.emegelauncher",
+            // SAIC services (background, no UI for user)
             "com.saicmotor.service.vehicle", "com.saicmotor.service.engmode",
             "com.saicmotor.service.btcall", "com.saicmotor.service.radio",
             "com.saicmotor.service.media", "com.saicmotor.service.systemsettings",
             "com.saicmotor.service.aroundview", "com.saicmotor.adapterservice",
             "com.saicmotor.mapservice", "com.saicmotor.voiceservice",
             "com.saicmotor.voicetts", "com.saicmotor.voicevui", "com.saicmotor.voiceagent",
-            "com.saicmotor.hmi.eol", "com.saicmotor.hmi.hvac",
-            "com.saicmotor.hmi.clusterprojection",
-            "com.saicmotor.update", "com.saicmotor.hmi.engmode",
             "com.saicvehicleservice",
+            // SAIC HMI apps (already accessible from launcher shortcuts)
+            "com.saicmotor.hmi.eol", "com.saicmotor.hmi.hvac",
+            "com.saicmotor.hmi.clusterprojection", "com.saicmotor.hmi.engmode",
+            "com.saicmotor.hmi.launcher", "com.saicmotor.hmi.aroundview",
+            "com.saicmotor.hmi.btcall", "com.saicmotor.hmi.radio",
+            "com.saicmotor.hmi.music", "com.saicmotor.hmi.video",
+            "com.saicmotor.hmi.vehiclesettings", "com.saicmotor.hmi.systemsettings",
+            "com.saicmotor.hmi.pdfreader", "com.saicmotor.weathers",
+            "com.saicmotor.rescuecall", "com.saicmotor.saicinbox",
+            "com.saicmotor.update", "com.saicmotor.onlinemedia",
+            "com.saic.saicmaintenance",
+            // SAIC system utilities
+            "com.saicmotor.hmi.ep21avnlogin", "com.saicmotor.ep21avnlogin", "com.saicmotor.ep21avnlogin",
+            // YFVE system services
             "com.yfve.carotherservice", "com.yfve.usbupdate", "com.yfve.fileservice",
             "com.yfve.server.devicemanager",
+            // Allgo (CarPlay/Android Auto — accessible from shortcuts)
             "com.allgo.carplay.service", "com.allgo.app.androidauto",
             "com.allgo.rui", "com.allgo.remoteui.mediabrowserservice",
             "com.allgo.mirroring.control.service", "com.allgo.service.mirroringcontrol",
+            // Android system apps
             "android.car.usb.handler", "com.android.shell",
-            "com.android.settings.intelligence", "com.android.statementservice"
+            "com.android.settings.intelligence", "com.android.statementservice",
+            "com.android.systemui", "com.android.car.trust",
+            "com.android.camera2", "com.android.camera",
+            // Navigation (accessible from shortcut)
+            "com.telenav.app.arp",
+            // ABUpdate (OTA service)
+            "com.abupdate.ota"
         ));
 
         List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);

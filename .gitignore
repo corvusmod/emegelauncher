@@ -28,6 +28,7 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+/logs/
 
 # Screenshots (local testing, not needed in repo)
 /screenshoots/

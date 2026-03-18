@@ -53,7 +53,7 @@ public class SettingsActivity extends Activity {
         TextView themeLabel = findViewById(R.id.theme_current);
         updateThemeLabel(themeLabel);
         findViewById(R.id.row_theme).setOnClickListener(v -> {
-            String[] options = {"Auto (follow car display)", "Always Dark", "Always Light"};
+            String[] options = {getString(R.string.theme_auto), getString(R.string.theme_dark), getString(R.string.theme_light)};
             new AlertDialog.Builder(this)
                 .setTitle("Theme")
                 .setItems(options, (d, which) -> {
@@ -80,9 +80,9 @@ public class SettingsActivity extends Activity {
     private void updateThemeLabel(TextView label) {
         String mode = ThemeHelper.getThemeMode(this);
         switch (mode) {
-            case ThemeHelper.MODE_AUTO: label.setText("Auto (follow car)"); break;
-            case ThemeHelper.MODE_DARK: label.setText("Always Dark"); break;
-            case ThemeHelper.MODE_LIGHT: label.setText("Always Light"); break;
+            case ThemeHelper.MODE_AUTO: label.setText(getString(R.string.auto_follow_car)); break;
+            case ThemeHelper.MODE_DARK: label.setText(getString(R.string.theme_dark)); break;
+            case ThemeHelper.MODE_LIGHT: label.setText(getString(R.string.theme_light)); break;
             default: label.setText(mode); break;
         }
     }
@@ -212,9 +212,9 @@ public class SettingsActivity extends Activity {
             names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
         }
 
-        String[] actions = {"Export Logcat", "Export Diagnostics Dump", "Export Both"};
+        String[] actions = {getString(R.string.export_logcat), getString(R.string.export_diag), getString(R.string.export_both)};
         new AlertDialog.Builder(this)
-            .setTitle("Select storage:")
+            .setTitle(getString(R.string.select_storage))
             .setItems(names, (d1, volIdx) -> {
                 File vol = volumes.get(volIdx).path;
                 new AlertDialog.Builder(this)

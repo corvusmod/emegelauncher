@@ -55,9 +55,9 @@ public class VehicleInfoActivity extends Activity {
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         header.addView(title);
         TextView back = new TextView(this);
-        back.setText("BACK");
+        back.setText(getString(R.string.back));
         back.setTextSize(13);
-        back.setTextColor(0xFF0A84FF);
+        back.setTextColor(ThemeHelper.accentBlue(this));
         back.setPadding(20, 12, 20, 12);
         back.setOnClickListener(v -> finish());
         header.addView(back);
@@ -174,6 +174,14 @@ public class VehicleInfoActivity extends Activity {
         addRow("speed_assist", "Speed Assist Mode");
         addRow("auto_beam", "Auto High Beam");
 
+        addRow("apa_sts", "APA Status");
+        addRow("apa_mode", "APA Parking Mode");
+        addRow("apa_avlbly", "APA Available (VHAL)");
+        addRow("cal_apa", "CAL Auto Parking");
+        addRow("cal_avp", "CAL Auto Valet Parking");
+        addRow("drive_mode", "Drive Mode");
+        addRow("drv_mode_switch", "Drive Mode Switch");
+
         // Comfort
         addSection("COMFORT & CONVENIENCE");
         addRow("ambient_on", "Ambient Light");
@@ -189,6 +197,8 @@ public class VehicleInfoActivity extends Activity {
         addRow("inductive_tailgate", "Hands-Free Tailgate");
         addRow("mirror_fold", "Mirror Auto Fold");
         addRow("psg_airbag", "Passenger Airbag");
+        addRow("nearfield_unlock", "Nearfield Unlock Mode");
+        addRow("bt_key_learn", "BT Key Learn Status");
 
         // Doors & Windows
         addSection("DOORS & WINDOWS");
@@ -223,9 +233,48 @@ public class VehicleInfoActivity extends Activity {
         addRow("service_km", "km to Service");
         addRow("ecall", "eCall State");
 
-        // Lights
+        // Lights (SAIC-specific VHAL properties — Android standard ones return 0)
+        addSection("LIGHTS");
+        addRow("low_beam", "Low Beam (Dipped)");
+        addRow("high_beam", "High Beam (Main)");
+        addRow("front_fog", "Front Fog Light");
+        addRow("rear_fog", "Rear Fog Light");
+        addRow("left_indicator", "Left Indicator");
+        addRow("right_indicator", "Right Indicator");
+        addRow("side_lights", "Side Lights / DRL");
+        addRow("parking_lights", "Parking Lights");
+        addRow("auto_high_beam", "Auto High Beam");
 
-        // Misc
+        // Display & System (Layer 5 SystemSettingsService + VHAL)
+        addSection("DISPLAY & SYSTEM");
+        addRow("sys_night_mode", "Night Mode");
+        addRow("sys_auto_daynight", "Auto Day/Night");
+        addRow("sys_brightness", "Screen Brightness");
+        addRow("sys_24hour", "24h Time Format");
+        addRow("sys_bt_enabled", "Bluetooth");
+        addRow("sys_bt_name", "BT Device Name");
+        addRow("sys_carplay", "CarPlay Connected");
+        addRow("sys_wifi", "WiFi");
+        addRow("sys_mcu_ver", "MCU Version");
+        addRow("sys_mpu_ver", "MPU Version");
+        addRow("sys_tbox_ver", "TBox Version");
+        addRow("sys_device_name", "Device Name");
+        addRow("sys_vehicle_type", "Vehicle Type");
+
+        // Additional sensors
+        addSection("SENSORS");
+        addRow("g_force", "G-Force (longitudinal)");
+        addRow("seatbelt_psg", "Passenger Seatbelt");
+        addRow("tailgate_pos_vhal", "Tailgate Position");
+        addRow("dtc_indicator", "DTC (Diagnostic Codes)");
+
+        addSection("CLOUD (iSMART)");
+        addRow("cloud_cabin_temp", "Cabin Temperature");
+        addRow("cloud_12v", "12V Battery");
+        addRow("cloud_trip_today", "Mileage Today");
+        addRow("cloud_trip_charge", "Mileage Since Charge");
+        addRow("cloud_journey", "Current Journey");
+        addRow("cloud_age", "Cloud Data Age");
     }
 
     private void update() {
@@ -256,7 +305,6 @@ public class VehicleInfoActivity extends Activity {
         updateTag("odometer", readProp(YFVehicleProperty.SENSOR_TOTAL_MILEAGE) + " km");
         updateTag("door_lock", saic("control", "getDoorLock"));
         updateTag("parking_brake", readProp(YFVehicleProperty.PARKING_BRAKE_ON));
-        updateTag("drive_mode", readProp(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE));
         updateTag("regen_level", readProp(YFVehicleProperty.AAD_EPTRGTNLVL));
         updateTag("one_pedal", readProp(YFVehicleProperty.SIGNAL_PEDAL_ON));
         updateTag("auto_hold", readProp(YFVehicleProperty.AUTO_HOLD_SWITCH));
@@ -312,6 +360,20 @@ public class VehicleInfoActivity extends Activity {
         updateTag("drowsiness", saic("setting", "getDrowsinessMonitorSysOn"));
         updateTag("speed_assist", saic("setting", "getSpeedAsstMode"));
         updateTag("auto_beam", saic("setting", "getAutoMainBeamControl"));
+        updateTag("apa_sts", readProp(YFVehicleProperty.APA_STS));
+        updateTag("apa_mode", readProp(YFVehicleProperty.APA_AUTO_PARKING_MODE));
+        updateTag("apa_avlbly", readProp(YFVehicleProperty.SENSOR_APAAVLBLY));
+        updateTag("cal_apa", readProp(YFVehicleProperty.CAL_AUTOMATED_PARKING_SYSTEM));
+        updateTag("cal_avp", readProp(YFVehicleProperty.CAL_AUTOMATED_VALET_PARKING));
+        // Drive mode decode: 0=Eco, 1=Normal, 2=Sport, 6=Winter
+        String drvModeRaw = readProp(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
+        String drvModeLabel = drvModeRaw;
+        try {
+            int dm = Integer.parseInt(drvModeRaw);
+            switch (dm) { case 0: drvModeLabel = "Eco (0)"; break; case 1: drvModeLabel = "Normal (1)"; break; case 2: drvModeLabel = "Sport (2)"; break; case 6: drvModeLabel = "Winter (6)"; break; default: drvModeLabel = drvModeRaw + " (unknown)"; }
+        } catch (Exception ignored) {}
+        updateTag("drive_mode", drvModeLabel);
+        updateTag("drv_mode_switch", readProp(YFVehicleProperty.AAD_DRV_MODE_SWITCH));
 
         // Comfort
         updateTag("ambient_on", saic("setting", "getAmbtLightGlbOn"));
@@ -327,6 +389,8 @@ public class VehicleInfoActivity extends Activity {
         updateTag("inductive_tailgate", saic("setting", "getInductiveTailgate"));
         updateTag("mirror_fold", saic("setting", "getOuterRearviewFold"));
         updateTag("psg_airbag", saic("setting", "getPsgSafetyAirbagOn"));
+        updateTag("nearfield_unlock", saic("setting", "getNearfieldUnlockMode"));
+        updateTag("bt_key_learn", saic("setting", "getBtKeyLearnStatus"));
 
         // Doors & Windows
         updateTag("door_status", readProp(YFVehicleProperty.DLOCK_DOOR_OPEN_STS));
@@ -358,9 +422,55 @@ public class VehicleInfoActivity extends Activity {
         updateTag("service_km", saic("condition", "getNextResetMileage") + " km");
         updateTag("ecall", saic("condition", "getEcallState"));
 
-        // Lights
+        // Lights (SAIC-specific VHAL properties)
+        updateTag("low_beam", decodeBool(readProp(YFVehicleProperty.DIPD_BEAM_LGHT)));
+        updateTag("high_beam", decodeBool(readProp(YFVehicleProperty.MAIN_BEAM_LGHT)));
+        updateTag("front_fog", decodeBool(readProp(YFVehicleProperty.FRT_FOG_LGHT)));
+        updateTag("rear_fog", decodeBool(readProp(YFVehicleProperty.RR_FOG_LGHT)));
+        updateTag("left_indicator", decodeBool(readProp(YFVehicleProperty.LDIRCN_IO)));
+        updateTag("right_indicator", decodeBool(readProp(YFVehicleProperty.RDIRCN_IO)));
+        updateTag("side_lights", readProp(YFVehicleProperty.VEH_SIDE_LGHT));
+        updateTag("parking_lights", readProp(YFVehicleProperty.PARK_LAMP_OPT));
+        updateTag("auto_high_beam", readProp(YFVehicleProperty.LAMP_AUTO_MAIN_BEAM));
 
-        // System
+        // Display & System (Layer 5 SystemSettingsService)
+        updateTag("sys_night_mode", saic("sysgeneral", "getIsNightMode"));
+        updateTag("sys_auto_daynight", saic("sysgeneral", "getDayNightAutoMode"));
+        updateTag("sys_brightness", saic("sysgeneral", "getBrightness"));
+        updateTag("sys_24hour", saic("sysgeneral", "get24Hour"));
+        updateTag("sys_bt_enabled", saic("sysbt", "getBluetoothEnabled"));
+        updateTag("sys_bt_name", saic("sysbt", "getLocalDeviceName"));
+        updateTag("sys_carplay", saic("sysbt", "getCarPlayConnected"));
+        updateTag("sys_wifi", saic("syswifi", "getWifiEnabled"));
+        updateTag("sys_mcu_ver", saic("sysmycar", "getMcuVersion"));
+        updateTag("sys_mpu_ver", saic("sysmycar", "getMpuVersion"));
+        updateTag("sys_tbox_ver", saic("sysmycar", "getTboxVersion"));
+        updateTag("sys_device_name", saic("sysmycar", "getDeviceName"));
+        updateTag("sys_vehicle_type", saic("sysmycar", "getVehicleType"));
+
+        // Sensors
+        updateTag("g_force", readProp(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT) + " G");
+        updateTag("seatbelt_psg", readProp(YFVehicleProperty.SENSOR_SEAT_BELT_PSNG_STATE).equals("1") ? "Unbuckled" : "Buckled");
+        updateTag("tailgate_pos_vhal", readProp(YFVehicleProperty.DLOCK_LDSPC_OPEN_STS));
+        String dtcRaw = readProp(YFVehicleProperty.DTC_PROPID_GETDTCLOG);
+        updateTag("dtc_indicator", (dtcRaw != null && !dtcRaw.equals("N/A") && !dtcRaw.isEmpty()) ? "DTC data present: " + dtcRaw : "No DTCs");
+
+        // Cloud data
+        com.emegelauncher.vehicle.SaicCloudManager cloud = new com.emegelauncher.vehicle.SaicCloudManager(this);
+        if (cloud.hasData()) {
+            String cabin = cloud.getInteriorTempStr();
+            String batt = cloud.getBatteryVoltageStr();
+            updateTag("cloud_cabin_temp", cabin != null ? cabin + "°C" : "N/A");
+            updateTag("cloud_12v", batt != null ? batt + "V" : "N/A");
+            updateTag("cloud_trip_today", cloud.getMileageOfDay() >= 0 ? (cloud.getMileageOfDay() / 10.0) + " km" : "N/A");
+            updateTag("cloud_trip_charge", cloud.getMileageSinceLastCharge() >= 0 ? (cloud.getMileageSinceLastCharge() / 10.0) + " km" : "N/A");
+            updateTag("cloud_journey", cloud.getCurrentJourneyDistance() >= 0 ? (cloud.getCurrentJourneyDistance() / 10.0) + " km" : "N/A");
+            long age = (System.currentTimeMillis() - cloud.getLastQueryTime()) / 1000;
+            updateTag("cloud_age", age < 60 ? age + "s ago" : (age / 60) + "m ago");
+        } else {
+            updateTag("cloud_cabin_temp", cloud.isLoggedIn() ? "Pending..." : "Login in Settings");
+            updateTag("cloud_12v", "");
+        }
     }
 
     // ==================== Helpers ====================
@@ -386,6 +496,12 @@ public class VehicleInfoActivity extends Activity {
 
     private String decodeGear(int raw) {
         switch (raw) { case 1: return "P"; case 2: return "R"; case 3: return "N"; case 4: return "D"; default: return String.valueOf(raw); }
+    }
+
+    private String decodeBool(String val) {
+        if ("true".equalsIgnoreCase(val) || "1".equals(val)) return "ON";
+        if ("false".equalsIgnoreCase(val) || "0".equals(val)) return "OFF";
+        return val;
     }
 
     /** Format HVAC value: -1 means off/not set */

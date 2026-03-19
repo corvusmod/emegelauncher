@@ -51,12 +51,12 @@
     <color name="light_text_tertiary">#8E8E93</color>
     <color name="light_divider">#D1D1D6</color>
 
-    <!-- Accent colors for dark theme (bright on dark bg) -->
-    <color name="accent_blue">#0A84FF</color>
+    <!-- Accent colors for dark theme -->
+    <color name="accent_blue">#2979FF</color>
     <color name="accent_green">#30D158</color>
     <color name="accent_red">#FF453A</color>
     <color name="accent_orange">#FF9F0A</color>
-    <color name="accent_teal">#64D2FF</color>
+    <color name="accent_teal">#26A69A</color>
     <color name="accent_purple">#BF5AF2</color>
 
     <!-- Accent colors for light theme (darker for contrast on white bg) -->
@@ -64,7 +64,7 @@
     <color name="light_accent_green">#1B8A3A</color>
     <color name="light_accent_red">#D32F2F</color>
     <color name="light_accent_orange">#CC7A00</color>
-    <color name="light_accent_teal">#0077AA</color>
+    <color name="light_accent_teal">#00796B</color>
     <color name="light_accent_purple">#7B1FA2</color>
 
     <!-- Compat aliases (used by old layout references) -->

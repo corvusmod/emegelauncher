@@ -74,15 +74,15 @@ public class LocationActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setPadding(0, 4, 0, 8);
         TextView title = new TextView(this);
-        title.setText("Location & GPS");
+        title.setText(getString(R.string.location_gps));
         title.setTextSize(22);
         title.setTextColor(cText);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         header.addView(title);
         TextView back = new TextView(this);
-        back.setText("BACK");
+        back.setText(getString(R.string.back));
         back.setTextSize(13);
-        back.setTextColor(0xFF0A84FF);
+        back.setTextColor(ThemeHelper.accentBlue(this));
         back.setPadding(20, 12, 20, 12);
         back.setOnClickListener(v -> finish());
         header.addView(back);
@@ -111,39 +111,39 @@ public class LocationActivity extends Activity {
 
     private void buildContent() {
         // JSON-style snapshot
-        addSection("VEHICLE SNAPSHOT");
-        addRow("json_snapshot", "JSON Data");
+        addSection(getString(R.string.vehicle_snapshot));
+        addRow("json_snapshot", getString(R.string.json_data));
 
         // Address (from navigation service)
-        addSection("ADDRESS");
-        addRow("street_address", "Street");
-        addRow("city", "City");
-        addRow("country", "Country");
+        addSection(getString(R.string.address));
+        addRow("street_address", getString(R.string.street));
+        addRow("city", getString(R.string.city));
+        addRow("country", getString(R.string.country));
 
         // Position
-        addSection("GPS POSITION");
-        addRow("latitude", "Latitude");
-        addRow("longitude", "Longitude");
-        addRow("altitude", "Altitude (m)");
-        addRow("accuracy", "Accuracy (m)");
-        addRow("bearing", "Bearing (°)");
-        addRow("gps_speed", "GPS Speed (km/h)");
-        addRow("gps_time", "GPS Time (UTC)");
-        addRow("provider", "Provider");
-        addRow("fix_age", "Fix Age");
+        addSection(getString(R.string.gps_position));
+        addRow("latitude", getString(R.string.latitude));
+        addRow("longitude", getString(R.string.longitude));
+        addRow("altitude", getString(R.string.altitude_m));
+        addRow("accuracy", getString(R.string.accuracy_m));
+        addRow("bearing", getString(R.string.bearing_deg));
+        addRow("gps_speed", getString(R.string.gps_speed_kmh));
+        addRow("gps_time", getString(R.string.gps_time_utc));
+        addRow("provider", getString(R.string.provider));
+        addRow("fix_age", getString(R.string.fix_age));
 
         // Satellites
-        addSection("GNSS SATELLITES");
-        addRow("sats_used", "Satellites Used");
-        addRow("sats_visible", "Satellites Visible");
-        addRow("gps_enabled", "GPS Enabled");
-        addRow("network_enabled", "Network Provider");
+        addSection(getString(R.string.gnss_satellites));
+        addRow("sats_used", getString(R.string.satellites_used));
+        addRow("sats_visible", getString(R.string.satellites_visible));
+        addRow("gps_enabled", getString(R.string.gps_enabled));
+        addRow("network_enabled", getString(R.string.network_provider));
 
         // Coordinate formats
-        addSection("COORDINATES (OTHER FORMATS)");
-        addRow("coord_dms", "DMS Format");
-        addRow("coord_decimal", "Decimal Degrees");
-        addRow("coord_utm", "Approx. UTM Zone");
+        addSection(getString(R.string.coordinates_other));
+        addRow("coord_dms", getString(R.string.dms_format));
+        addRow("coord_decimal", getString(R.string.decimal_degrees));
+        addRow("coord_utm", getString(R.string.approx_utm));
     }
 
     // ==================== Location Updates ====================
@@ -222,8 +222,8 @@ public class LocationActivity extends Activity {
             networkEnabled = mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
         } catch (Exception ignored) {}
 
-        updateTag("gps_enabled", gpsEnabled ? "Yes" : "No");
-        updateTag("network_enabled", networkEnabled ? "Yes" : "No");
+        updateTag("gps_enabled", gpsEnabled ? getString(R.string.yes) : getString(R.string.no));
+        updateTag("network_enabled", networkEnabled ? getString(R.string.yes) : getString(R.string.no));
         updateTag("sats_used", String.valueOf(mSatellitesUsed));
         updateTag("sats_visible", String.valueOf(mSatellitesVisible));
 
@@ -291,9 +291,9 @@ public class LocationActivity extends Activity {
                 updateTag("json_snapshot", "Error: " + e.getMessage());
             }
         } else {
-            updateTag("latitude", "Waiting for GPS fix...");
+            updateTag("latitude", getString(R.string.waiting_gps));
             updateTag("longitude", "--");
-            updateTag("json_snapshot", "No GPS fix yet");
+            updateTag("json_snapshot", getString(R.string.no_gps_fix));
         }
     }
 
@@ -358,7 +358,7 @@ public class LocationActivity extends Activity {
         TextView valView = new TextView(this);
         valView.setText("--");
         valView.setTextSize(13);
-        valView.setTextColor(0xFF64D2FF);
+        valView.setTextColor(ThemeHelper.accentTeal(this));
         valView.setTag(tag);
         // JSON snapshot needs wrapping
         if (tag.equals("json_snapshot")) {

@@ -32,7 +32,7 @@ import java.util.Date;
 import java.util.Locale;
 import com.emegelauncher.widget.ArcGaugeView;
 import com.emegelauncher.widget.LineChartView;
-import com.emegelauncher.widget.PowerFlowBar;
+import com.emegelauncher.widget.GMeterView;
 import com.emegelauncher.widget.TireDiagramView;
 
 /**
@@ -49,7 +49,7 @@ public class GraphsActivity extends Activity {
 
     // Dashboard widgets
     private ArcGaugeView mSpeedGauge, mSocGauge, mRpmGauge, mEfficiencyGauge;
-    private PowerFlowBar mPowerFlow;
+    private LineChartView mEnergyFlowChart, mDashGChart;
     private TextView mGearText, mRangeText;
 
     // Energy widgets
@@ -82,6 +82,12 @@ public class GraphsActivity extends Activity {
         ThemeHelper.applyTheme(this);
         super.onCreate(savedInstanceState);
         resolveColors();
+        TAB_NAMES = new String[]{
+            getString(R.string.tab_dashboard), getString(R.string.tab_energy),
+            getString(R.string.tab_charging), getString(R.string.tab_health),
+            getString(R.string.tab_tires), getString(R.string.tab_climate),
+            getString(R.string.tab_trip), getString(R.string.tab_gmeter)
+        };
 
         mVehicle = VehicleServiceManager.getInstance(this);
         mHealthTracker = new BatteryHealthTracker(this);
@@ -126,7 +132,7 @@ public class GraphsActivity extends Activity {
 
     // ==================== Tab Bar ====================
 
-    private static final String[] TAB_NAMES = {"Dashboard", "Energy", "Charging", "Health", "Tires", "Climate", "Trip"};
+    private String[] TAB_NAMES;
     private TextView[] tabViews;
 
     private LinearLayout createTabBar() {
@@ -172,6 +178,7 @@ public class GraphsActivity extends Activity {
             case 4: buildTires(); break;
             case 5: buildClimate(); break;
             case 6: buildTrip(); break;
+            case 7: buildGMeter(); break;
         }
     }
 
@@ -194,13 +201,9 @@ public class GraphsActivity extends Activity {
         row2.addView(mEfficiencyGauge, gaugeLP());
         mContent.addView(row2);
 
-        // Power flow bar
-        mPowerFlow = new PowerFlowBar(this);
-        mPowerFlow.setMaxValue(300);
-        mPowerFlow.setBgColor(cCard);
-        mPowerFlow.setTextColor(cText);
-        mPowerFlow.setLabelColor(cTextSec);
-        mContent.addView(mPowerFlow, new LinearLayout.LayoutParams(-1, 200));
+        // Energy flow chart (positive = consumption, negative = regen)
+        mEnergyFlowChart = newChart("Energy Flow (+consume / -regen)", "kW", C_TEAL);
+        mContent.addView(mEnergyFlowChart, chartLP());
 
         // Gear + Range info row
         LinearLayout row3 = newRow();
@@ -211,6 +214,15 @@ public class GraphsActivity extends Activity {
         row3.addView(mGearText, new LinearLayout.LayoutParams(0, -2, 1f));
         row3.addView(mRangeText, new LinearLayout.LayoutParams(0, -2, 1f));
         mContent.addView(row3);
+
+        // G-Force chart (compact, from G-Meter data)
+        mDashGChart = newChart("G-Force", "G", C_RED);
+        mContent.addView(mDashGChart, chartLP());
+
+        // Drive mode
+        TextView drvMode = newInfoLabel("Drive Mode: --");
+        drvMode.setTag("dash_drive_mode");
+        mContent.addView(drvMode, infoLP());
     }
 
     // ==================== Energy ====================
@@ -558,6 +570,7 @@ public class GraphsActivity extends Activity {
                 case 4: updateTires(); break;
                 case 5: updateClimate(); break;
                 case 6: updateTrip(); break;
+                case 7: updateGMeter(); break;
             }
             // Always track health in background
             trackHealth();
@@ -581,7 +594,11 @@ public class GraphsActivity extends Activity {
 
         mRpmGauge.setValue(readFloat(YFVehicleProperty.ENGINE_RPM));
         mEfficiencyGauge.setValue(readFloat(YFVehicleProperty.SENSOR_DRIVE_EFFICIENCY_INDICATION));
-        mPowerFlow.setValue(readFloat(YFVehicleProperty.BMS_PACK_CRNT));
+        // Energy flow: V*I/1000 = kW, positive = discharge, negative = regen
+        float packV = readFloat(YFVehicleProperty.BMS_PACK_VOL);
+        float packI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
+        float powerKw = packV * packI / 1000f;
+        mEnergyFlowChart.addPoint(powerKw);
 
         // Gear: SAIC condition → VHAL
         int gearVal = (int) readSaicFloat("condition", "getCarGear");
@@ -606,6 +623,26 @@ public class GraphsActivity extends Activity {
             rangeLabel = "Range: --";
         }
         mRangeText.setText(rangeLabel);
+
+        // G-force on dashboard
+        if (mDashGChart != null) {
+            float longG = readFloat(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT);
+            mDashGChart.addPoint(longG);
+        }
+
+        // Drive mode
+        int drvMode = (int) readFloat(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
+        updateTaggedLabel("dash_drive_mode", "Drive Mode: " + decodeDriveMode(drvMode));
+    }
+
+    private static String decodeDriveMode(int raw) {
+        switch (raw) {
+            case 0: return "Eco";
+            case 1: return "Normal";
+            case 2: return "Sport";
+            case 6: return "Winter";
+            default: return "Unknown (" + raw + ")";
+        }
     }
 
     private boolean isValidVal(String v) {
@@ -873,6 +910,91 @@ public class GraphsActivity extends Activity {
         updateTaggedLabel("trip_charge_consumed", "Consumed: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_CHARGE) + " Wh");
         updateTaggedLabel("trip_charge_regen", "Regen Energy: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_CHARGE) + " Wh");
         updateTaggedLabel("trip_charge_regen_range", "Regen Range: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_CHARGE) + " km");
+    }
+
+    // ==================== G-Meter ====================
+
+    private GMeterView mGMeter;
+    private LineChartView mLongGChart, mLatGChart;
+
+    private void buildGMeter() {
+        // G-Meter circle
+        mGMeter = new GMeterView(this);
+        mGMeter.setMaxG(2.0f);
+        mGMeter.setDotColor(C_BLUE);
+        mGMeter.setBgColor(cCard);
+        mGMeter.setRingColor(cDivider);
+        mGMeter.setTextColor(cText);
+        mGMeter.setLabelColor(cTextTert);
+        mContent.addView(mGMeter, new LinearLayout.LayoutParams(-1, 400));
+
+        // Longitudinal G chart (accel/brake over time)
+        mLongGChart = newChart("Longitudinal G (accel/brake)", "G", C_GREEN);
+        mContent.addView(mLongGChart, chartLP());
+
+        // Lateral G chart (cornering over time)
+        mLatGChart = newChart("Lateral G (cornering)", "G", C_ORANGE);
+        mContent.addView(mLatGChart, chartLP());
+
+        // Aggressive driving indicator
+        addDivider();
+        TextView aggressiveLabel = newInfoLabel("Aggressive Driving: --");
+        aggressiveLabel.setTag("gmeter_aggressive");
+        mContent.addView(aggressiveLabel, infoLP());
+
+        TextView peakLongG = newInfoLabel("Peak Longitudinal: --");
+        peakLongG.setTag("gmeter_peak_long");
+        mContent.addView(peakLongG, infoLP());
+
+        TextView peakLatG = newInfoLabel("Peak Lateral: --");
+        peakLatG.setTag("gmeter_peak_lat");
+        mContent.addView(peakLatG, infoLP());
+
+        addDivider();
+
+        TextView regenVal = newInfoLabel("Regen Level: --");
+        regenVal.setTag("gmeter_regen");
+        mContent.addView(regenVal, infoLP());
+
+        TextView onePedalVal = newInfoLabel("One Pedal Mode: --");
+        onePedalVal.setTag("gmeter_one_pedal");
+        mContent.addView(onePedalVal, infoLP());
+    }
+
+    private float mPeakLongG = 0f;
+    private float mPeakLatG = 0f;
+
+    private void updateGMeter() {
+        if (mGMeter == null) return;
+
+        float longG = readFloat(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT);
+        float latG = readFloat(YFVehicleProperty.SENSOR_VEHICLE_LATERAL_ACCELERATION);
+        float aggressive = readFloat(YFVehicleProperty.SENSOR_FAST_ACCELERATION_DECELERATION);
+
+        mGMeter.setValues(latG, longG);
+        mLongGChart.addPoint(longG);
+        mLatGChart.addPoint(latG);
+
+        // Track peaks
+        if (Math.abs(longG) > Math.abs(mPeakLongG)) mPeakLongG = longG;
+        if (Math.abs(latG) > Math.abs(mPeakLatG)) mPeakLatG = latG;
+
+        // Aggressive driving: value meaning TBD, show raw
+        String aggressiveStr;
+        if (aggressive > 0.5) aggressiveStr = "Yes (" + fmt(aggressive) + ")";
+        else if (aggressive > 0) aggressiveStr = "Mild (" + fmt(aggressive) + ")";
+        else aggressiveStr = "No";
+        updateTaggedLabel("gmeter_aggressive", "Aggressive Driving: " + aggressiveStr);
+
+        updateTaggedLabel("gmeter_peak_long", "Peak Longitudinal: " + String.format("%.2f G", mPeakLongG));
+        updateTaggedLabel("gmeter_peak_lat", "Peak Lateral: " + String.format("%.2f G", mPeakLatG));
+
+        // Regen level (+1 for user-facing display) and one-pedal
+        int regenLvl = (int) readFloat(YFVehicleProperty.AAD_EPTRGTNLVL);
+        updateTaggedLabel("gmeter_regen", "Regen Level: " + (regenLvl + 1));
+
+        float onePedal = readFloat(YFVehicleProperty.SIGNAL_PEDAL_ON);
+        updateTaggedLabel("gmeter_one_pedal", "One Pedal Mode: " + (onePedal > 0 ? "ON" : "OFF"));
     }
 
     // ==================== Value decoders ====================

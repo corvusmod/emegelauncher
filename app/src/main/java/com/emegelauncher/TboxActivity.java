@@ -51,13 +51,13 @@ public class TboxActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setPadding(0, 4, 0, 8);
         TextView title = new TextView(this);
-        title.setText("TBox (Telematics)");
+        title.setText(getString(R.string.tbox_title));
         title.setTextSize(22);
         title.setTextColor(cText);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         header.addView(title);
         TextView back = new TextView(this);
-        back.setText("BACK");
+        back.setText(getString(R.string.back));
         back.setTextSize(13);
         back.setTextColor(ThemeHelper.accentBlue(this));
         back.setPadding(20, 12, 20, 12);
@@ -86,7 +86,7 @@ public class TboxActivity extends Activity {
     }
 
     private void buildContent() {
-        addSection("ENGMODE VEHICLE STATUS");
+        addSection(getString(R.string.engmode_vehicle));
         addRow("eng_battery", "Battery Power (EngMode)");
         addRow("eng_speed", "Speed (EngMode)");
         addRow("eng_charge", "Charge Status (EngMode)");
@@ -96,19 +96,27 @@ public class TboxActivity extends Activity {
         addRow("eng_power_sys", "Power System Status");
         addRow("eng_showroom", "Showroom Mode");
 
-        addSection("ENGMODE HARDWARE INFO");
+        addSection(getString(R.string.engmode_hardware));
         addRow("hw_gnss", "GNSS Info");
         addRow("hw_bt", "Bluetooth Info");
         addRow("hw_mobile", "Mobile Network Info");
         addRow("hw_wifi", "WiFi Info");
         addRow("hw_vehicle_config", "Vehicle Config");
 
-        addSection("TBOX NETWORK (via VHAL)");
+        addSection(getString(R.string.tbox_network));
         addRow("tbox_avlbly", "TBox Available");
         addRow("tbox_ip", "TBox Network Interface");
 
-        addSection("TBOX FEATURES (read-only flags)");
-        addRow("note", "Note: These flags are set by the TBox firmware and MG cloud. They cannot be changed from the head unit.");
+        addSection(getString(R.string.tbox_features));
+        addRow("note", getString(R.string.tbox_note));
+
+        addSection("VEHICLE OVERSEAS (Security)");
+        addRow("vso_base_url", "Server Base URL");
+        addRow("vso_token", "Auth Token");
+        addRow("vso_avn_id", "AVN ID");
+        addRow("vso_user_id", "User ID");
+        addRow("vso_activated", "Vehicle Activated");
+        addRow("vso_security_key", "Security Key");
     }
 
     private void updateAll() {
@@ -133,6 +141,14 @@ public class TboxActivity extends Activity {
         updateTag("tbox_avlbly", mVehicle.getPropertyValue(
             com.emegelauncher.vehicle.YFVehicleProperty.SENSOR_TBOXAVLBLY));
         updateTag("tbox_ip", "tbox0 @ 192.168.225.47 (from logcat)");
+
+        // Vehicle Overseas data
+        updateTag("vso_base_url", call("overseas", "getBaseUrl"));
+        updateTag("vso_token", call("overseas", "getToken"));
+        updateTag("vso_avn_id", call("overseas", "getAvnId"));
+        updateTag("vso_user_id", call("overseas", "getUserId"));
+        updateTag("vso_activated", call("overseas", "isVehicleActivated"));
+        updateTag("vso_security_key", call("overseas", "getSecurityKey"));
     }
 
     private String call(String svc, String method) {
@@ -168,7 +184,7 @@ public class TboxActivity extends Activity {
         valView.setTextSize(13);
         valView.setTextColor(cTextSec);
         valView.setTag(tag);
-        valView.setMaxLines(5);
+        valView.setMaxLines(15);
         valView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         row.addView(valView);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);

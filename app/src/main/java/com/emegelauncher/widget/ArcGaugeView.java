@@ -40,7 +40,7 @@ public class ArcGaugeView extends View {
     private float maxValue = 100f;
     private String unit = "%";
     private String label = "";
-    private int fgColor = 0xFF0A84FF;
+    private int fgColor = 0xFF2979FF;
     private int fgColorEnd = 0xFF30D158;
     private boolean useGradient = true;
 

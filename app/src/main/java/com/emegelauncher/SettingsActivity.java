@@ -21,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -73,6 +74,807 @@ public class SettingsActivity extends Activity {
 
         // Save logs
         findViewById(R.id.row_save_logs).setOnClickListener(v -> showStorageSelectionDialog());
+
+        // Overlay toggle
+        addOverlayToggle();
+
+        // Cloud API (iSMART)
+        addCloudSection();
+
+        // Driver profile (drive mode + regen level)
+        addDriverProfile();
+
+        // ADB Debug toggle (via EngMode ISystemSettingsManager)
+        addAdbToggle();
+
+        // Key Capture mode
+        addKeyCaptureButton();
+
+        // TX Code viewer
+        addTxCodeViewer();
+
+        // About section
+        addAboutSection();
+    }
+
+    // ==================== Cloud API ====================
+
+    private com.emegelauncher.vehicle.SaicCloudManager mCloud;
+
+    private void addCloudSection() {
+        mCloud = new com.emegelauncher.vehicle.SaicCloudManager(this);
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        TextView header = new TextView(this);
+        header.setText(getString(R.string.cloud_section));
+        header.setTextSize(12);
+        header.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        header.setPadding(4, 40, 0, 8);
+        parent.addView(header);
+
+        // Status + login/logout row
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 12, 20, 12);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView label = new TextView(this);
+        label.setText(getString(R.string.cloud_login));
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        textCol.addView(label);
+
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.cloud_login_desc));
+        desc.setTextSize(11);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        textCol.addView(desc);
+
+        TextView statusLabel = new TextView(this);
+        statusLabel.setTag("cloud_status");
+        statusLabel.setTextSize(12);
+        statusLabel.setTextColor(ThemeHelper.accentGreen(this));
+        statusLabel.setText(mCloud.isLoggedIn() ? getString(R.string.cloud_logged_in) : getString(R.string.cloud_not_logged));
+        textCol.addView(statusLabel);
+        row.addView(textCol);
+
+        // Login/Logout button
+        TextView loginBtn = new TextView(this);
+        loginBtn.setText(mCloud.isLoggedIn() ? getString(R.string.cloud_logout) : "LOGIN");
+        loginBtn.setTextSize(13);
+        loginBtn.setTextColor(ThemeHelper.accentBlue(this));
+        loginBtn.setPadding(16, 8, 16, 8);
+        loginBtn.setTag("cloud_login_btn");
+        loginBtn.setOnClickListener(v -> {
+            if (mCloud.isLoggedIn()) {
+                mCloud.logout();
+                updateCloudUI(parent);
+                Toast.makeText(this, "Logged out", Toast.LENGTH_SHORT).show();
+            } else {
+                showCloudLoginDialog(parent);
+            }
+        });
+        row.addView(loginBtn);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
+
+        // Refresh button + cloud data row
+        LinearLayout dataRow = new LinearLayout(this);
+        dataRow.setOrientation(LinearLayout.HORIZONTAL);
+        dataRow.setBackgroundResource(R.drawable.card_bg_selector);
+        dataRow.setPadding(20, 12, 20, 12);
+        dataRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView cloudData = new TextView(this);
+        cloudData.setTag("cloud_data");
+        cloudData.setTextSize(12);
+        cloudData.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        cloudData.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        updateCloudDataLabel(cloudData);
+        dataRow.addView(cloudData);
+
+        TextView refreshBtn = new TextView(this);
+        refreshBtn.setText(getString(R.string.cloud_refresh));
+        refreshBtn.setTextSize(13);
+        refreshBtn.setTextColor(ThemeHelper.accentTeal(this));
+        refreshBtn.setPadding(16, 8, 16, 8);
+        refreshBtn.setOnClickListener(v -> {
+            if (!mCloud.isLoggedIn()) {
+                Toast.makeText(this, getString(R.string.cloud_not_logged), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            refreshBtn.setText("...");
+            mCloud.queryVehicleStatus((ok, msg) -> {
+                refreshBtn.setText(getString(R.string.cloud_refresh));
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                updateCloudDataLabel((TextView) parent.findViewWithTag("cloud_data"));
+            });
+        });
+        dataRow.addView(refreshBtn);
+
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(-1, -2);
+        dlp.setMargins(0, 2, 0, 2);
+        parent.addView(dataRow, dlp);
+    }
+
+    private void showCloudLoginDialog(LinearLayout parent) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 10);
+
+        android.widget.EditText userInput = new android.widget.EditText(this);
+        userInput.setHint(getString(R.string.cloud_username));
+        userInput.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        layout.addView(userInput);
+
+        android.widget.EditText passInput = new android.widget.EditText(this);
+        passInput.setHint(getString(R.string.cloud_password));
+        passInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(passInput);
+
+        new AlertDialog.Builder(this)
+            .setTitle(getString(R.string.cloud_login))
+            .setView(layout)
+            .setPositiveButton("LOGIN", (d, w) -> {
+                String user = userInput.getText().toString();
+                String pass = passInput.getText().toString();
+                if (user.isEmpty() || pass.isEmpty()) return;
+                Toast.makeText(this, "Logging in...", Toast.LENGTH_SHORT).show();
+                mCloud.login(user, pass, (ok, msg) -> {
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                    updateCloudUI(parent);
+                    if (ok) {
+                        mCloud.queryVehicleStatus((ok2, msg2) -> {
+                            Toast.makeText(this, msg2, Toast.LENGTH_SHORT).show();
+                            updateCloudDataLabel((TextView) parent.findViewWithTag("cloud_data"));
+                        });
+                    }
+                });
+            })
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show();
+    }
+
+    private void updateCloudUI(LinearLayout parent) {
+        TextView status = parent.findViewWithTag("cloud_status");
+        if (status != null) status.setText(mCloud.isLoggedIn() ? getString(R.string.cloud_logged_in) : getString(R.string.cloud_not_logged));
+        TextView btn = parent.findViewWithTag("cloud_login_btn");
+        if (btn != null) btn.setText(mCloud.isLoggedIn() ? getString(R.string.cloud_logout) : "LOGIN");
+    }
+
+    private void updateCloudDataLabel(TextView tv) {
+        if (tv == null) return;
+        if (!mCloud.hasData()) {
+            tv.setText(mCloud.isLoggedIn() ? "No data yet — tap Refresh" : "Login to access cloud data");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        String cabinTemp = mCloud.getInteriorTempStr();
+        String battV = mCloud.getBatteryVoltageStr();
+        if (cabinTemp != null) sb.append("Cabin: ").append(cabinTemp).append("°C");
+        if (battV != null) { if (sb.length() > 0) sb.append("  |  "); sb.append("12V: ").append(battV).append("V"); }
+        if (mCloud.getMileageOfDay() >= 0) { if (sb.length() > 0) sb.append("\n"); sb.append("Today: ").append(mCloud.getMileageOfDay() / 10.0).append(" km"); }
+        if (mCloud.getMileageSinceLastCharge() >= 0) { sb.append("  |  Since charge: ").append(mCloud.getMileageSinceLastCharge() / 10.0).append(" km"); }
+        tv.setText(sb.toString());
+    }
+
+    // ==================== Driver Profile ====================
+
+    private static final int TX_SET_REGEN_LEVEL = 0xA1;
+    // Drive mode TX code unknown for Marvel R — needs testing. DriveHub MG4 uses different codes.
+    // For now we only support regen level via transact. Drive mode is read-only display.
+
+    private static String decodeDriveMode(int raw) {
+        switch (raw) {
+            case 0: return "Eco";
+            case 1: return "Normal";
+            case 2: return "Sport";
+            case 6: return "Winter";
+            default: return "Unknown (" + raw + ")";
+        }
+    }
+
+    private void addDriverProfile() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        // Section header
+        TextView header = new TextView(this);
+        header.setText(getString(R.string.driver_profile));
+        header.setTextSize(12);
+        header.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        header.setPadding(4, 40, 0, 8);
+        parent.addView(header);
+
+        // Status row
+        LinearLayout statusRow = new LinearLayout(this);
+        statusRow.setOrientation(LinearLayout.VERTICAL);
+        statusRow.setBackgroundResource(R.drawable.card_bg_selector);
+        statusRow.setPadding(20, 12, 20, 12);
+
+        TextView profileDesc = new TextView(this);
+        profileDesc.setText(getString(R.string.profile_desc));
+        profileDesc.setTextSize(11);
+        profileDesc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        statusRow.addView(profileDesc);
+
+        // Current values
+        VehicleServiceManager vm = VehicleServiceManager.getInstance(this);
+        int curDriveMode = readIntProp(vm, YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
+        int curRegen = readIntProp(vm, YFVehicleProperty.AAD_EPTRGTNLVL);
+
+        TextView currentLabel = new TextView(this);
+        currentLabel.setText(String.format(getString(R.string.profile_current),
+            decodeDriveMode(curDriveMode), curRegen + 1));
+        currentLabel.setTextSize(14);
+        currentLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        currentLabel.setPadding(0, 8, 0, 4);
+        statusRow.addView(currentLabel);
+
+        // Saved profile label
+        android.content.SharedPreferences prefs = getSharedPreferences("emegelauncher", MODE_PRIVATE);
+        int savedDriveMode = prefs.getInt("profile_drive_mode", -1);
+        int savedRegen = prefs.getInt("profile_regen_level", -1);
+
+        TextView savedLabel = new TextView(this);
+        if (savedDriveMode >= 0) {
+            savedLabel.setText(String.format(getString(R.string.profile_saved_label),
+                decodeDriveMode(savedDriveMode), savedRegen + 1));
+        } else {
+            savedLabel.setText(getString(R.string.profile_none));
+        }
+        savedLabel.setTextSize(13);
+        savedLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        savedLabel.setTag("profile_saved_label");
+        statusRow.addView(savedLabel);
+
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2);
+        slp.setMargins(0, 2, 0, 2);
+        parent.addView(statusRow, slp);
+
+        // Button row
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setBackgroundResource(R.drawable.card_bg_selector);
+        btnRow.setPadding(20, 12, 20, 12);
+        btnRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        // Save button
+        TextView saveBtn = new TextView(this);
+        saveBtn.setText(getString(R.string.save_profile));
+        saveBtn.setTextSize(14);
+        saveBtn.setTextColor(ThemeHelper.accentBlue(this));
+        saveBtn.setPadding(16, 10, 16, 10);
+        saveBtn.setOnClickListener(v -> {
+            VehicleServiceManager vm2 = VehicleServiceManager.getInstance(this);
+            int dm = readIntProp(vm2, YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
+            int rg = readIntProp(vm2, YFVehicleProperty.AAD_EPTRGTNLVL);
+            prefs.edit()
+                .putInt("profile_drive_mode", dm)
+                .putInt("profile_regen_level", rg)
+                .apply();
+            Toast.makeText(this, String.format(getString(R.string.profile_saved),
+                decodeDriveMode(dm), rg + 1), Toast.LENGTH_SHORT).show();
+            // Update saved label
+            TextView sl = (TextView) parent.findViewWithTag("profile_saved_label");
+            if (sl != null) sl.setText(String.format(getString(R.string.profile_saved_label),
+                decodeDriveMode(dm), rg + 1));
+        });
+        btnRow.addView(saveBtn, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        // Restore button
+        TextView restoreBtn = new TextView(this);
+        restoreBtn.setText(getString(R.string.restore_profile));
+        restoreBtn.setTextSize(14);
+        restoreBtn.setTextColor(ThemeHelper.accentGreen(this));
+        restoreBtn.setPadding(16, 10, 16, 10);
+        restoreBtn.setOnClickListener(v -> restoreProfile());
+        btnRow.addView(restoreBtn, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
+        blp.setMargins(0, 2, 0, 2);
+        parent.addView(btnRow, blp);
+
+        // Auto-restore toggle
+        LinearLayout autoRow = new LinearLayout(this);
+        autoRow.setOrientation(LinearLayout.HORIZONTAL);
+        autoRow.setBackgroundResource(R.drawable.card_bg_selector);
+        autoRow.setPadding(20, 12, 20, 12);
+        autoRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView autoLabel = new TextView(this);
+        autoLabel.setText(getString(R.string.auto_restore));
+        autoLabel.setTextSize(14);
+        autoLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        autoLabel.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        autoRow.addView(autoLabel);
+
+        android.widget.Switch autoToggle = new android.widget.Switch(this);
+        autoToggle.setChecked(prefs.getBoolean("profile_auto_restore", false));
+        autoToggle.setOnCheckedChangeListener((btn, checked) ->
+            prefs.edit().putBoolean("profile_auto_restore", checked).apply());
+        autoRow.addView(autoToggle);
+
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2);
+        alp.setMargins(0, 2, 0, 2);
+        parent.addView(autoRow, alp);
+    }
+
+    private void restoreProfile() {
+        android.content.SharedPreferences prefs = getSharedPreferences("emegelauncher", MODE_PRIVATE);
+        int savedRegen = prefs.getInt("profile_regen_level", -1);
+        int savedDriveMode = prefs.getInt("profile_drive_mode", -1);
+        if (savedRegen < 0) {
+            Toast.makeText(this, getString(R.string.profile_none), Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        VehicleServiceManager vm = VehicleServiceManager.getInstance(this);
+        if (!vm.hasSettingBinder()) {
+            Toast.makeText(this, "Setting service not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle(getString(R.string.restore_profile))
+            .setMessage(String.format(getString(R.string.profile_saved_label),
+                decodeDriveMode(savedDriveMode), savedRegen + 1)
+                + "\n\nRegen level will be set via Binder.transact(0xA1)."
+                + "\nDrive mode is read-only (change via physical button)."
+                + "\n\nProceed?")
+            .setPositiveButton(getString(R.string.confirm), (d, w) -> {
+                boolean ok = vm.transactSettingInt(TX_SET_REGEN_LEVEL, savedRegen);
+                if (ok) {
+                    Toast.makeText(this, String.format(getString(R.string.profile_restored),
+                        decodeDriveMode(savedDriveMode), savedRegen + 1), Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Regen transact failed — TX code may differ on this firmware",
+                        Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show();
+    }
+
+    private int readIntProp(VehicleServiceManager vm, int propId) {
+        try {
+            String v = vm.getPropertyValue(propId);
+            if (v != null && !v.equals("N/A")) return (int) Float.parseFloat(v);
+        } catch (Exception ignored) {}
+        return 0;
+    }
+
+    // ==================== UI Toggles ====================
+
+    private void addOverlayToggle() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 16, 20, 16);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView label = new TextView(this);
+        label.setText(getString(R.string.overlay_label));
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        textCol.addView(label);
+
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.overlay_desc));
+        desc.setTextSize(11);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        textCol.addView(desc);
+        row.addView(textCol);
+
+        android.widget.Switch toggle = new android.widget.Switch(this);
+        boolean enabled = getSharedPreferences("emegelauncher", MODE_PRIVATE)
+            .getBoolean("overlay_enabled", true);
+        toggle.setChecked(enabled);
+        toggle.setOnCheckedChangeListener((btn, checked) -> {
+            getSharedPreferences("emegelauncher", MODE_PRIVATE).edit()
+                .putBoolean("overlay_enabled", checked).apply();
+            if (checked) {
+                startService(new Intent(this, OverlayService.class));
+            } else {
+                stopService(new Intent(this, OverlayService.class));
+            }
+        });
+        row.addView(toggle);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
+    }
+
+    private void addAdbToggle() {
+        // Add ADB toggle row dynamically after the export row
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        TextView devHeader = new TextView(this);
+        devHeader.setText(getString(R.string.developer));
+        devHeader.setTextSize(12);
+        devHeader.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        devHeader.setPadding(4, 40, 0, 8);
+        parent.addView(devHeader);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 16, 20, 16);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView label = new TextView(this);
+        label.setText(getString(R.string.adb_debugging));
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        label.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        row.addView(label);
+
+        android.widget.Switch toggle = new android.widget.Switch(this);
+        String adbStatus = VehicleServiceManager.getInstance(this).callSaicMethod("engmode", "getADBDebugStatus");
+        toggle.setChecked("true".equalsIgnoreCase(adbStatus) || "1".equals(adbStatus));
+        toggle.setOnCheckedChangeListener((btn, checked) -> {
+            new AlertDialog.Builder(this)
+                .setTitle("ADB Debug")
+                .setMessage((checked ? "Enable" : "Disable") + " ADB debugging?\nThis allows connecting to the head unit via USB/WiFi for development.")
+                .setPositiveButton("Yes", (d, w) -> {
+                    try {
+                        Object svc = null;
+                        java.lang.reflect.Field f = VehicleServiceManager.class.getDeclaredField("mEngSystemSettings");
+                        f.setAccessible(true);
+                        svc = f.get(VehicleServiceManager.getInstance(this));
+                        if (svc != null) {
+                            java.lang.reflect.Method m = svc.getClass().getMethod("setADBDebug", boolean.class);
+                            m.invoke(svc, checked);
+                            Toast.makeText(this, "ADB " + (checked ? "enabled" : "disabled"), Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(this, "EngMode not connected", Toast.LENGTH_SHORT).show();
+                            btn.setChecked(!checked);
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "ADB toggle failed: " + e.getMessage());
+                        Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        btn.setChecked(!checked);
+                    }
+                })
+                .setNegativeButton("Cancel", (d, w) -> btn.setChecked(!checked))
+                .show();
+        });
+        row.addView(toggle);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
+    }
+
+    private void addKeyCaptureButton() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 16, 20, 16);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView label = new TextView(this);
+        label.setText(getString(R.string.key_capture));
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        textCol.addView(label);
+
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.key_capture_desc));
+        desc.setTextSize(11);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        textCol.addView(desc);
+        row.addView(textCol);
+
+        TextView startBtn = new TextView(this);
+        startBtn.setText(getString(R.string.start));
+        startBtn.setTextSize(13);
+        startBtn.setTextColor(ThemeHelper.accentBlue(this));
+        startBtn.setPadding(16, 8, 16, 8);
+        startBtn.setOnClickListener(v -> startKeyCapture());
+        row.addView(startBtn);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
+    }
+
+    private android.os.Handler mKeyCaptureHandler;
+    private boolean mCapturing = false;
+    private volatile String mLastKeyEvent = "";
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (mCapturing && event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+            mLastKeyEvent = "KeyCode " + event.getKeyCode()
+                + " (" + android.view.KeyEvent.keyCodeToString(event.getKeyCode()) + ")"
+                + " scan=" + event.getScanCode()
+                + " device=" + (event.getDevice() != null ? event.getDevice().getName() : "?");
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private void startKeyCapture() {
+        if (mCapturing) {
+            mCapturing = false;
+            Toast.makeText(this, "Key capture stopped", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        mCapturing = true;
+        mLastKeyEvent = "";
+        mKeyCaptureHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Key Capture Mode")
+            .setMessage("Monitoring VHAL + Android KeyEvents...\nPress any steering wheel button.")
+            .setNegativeButton("Stop", (d, w) -> mCapturing = false)
+            .setCancelable(false)
+            .create();
+        // Intercept key events on the dialog too
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                mLastKeyEvent = "KeyCode " + keyCode
+                    + " (" + android.view.KeyEvent.keyCodeToString(keyCode) + ")"
+                    + " scan=" + event.getScanCode()
+                    + " device=" + (event.getDevice() != null ? event.getDevice().getName() : "?");
+            }
+            return false;
+        });
+        dialog.show();
+
+        final TextView msgView = dialog.findViewById(android.R.id.message);
+        final VehicleServiceManager vm = VehicleServiceManager.getInstance(this);
+        // Track previous values to detect changes
+        final java.util.Map<String, String> prev = new java.util.HashMap<>();
+        final java.util.List<String> history = new java.util.ArrayList<>();
+
+        mKeyCaptureHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (!mCapturing) return;
+                try {
+                    // Read all button-related VHAL properties
+                    String[][] props = {
+                        {"HW_KEY_INPUT", vm.getPropertyValue(YFVehicleProperty.HW_KEY_INPUT)},
+                        {"SWC_FUNCTION", vm.getPropertyValue(YFVehicleProperty.SWC_FUNCTION_CHANGE_SWA)},
+                        {"UP", vm.getPropertyValue(YFVehicleProperty.IPK_CLSTR_UP_BTN_STS)},
+                        {"DOWN", vm.getPropertyValue(YFVehicleProperty.IPK_CLSTR_DOWN_BTN_STS)},
+                        {"LEFT", vm.getPropertyValue(YFVehicleProperty.IPK_CLSTR_LEFT_BTN_STS)},
+                        {"RIGHT", vm.getPropertyValue(YFVehicleProperty.IPK_CLSTR_RIGHT_BTN_STS)},
+                        {"ENTER", vm.getPropertyValue(YFVehicleProperty.IPK_CLSTR_ENTER_BTN_STS)},
+                        {"TAB(✱)", vm.getPropertyValue(YFVehicleProperty.IPK_CLUSTER_TAB_BTN_STS)},
+                    };
+
+                    // Detect changes
+                    for (String[] p : props) {
+                        String old = prev.get(p[0]);
+                        if (old != null && !old.equals(p[1])) {
+                            String change = p[0] + ": " + old + " → " + p[1];
+                            history.add(0, change);
+                            if (history.size() > 8) history.remove(history.size() - 1);
+                        }
+                        prev.put(p[0], p[1]);
+                    }
+
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("VHAL Properties (50ms poll):\n");
+                    for (String[] p : props) {
+                        sb.append("  ").append(p[0]).append(": ").append(p[1]).append("\n");
+                    }
+
+                    sb.append("\nAndroid KeyEvent:\n  ").append(
+                        mLastKeyEvent.isEmpty() ? "(none yet)" : mLastKeyEvent);
+
+                    if (!history.isEmpty()) {
+                        sb.append("\n\nChanges detected:");
+                        for (String h : history) sb.append("\n  ").append(h);
+                    }
+
+                    if (msgView != null) msgView.setText(sb.toString());
+                } catch (Exception e) {
+                    if (msgView != null) msgView.setText("Error: " + e.getMessage());
+                }
+                mKeyCaptureHandler.postDelayed(this, 50); // 20Hz polling
+            }
+        });
+    }
+
+    private void addAboutSection() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        TextView header = new TextView(this);
+        header.setText(getString(R.string.about_section));
+        header.setTextSize(12);
+        header.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        header.setPadding(4, 40, 0, 8);
+        parent.addView(header);
+
+        // Version info
+        LinearLayout versionRow = new LinearLayout(this);
+        versionRow.setOrientation(LinearLayout.VERTICAL);
+        versionRow.setBackgroundResource(R.drawable.card_bg_selector);
+        versionRow.setPadding(20, 14, 20, 14);
+
+        String versionName = "?";
+        int versionCode = 0;
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            versionName = pi.versionName;
+            versionCode = pi.versionCode;
+        } catch (Exception ignored) {}
+
+        TextView versionLabel = new TextView(this);
+        versionLabel.setText("Emegelauncher");
+        versionLabel.setTextSize(16);
+        versionLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        versionRow.addView(versionLabel);
+
+        TextView versionValue = new TextView(this);
+        versionValue.setText(String.format(getString(R.string.version_label), versionName, versionCode));
+        versionValue.setTextSize(13);
+        versionValue.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        versionRow.addView(versionValue);
+
+        TextView target = new TextView(this);
+        target.setText("MG Marvel R (EP21) · Android 9 Automotive · API 28");
+        target.setTextSize(11);
+        target.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        target.setPadding(0, 4, 0, 0);
+        versionRow.addView(target);
+
+        LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(-1, -2);
+        vlp.setMargins(0, 2, 0, 2);
+        parent.addView(versionRow, vlp);
+
+        // License button
+        LinearLayout licenseRow = new LinearLayout(this);
+        licenseRow.setBackgroundResource(R.drawable.card_bg_selector);
+        licenseRow.setPadding(20, 16, 20, 16);
+
+        TextView licenseBtn = new TextView(this);
+        licenseBtn.setText(getString(R.string.licenses));
+        licenseBtn.setTextSize(15);
+        licenseBtn.setTextColor(ThemeHelper.accentBlue(this));
+        licenseBtn.setOnClickListener(v -> showLicenseDialog());
+        licenseRow.addView(licenseBtn);
+
+        parent.addView(licenseRow, vlp);
+    }
+
+    private void showLicenseDialog() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("EMEGELAUNCHER\n");
+        sb.append("GNU General Public License v3.0\n");
+        sb.append("with Commons Clause License Condition v1.0\n\n");
+        sb.append("You may use, modify, share, fork, and accept donations.\n");
+        sb.append("You may NOT sell this software.\n\n");
+
+        sb.append("────────────────────\n\n");
+
+        sb.append("DEPENDENCIES\n\n");
+        sb.append("androidx.appcompat:appcompat:1.1.0\n");
+        sb.append("  Apache License 2.0\n");
+        sb.append("  Copyright Google LLC\n\n");
+        sb.append("androidx.constraintlayout:constraintlayout:1.1.3\n");
+        sb.append("  Apache License 2.0\n");
+        sb.append("  Copyright Google LLC\n\n");
+        sb.append("androidx.viewpager:viewpager:1.0.0\n");
+        sb.append("  Apache License 2.0\n");
+        sb.append("  Copyright Google LLC\n\n");
+
+        sb.append("────────────────────\n\n");
+
+        sb.append("ACKNOWLEDGMENTS\n\n");
+        sb.append("DriveHub by Huseyin\n");
+        sb.append("  Reflection-based vehicle service access pattern\n");
+        sb.append("  (DexClassLoader + asInterface approach)\n\n");
+        sb.append("NewMGRemote (open source)\n");
+        sb.append("  iSMART cloud API protocol reference\n");
+        sb.append("  (AES/CBC encryption, HMAC-SHA256 verification,\n");
+        sb.append("   OAuth2 flow, event-id polling pattern)\n\n");
+        sb.append("AOSP Platform Key\n");
+        sb.append("  Android Open Source Project default test key\n");
+        sb.append("  Used for system-level signing on MG Marvel R\n\n");
+
+        sb.append("────────────────────\n\n");
+
+        sb.append("NO PROPRIETARY CODE\n\n");
+        sb.append("This project contains zero proprietary MG/SAIC code.\n");
+        sb.append("All vehicle services are accessed via Java reflection.\n");
+        sb.append("No SAIC source, libraries, or assets are bundled.\n");
+        sb.append("Cloud API encryption is reimplemented from scratch\n");
+        sb.append("using standard javax.crypto libraries.\n");
+
+        new AlertDialog.Builder(this)
+            .setTitle(getString(R.string.licenses))
+            .setMessage(sb.toString())
+            .setPositiveButton("OK", null)
+            .show();
+    }
+
+    private void addTxCodeViewer() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 16, 20, 16);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView label = new TextView(this);
+        label.setText("AIDL Transaction Codes");
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        textCol.addView(label);
+
+        TextView desc = new TextView(this);
+        desc.setText("Enumerate IVehicleSettingService TX codes from Stub");
+        desc.setTextSize(11);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        textCol.addView(desc);
+        row.addView(textCol);
+
+        TextView showBtn = new TextView(this);
+        showBtn.setText("SHOW");
+        showBtn.setTextSize(13);
+        showBtn.setTextColor(ThemeHelper.accentBlue(this));
+        showBtn.setPadding(16, 8, 16, 8);
+        showBtn.setOnClickListener(v -> {
+            java.util.LinkedHashMap<String, Integer> codes =
+                VehicleServiceManager.getInstance(this).enumerateAllTransactionCodes();
+            if (codes.isEmpty()) {
+                Toast.makeText(this, "No TX codes found (services not connected?)", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            String lastSvc = "";
+            for (java.util.Map.Entry<String, Integer> e : codes.entrySet()) {
+                String[] parts = e.getKey().split("\\.", 2);
+                String svc = parts[0];
+                String method = parts.length > 1 ? parts[1] : e.getKey();
+                if (!svc.equals(lastSvc)) {
+                    if (sb.length() > 0) sb.append("\n");
+                    sb.append("--- ").append(svc).append(" ---\n");
+                    lastSvc = svc;
+                }
+                sb.append(String.format("0x%02X (%d) = %s\n", e.getValue(), e.getValue(), method));
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("TX Codes (all services: " + codes.size() + ")")
+                .setMessage(sb.toString())
+                .setPositiveButton("OK", null)
+                .show();
+        });
+        row.addView(showBtn);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
     }
 
     // ==================== Default Launcher ====================
@@ -212,7 +1014,12 @@ public class SettingsActivity extends Activity {
             names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
         }
 
-        String[] actions = {getString(R.string.export_logcat), getString(R.string.export_diag), getString(R.string.export_both)};
+        String[] actions = {
+            getString(R.string.export_logcat),
+            getString(R.string.export_diag),
+            getString(R.string.export_charge),
+            getString(R.string.export_all)
+        };
         new AlertDialog.Builder(this)
             .setTitle(getString(R.string.select_storage))
             .setItems(names, (d1, volIdx) -> {
@@ -220,8 +1027,9 @@ public class SettingsActivity extends Activity {
                 new AlertDialog.Builder(this)
                     .setTitle("Export to " + volumes.get(volIdx).description)
                     .setItems(actions, (d2, actIdx) -> {
-                        if (actIdx == 0 || actIdx == 2) exportLogcat(vol);
-                        if (actIdx == 1 || actIdx == 2) exportDiagnostics(vol);
+                        if (actIdx == 0 || actIdx == 3) exportLogcat(vol);
+                        if (actIdx == 1 || actIdx == 3) exportDiagnostics(vol);
+                        if (actIdx == 2 || actIdx == 3) exportChargeData(vol);
                     }).show();
             }).show();
     }
@@ -358,12 +1166,109 @@ public class SettingsActivity extends Activity {
                         String desc = (p.description != null && !p.description.isEmpty()) ? " // " + p.description : "";
                         pw.println(p.name + " = " + val + desc);
                     }
+                    pw.println("");
+
+                    pw.println("--- AIDL Transaction Codes (ALL services) ---");
+                    java.util.LinkedHashMap<String, Integer> txCodes = vm.enumerateAllTransactionCodes();
+                    if (txCodes.isEmpty()) {
+                        pw.println("(none found — service not connected or Stub class not loaded)");
+                    } else {
+                        for (java.util.Map.Entry<String, Integer> tx : txCodes.entrySet()) {
+                            pw.println(String.format("0x%02X (%d) = %s", tx.getValue(), tx.getValue(), tx.getKey()));
+                        }
+                    }
+                    pw.println("");
+
+                    pw.println("--- Setting Service Binder Info ---");
+                    pw.println("hasSettingBinder: " + vm.hasSettingBinder());
+                    // Also dump AIDL descriptor if available
+                    try {
+                        java.lang.reflect.Field sf = VehicleServiceManager.class.getDeclaredField("mSettingService");
+                        sf.setAccessible(true);
+                        Object svc = sf.get(vm);
+                        if (svc != null) {
+                            pw.println("Service class: " + svc.getClass().getName());
+                            Class<?> enclosing = svc.getClass().getEnclosingClass();
+                            if (enclosing != null) {
+                                pw.println("Stub class: " + enclosing.getName());
+                                try {
+                                    java.lang.reflect.Field df = enclosing.getDeclaredField("DESCRIPTOR");
+                                    df.setAccessible(true);
+                                    pw.println("DESCRIPTOR: " + df.get(null));
+                                } catch (Exception ignored) {}
+                            }
+                        } else {
+                            pw.println("mSettingService: null");
+                        }
+                    } catch (Exception ex) { pw.println("Error: " + ex.getMessage()); }
                 }
 
                 runOnUiThread(() -> Toast.makeText(this, "Diagnostics saved: " + diagFile.getAbsolutePath(), Toast.LENGTH_LONG).show());
             } catch (Exception e) {
                 Log.e(TAG, "Diagnostics export failed", e);
                 runOnUiThread(() -> Toast.makeText(this, "Diagnostics failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    private void exportChargeData(File destination) {
+        Toast.makeText(this, "Exporting charge data...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+                File chargeFile = new File(destination, "emegelauncher_charge_" + ts + ".txt");
+                com.emegelauncher.vehicle.BatteryHealthTracker tracker =
+                    new com.emegelauncher.vehicle.BatteryHealthTracker(this);
+
+                try (PrintWriter pw = new PrintWriter(new FileOutputStream(chargeFile))) {
+                    pw.println("=== Emegelauncher Charge Data Export ===");
+                    pw.println("Date: " + new Date().toString());
+                    pw.println("");
+
+                    pw.println("--- SOH Summary ---");
+                    float soh = tracker.getEstimatedSoh();
+                    float cap = tracker.getEstimatedCapacity();
+                    pw.println("Average SOH: " + (soh >= 0 ? String.format("%.1f%%", soh) : "N/A"));
+                    pw.println("Average Capacity: " + (cap >= 0 ? String.format("%.1f kWh", cap) : "N/A"));
+                    pw.println("");
+
+                    pw.println("--- Charge Sessions ---");
+                    org.json.JSONArray sessions = tracker.getSessions();
+                    pw.println("Total sessions: " + sessions.length());
+                    pw.println("");
+
+                    for (int i = 0; i < sessions.length(); i++) {
+                        try {
+                            org.json.JSONObject s = sessions.getJSONObject(i);
+                            pw.println("Session " + (i + 1) + ":");
+                            pw.println("  Time: " + new Date(s.optLong("time", 0)).toString());
+                            pw.println("  Start SOC: " + String.format("%.1f%%", s.optDouble("startSoc", 0)));
+                            pw.println("  End SOC: " + String.format("%.1f%%", s.optDouble("endSoc", 0)));
+                            pw.println("  Energy: " + String.format("%.2f kWh", s.optDouble("energy", 0)));
+                            pw.println("  Capacity: " + String.format("%.1f kWh", s.optDouble("cap", 0)));
+                            pw.println("  SOH: " + String.format("%.1f%%", s.optDouble("soh", 0)));
+                            pw.println("  Voltage: " + String.format("%.1f V", s.optDouble("volt", 0)));
+                            pw.println("");
+                        } catch (Exception ignored) {}
+                    }
+
+                    pw.println("--- Last Charge Snapshot ---");
+                    org.json.JSONObject snapshot = tracker.getLastChargeSnapshot();
+                    if (snapshot != null) {
+                        pw.println(snapshot.toString(2));
+                    } else {
+                        pw.println("No snapshot available");
+                    }
+
+                    pw.println("");
+                    pw.println("--- Raw JSON ---");
+                    pw.println(sessions.toString(2));
+                }
+
+                runOnUiThread(() -> Toast.makeText(this, "Charge data saved: " + chargeFile.getAbsolutePath(), Toast.LENGTH_LONG).show());
+            } catch (Exception e) {
+                Log.e(TAG, "Charge data export failed", e);
+                runOnUiThread(() -> Toast.makeText(this, "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
     }

@@ -849,10 +849,48 @@ public class VehicleServiceManager {
             if (result == null) return "N/A";
             if (result instanceof Float) return String.format("%.1f", (Float) result);
             if (result instanceof Double) return String.format("%.1f", (Double) result);
-            return String.valueOf(result);
+            if (result instanceof String || result instanceof Number || result instanceof Boolean) {
+                return String.valueOf(result);
+            }
+            // Bean object — extract all fields via reflection
+            return beanToString(result);
         } catch (Exception e) {
             Log.d(TAG, methodName + " failed: " + e.getMessage());
             return "N/A";
+        }
+    }
+
+    /** Extract all fields from a bean object via reflection (recursive for nested beans) */
+    private String beanToString(Object bean) {
+        return beanToString(bean, 0);
+    }
+
+    private String beanToString(Object bean, int depth) {
+        if (depth > 3) return String.valueOf(bean); // prevent infinite recursion
+        try {
+            StringBuilder sb = new StringBuilder();
+            java.lang.reflect.Field[] fields = bean.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field f : fields) {
+                f.setAccessible(true);
+                Object val = f.get(bean);
+                if (val != null) {
+                    if (sb.length() > 0) sb.append("\n");
+                    String prefix = depth > 0 ? "  " : "";
+                    // Check if val is a primitive/wrapper/string or a nested bean
+                    if (val instanceof String || val instanceof Number || val instanceof Boolean) {
+                        sb.append(prefix).append(f.getName()).append(": ").append(val);
+                    } else if (val.getClass().getName().startsWith("java.") || val.getClass().isArray()) {
+                        sb.append(prefix).append(f.getName()).append(": ").append(val);
+                    } else {
+                        // Nested bean object — recurse
+                        String nested = beanToString(val, depth + 1);
+                        sb.append(prefix).append(f.getName()).append(":\n").append(nested);
+                    }
+                }
+            }
+            return sb.length() > 0 ? sb.toString() : String.valueOf(bean);
+        } catch (Exception e) {
+            return String.valueOf(bean);
         }
     }
 
@@ -864,6 +902,181 @@ public class VehicleServiceManager {
             if (r instanceof Number) return ((Number) r).floatValue();
         } catch (Exception e) { Log.d(TAG, methodName + " failed: " + e.getMessage()); }
         return 0f;
+    }
+
+    // ==================== Binder.transact (DriveHub pattern) ====================
+
+    /**
+     * Get the IBinder from a SAIC sub-service proxy via asBinder() reflection.
+     * AIDL proxies implement IInterface which has asBinder().
+     */
+    private IBinder getServiceBinder(Object service) {
+        if (service == null) return null;
+        try {
+            Method m = service.getClass().getMethod("asBinder");
+            return (IBinder) m.invoke(service);
+        } catch (Exception e) {
+            Log.d(TAG, "asBinder failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Call Binder.transact() on IVehicleSettingService with an int value.
+     * This is the same approach DriveHub uses for regen level, one-pedal, drive mode.
+     * @param txCode Transaction code (e.g. 0xA1 for regen level)
+     * @param value  The int value to set
+     * @return true if transact succeeded
+     */
+    public boolean transactSettingInt(int txCode, int value) {
+        IBinder binder = getServiceBinder(mSettingService);
+        if (binder == null) {
+            Log.e(TAG, "transactSettingInt: mSettingService binder is null");
+            return false;
+        }
+        android.os.Parcel data = android.os.Parcel.obtain();
+        android.os.Parcel reply = android.os.Parcel.obtain();
+        try {
+            // Write the AIDL interface descriptor (required by Stub.onTransact)
+            try {
+                // Get the DESCRIPTOR from the Stub class
+                String descriptor = null;
+                java.lang.reflect.Field[] fields = mSettingService.getClass().getDeclaredFields();
+                // Proxy classes don't have DESCRIPTOR directly — check parent Stub
+                Class<?> stubClass = mSettingService.getClass().getEnclosingClass();
+                if (stubClass != null) {
+                    try {
+                        java.lang.reflect.Field df = stubClass.getDeclaredField("DESCRIPTOR");
+                        df.setAccessible(true);
+                        descriptor = (String) df.get(null);
+                    } catch (Exception ignored) {}
+                }
+                if (descriptor == null) {
+                    // Fallback: AIDL descriptors follow package.InterfaceName pattern
+                    descriptor = "com.saicmotor.telematics.tsgp.otaadapter.IVehicleSettingService";
+                }
+                data.writeInterfaceToken(descriptor);
+            } catch (Exception e) {
+                Log.d(TAG, "writeInterfaceToken fallback: " + e.getMessage());
+                data.writeInterfaceToken("com.saicmotor.telematics.tsgp.otaadapter.IVehicleSettingService");
+            }
+            data.writeInt(value);
+            boolean ok = binder.transact(txCode, data, reply, 0);
+            reply.readException();
+            Log.d(TAG, "transactSettingInt(0x" + Integer.toHexString(txCode) + ", " + value + ") = " + ok);
+            return ok;
+        } catch (Exception e) {
+            Log.e(TAG, "transactSettingInt failed: " + e.getMessage());
+            return false;
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
+    }
+
+    /** Check if the setting service binder is available for transact operations */
+    public boolean hasSettingBinder() {
+        return getServiceBinder(mSettingService) != null;
+    }
+
+    /**
+     * Enumerate all TRANSACTION_* constants from an AIDL Stub class.
+     */
+    public java.util.LinkedHashMap<String, Integer> enumerateSettingTransactionCodes() {
+        return enumerateTransactionCodes(mSettingService, "IVehicleSettingService");
+    }
+
+    /** Enumerate TX codes for any service */
+    public java.util.LinkedHashMap<String, Integer> enumerateTransactionCodes(Object service, String ifaceName) {
+        java.util.LinkedHashMap<String, Integer> result = new java.util.LinkedHashMap<>();
+        if (service == null) return result;
+        try {
+            Class<?> stubClass = service.getClass().getEnclosingClass();
+            if (stubClass == null) {
+                String[] stubs = new String[STUB_PREFIXES.length];
+                for (int i = 0; i < STUB_PREFIXES.length; i++)
+                    stubs[i] = STUB_PREFIXES[i] + ifaceName + "$Stub";
+                stubClass = findVsClass(stubs);
+            }
+            if (stubClass == null) return result;
+            java.lang.reflect.Field[] fields = stubClass.getDeclaredFields();
+            for (java.lang.reflect.Field f : fields) {
+                if (f.getName().startsWith("TRANSACTION_") && f.getType() == int.class) {
+                    f.setAccessible(true);
+                    int code = f.getInt(null);
+                    result.put(f.getName().substring("TRANSACTION_".length()), code);
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "enumerateTransactionCodes failed: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /** Enumerate TX codes for ALL connected services */
+    public java.util.LinkedHashMap<String, Integer> enumerateAllTransactionCodes() {
+        java.util.LinkedHashMap<String, Integer> all = new java.util.LinkedHashMap<>();
+        Object[][] services = {
+            {mSettingService, "IVehicleSettingService"},
+            {mChargingService, "IVehicleChargingService"},
+            {mControlService, "IVehicleControlService"},
+            {mConditionService, "IVehicleConditionService"},
+            {mAirConditionService, "IAirConditionService"},
+        };
+        for (Object[] s : services) {
+            if (s[0] == null) continue;
+            java.util.LinkedHashMap<String, Integer> codes = enumerateTransactionCodes(s[0], (String) s[1]);
+            for (java.util.Map.Entry<String, Integer> e : codes.entrySet()) {
+                all.put(s[1] + "." + e.getKey(), e.getValue());
+            }
+        }
+        return all;
+    }
+
+    /**
+     * Call Binder.transact() on any named service.
+     */
+    public boolean transactServiceInt(String serviceName, int txCode, int value) {
+        Object service = null;
+        switch (serviceName) {
+            case "setting": service = mSettingService; break;
+            case "charging": service = mChargingService; break;
+            case "control": service = mControlService; break;
+            case "condition": service = mConditionService; break;
+            case "aircondition": service = mAirConditionService; break;
+        }
+        if (service == null) { Log.e(TAG, "transactServiceInt: " + serviceName + " is null"); return false; }
+        IBinder binder = getServiceBinder(service);
+        if (binder == null) { Log.e(TAG, "transactServiceInt: binder null for " + serviceName); return false; }
+
+        android.os.Parcel data = android.os.Parcel.obtain();
+        android.os.Parcel reply = android.os.Parcel.obtain();
+        try {
+            // Get DESCRIPTOR from Stub class
+            String descriptor = null;
+            Class<?> stubClass = service.getClass().getEnclosingClass();
+            if (stubClass != null) {
+                try {
+                    java.lang.reflect.Field df = stubClass.getDeclaredField("DESCRIPTOR");
+                    df.setAccessible(true);
+                    descriptor = (String) df.get(null);
+                } catch (Exception ignored) {}
+            }
+            if (descriptor == null) descriptor = "unknown";
+
+            data.writeInterfaceToken(descriptor);
+            data.writeInt(value);
+            boolean ok = binder.transact(txCode, data, reply, 0);
+            reply.readException();
+            Log.d(TAG, "transactServiceInt(" + serviceName + ", 0x" + Integer.toHexString(txCode) + ", " + value + ") = " + ok);
+            return ok;
+        } catch (Exception e) {
+            Log.e(TAG, "transactServiceInt failed: " + e.getMessage());
+            return false;
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
     }
 
     // ==================== Cleanup ====================

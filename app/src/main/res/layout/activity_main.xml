@@ -16,78 +16,143 @@
         android:paddingTop="8dp"
         android:paddingBottom="12dp">
 
-        <!-- ============ HERO: Battery & Range ============ -->
+        <!-- ============ Battery & Range (compact) + Profile ============ -->
         <LinearLayout
-            android:id="@+id/card_energy"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/card_bg_selector"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:paddingTop="28dp"
-            android:paddingBottom="20dp"
+            android:orientation="horizontal"
             android:layout_marginBottom="10dp">
 
-            <TextView
-                style="@style/CardTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/energy" />
-
+            <!-- Battery card (compact) -->
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/card_energy"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:layout_marginTop="4dp">
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingTop="16dp"
+                android:paddingBottom="14dp">
 
                 <TextView
-                    android:id="@+id/battery_lvl"
-                    style="@style/HeroValue"
+                    style="@style/CardTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="--" />
+                    android:text="@string/energy" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="2dp">
+
+                    <TextView
+                        android:id="@+id/battery_lvl"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="--"
+                        android:textSize="42sp"
+                        android:textColor="?attr/colorTextPrimary"
+                        android:fontFamily="sans-serif-thin" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="%"
+                        android:textSize="22sp"
+                        android:textColor="?attr/colorTextTertiary"
+                        android:fontFamily="sans-serif-thin"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginBottom="6dp" />
+                </LinearLayout>
 
                 <TextView
+                    android:id="@+id/range_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="%"
-                    android:textSize="28sp"
+                    android:text="@string/waiting_data"
+                    android:textColor="@color/accent_teal"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/battery_eta_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="?attr/colorTextSecondary"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif"
+                    android:layout_marginTop="2dp" />
+
+                <TextView
+                    android:id="@+id/bms_raw_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
                     android:textColor="?attr/colorTextTertiary"
-                    android:fontFamily="sans-serif-thin"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginBottom="8dp" />
+                    android:textSize="10sp"
+                    android:fontFamily="sans-serif"
+                    android:layout_marginTop="2dp" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/range_text"
-                android:layout_width="wrap_content"
+            <!-- Profile card -->
+            <LinearLayout
+                android:id="@+id/card_profile"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="@string/waiting_data"
-                android:textColor="@color/accent_teal"
-                android:textSize="16sp"
-                android:fontFamily="sans-serif"
-                android:layout_marginTop="2dp" />
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingTop="16dp"
+                android:paddingBottom="14dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp">
 
-            <TextView
-                android:id="@+id/battery_eta_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="?attr/colorTextSecondary"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif"
-                android:layout_marginTop="4dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DRIVE"
+                    android:textSize="11sp"
+                    android:textColor="?attr/colorTextTertiary"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.1" />
 
-            <TextView
-                android:id="@+id/bms_raw_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="?attr/colorTextTertiary"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif"
-                android:layout_marginTop="4dp" />
+                <TextView
+                    android:id="@+id/profile_drive_mode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--"
+                    android:textSize="28sp"
+                    android:textColor="?attr/colorTextPrimary"
+                    android:fontFamily="sans-serif-light"
+                    android:layout_marginTop="2dp" />
+
+                <TextView
+                    android:id="@+id/profile_regen_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Regen: --"
+                    android:textColor="@color/accent_teal"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:id="@+id/profile_restore_btn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/accent_green"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- ============ Weather + Temp row ============ -->
@@ -126,35 +191,6 @@
                     android:layout_height="wrap_content"
                     android:text="--\u00B0C"
                     android:textColor="@color/accent_orange"
-                    android:textSize="22sp"
-                    android:fontFamily="sans-serif-light" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="80dp"
-                android:layout_weight="1"
-                android:layout_marginStart="5dp"
-                android:layout_marginEnd="5dp"
-                android:background="@drawable/card_bg_selector"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="20dp"
-                android:paddingEnd="16dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="?attr/colorTextPrimary"
-                    android:textSize="15sp"
-                    android:fontFamily="sans-serif" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="--\u00B0C"
-                    android:textColor="@color/accent_green"
                     android:textSize="22sp"
                     android:fontFamily="sans-serif-light" />
             </LinearLayout>
@@ -741,6 +777,7 @@
                 android:layout_height="68dp"
                 android:layout_weight="1"
                 android:layout_marginStart="5dp"
+                android:layout_marginEnd="5dp"
                 android:background="@drawable/card_bg_selector"
                 android:gravity="center"
                 android:orientation="vertical">
@@ -757,6 +794,30 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/tbox" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_cloud"
+                android:layout_width="0dp"
+                android:layout_height="68dp"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/card_bg_selector"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_mapmode"
+                    android:tint="@color/accent_teal" />
+
+                <TextView
+                    style="@style/GridButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Cloud" />
             </LinearLayout>
         </LinearLayout>
 

@@ -42,7 +42,7 @@ public class LineChartView extends View {
     private float maxVal = Float.MIN_VALUE;
     private String label = "";
     private String unit = "";
-    private int lineColor = 0xFF0A84FF;
+    private int lineColor = 0xFF2979FF;
 
     public LineChartView(Context context) { super(context); init(); }
     public LineChartView(Context context, AttributeSet attrs) { super(context, attrs); init(); }

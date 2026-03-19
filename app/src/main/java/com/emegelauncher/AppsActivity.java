@@ -107,6 +107,7 @@ public class AppsActivity extends Activity {
         for (ResolveInfo ri : activities) {
             String pkg = ri.activityInfo.packageName;
             if (hidden.contains(pkg)) continue;
+            if (pkg.toLowerCase().contains("ep21avnlogin")) continue;
 
             AppInfo info = new AppInfo();
             info.label = ri.loadLabel(pm).toString();

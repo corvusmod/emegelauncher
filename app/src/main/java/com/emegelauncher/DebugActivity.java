@@ -80,7 +80,7 @@ public class DebugActivity extends Activity {
         // Tab buttons
         mTabVhal = findViewById(R.id.tab_vhal);
         mTabSaic = findViewById(R.id.tab_saic);
-        int blue = 0xFF0A84FF;
+        int blue = ThemeHelper.accentBlue(this);
         int gray = ThemeHelper.resolveColor(this, R.attr.colorTextSecondary);
 
         mTabVhal.setTextColor(blue);

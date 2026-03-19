@@ -1,6 +1,6 @@
 # Emegelauncher
 
-A custom home screen launcher for the **MG Marvel R** electric vehicle, designed to provide deep vehicle telemetry, real-time graphs, diagnostics, and a modern UI on the car's 19.4" portrait infotainment display.
+A custom home screen launcher for the **MG Marvel R** electric vehicle, designed to provide deep vehicle telemetry, real-time graphs, cloud integration, and a modern UI on the car's 19.4" portrait infotainment display.
 
 ---
 
@@ -24,150 +24,157 @@ A custom home screen launcher for the **MG Marvel R** electric vehicle, designed
 > - GPS location and driving history
 > - All vehicle telemetry (speed, battery, charging sessions)
 > - Bluetooth paired devices, WiFi credentials, and hotspot passwords
+> - MG iSMART cloud account credentials (if cloud features are used)
 >
-> **Only install this application from the official source repository.** Modified versions obtained from third parties could silently exfiltrate this data to external servers. The authors of this project have designed it to operate **entirely offline** — it does not transmit any data over the network. However, a tampered version could easily add this capability without your knowledge.
->
-> Before installing any build you did not compile yourself, **review the source code**. If someone offers you a pre-built APK, treat it with the same caution you would treat giving someone your car keys.
+> **Only install this application from the official source repository.** Modified versions obtained from third parties could silently exfiltrate this data to external servers. Before installing any build you did not compile yourself, **review the source code**.
 
 ---
 
 ## Features
 
 ### Home Screen
-- **Battery & Range**: Display SOC and BMS raw SOC with estimated range (multiple sources with fallback)
-- **Weather**: Temperature from SAIC weather broadcasts and SharedPreferences polling
-- **Inside/Outside Temperature**: Via SAIC IAirConditionService with VHAL fallback
-- **App Shortcuts**: All original launcher buttons (Phone, Navigation, Music, Radio, 360 View, CarPlay, Android Auto, Video, Vehicle Settings, System Settings, Rescue Call, MG Touchpoint, User Manual)
-- **Dark/Light Theme**: Toggle via Launcher Settings, persisted across restarts
+- **Battery & Range**: SOC percentage, BMS raw SOC, estimated range (cluster + BMS sources)
+- **Drive Mode & Regen**: Live display of current drive mode (Eco/Normal/Sport/Winter) and regen level
+- **Weather**: Temperature from SAIC weather service
+- **Outside Temperature**: From air conditioning service with VHAL fallback
+- **Driver Profile**: Save/restore drive mode and regen level, auto-restore on start
+- **App Shortcuts**: Navigation, Radio, Music, Phone, 360 View, CarPlay, Android Auto, Video, Vehicle Settings, System Settings, Rescue, Touchpoint, Manual
+- **Auto Theme**: Follows car display (day/night), or manual dark/light override
 
-### Vehicle Graphs (7 tabs)
+### Vehicle Graphs (8 tabs)
 | Tab | Content |
 |---|---|
-| **Dashboard** | Speed, SOC, RPM, Efficiency gauges + power flow bar + gear + range |
+| **Dashboard** | Speed, SOC, RPM, Efficiency gauges + energy flow chart + gear + range + drive mode |
 | **Energy** | SOC (display + BMS raw), pack voltage, pack current, consumption (kWh/100km) |
-| **Charging** | Live charts when charging, stored session data when idle, AC/DC details, BMS limits, scheduled charge |
-| **Health** | Auto-calculated SOH estimation, capacity tracking, resting voltage analysis, charge session history |
-| **Tires** | 4-corner pressure (bar) + temperature diagram with color-coded thresholds |
-| **Climate** | Temperature chart, PM2.5 inside/outside, ionizer, filter life, air quality |
+| **Charging** | Live power/current/voltage charts when charging, stored session data when idle |
+| **Health** | Auto-calculated SOH estimation, capacity tracking, charge session history |
+| **Tires** | 4-corner pressure diagram with color-coded thresholds (2.5-3.3 bar) |
+| **Climate** | Temperature monitoring, HVAC status |
 | **Trip** | Odometer, avg consumption, total consumed, regen energy/range |
+| **G-Meter** | 2D G-force visualization, longitudinal/lateral charts, regen level, one-pedal status |
+
+### iSMART Cloud Integration
+Connects to MG's cloud API (`gateway-mg-eu.soimt.com`) for data not available locally on the head unit.
+
+**Read-only data:**
+- Cabin temperature (interior temp sensor — not available via VHAL)
+- 12V battery voltage
+- Trip statistics with graphs (mileage, consumption kWh/100km, CO2 saved, avg speed, travel time)
+- TBox online/offline/sleep status, SMS wake limits
+- Vehicle feature support matrix, firmware versions (AVN MCU/MPU, TBox MCU/MPU)
+- FOTA update campaigns with ECU details
+- Notifications (alarm, command, news)
+
+**Write controls:**
+- BT Digital Key management (activate, deactivate, revoke keys)
+- Air clean mode
+- Scheduled charging (set time window, enable/disable)
+- Geofence (create at current GPS position with radius, delete)
+- Send POI to car navigation (current location or custom coordinates)
+- Find My Car (horn + lights, or lights only)
+- Force TBox wake + status refresh
+
+All cloud features are **greyed out and disabled** when not logged in.
+
+### Navigation Proxy
+Registers as the system handler for standard `geo:` URI intents, forwarding them to the car's Telenav navigation. This allows **any third-party app** (e.g. charging station finders) to send addresses to the car's navigation without knowing about Telenav specifically.
+
+Supported formats:
+- `geo:lat,lon` — navigate to coordinates
+- `geo:lat,lon?q=label` — navigate with label
+- `geo:0,0?q=search+query` — search for destination
+- `google.navigation:q=lat,lon` — Google Maps compatible
 
 ### Vehicle Info
-100+ data points organized by category: Identity (VIN, MAC addresses, HW/SW versions), Status, Battery (including 12V voltage), HVAC, ADAS configuration, Comfort settings, Doors/Windows, ECU online status, Maintenance, Lights, System.
+100+ data points: Identity (VIN, MAC, HW/SW versions), Status, Battery, HVAC, ADAS configuration (AEB, FCW, BSD, LKA, TJA, RCTA), APA status, drive mode, Comfort settings, Doors/Windows, ECU status, Maintenance, Lights (SAIC-specific), System, Sensors, Cloud data (cabin temp, 12V, trip stats).
+
+### Quick Controls
+- **Doors & Windows**: Lock/unlock, individual window sliders, sunroof
+- **Ambient Lighting**: On/off, brightness, color, breathing effect, drive mode link
+- **Charging**: Battery pre-heat, charge port lock (local SAIC service)
+- **Cloud Controls**: Air clean, scheduled charging, V2L (require iSMART login)
+- **Privacy**: Privacy mode, map/voice/music data sharing, mobile data, remote control
+- **Developer**: ADB debugging toggle
+
+### TBox (Telematics)
+EngMode vehicle status (speed, gear, parking brake, power type), hardware info beans (GNSS with lat/lon/signal/gyro, Bluetooth with connected device, Mobile network with IMEI/signal, WiFi), TBox network interface.
 
 ### Location & GPS
-Real-time GPS position with satellite count, vehicle telemetry snapshot, JSON data export format, multiple coordinate formats (Decimal, DMS, UTM).
+GPS position, altitude, accuracy, bearing, speed, satellites (used/visible), street address from navigation service, JSON snapshot, DMS/UTM coordinate formats.
 
 ### Diagnostics
-- **VHAL Properties**: 943 vehicle properties with descriptions, live values, and filtering
-- **SAIC Services**: 252 methods across 21 service connections, organized by service
-- **Export**: Logcat and full diagnostics dump to USB/storage
+- **VHAL Properties**: 943 vehicle properties with descriptions, live values, filtering
+- **SAIC Services**: 252 methods across 21 connections, organized by service
+- **AIDL TX Codes**: Enumerate transaction codes from all SAIC Stub classes
+- **Export**: Logcat, diagnostics dump (including TX codes, binder info), or both to USB/internal storage
 
-### Launcher Settings
-- Dark/Light theme toggle
-- Default launcher selector (set Emegelauncher or restore original)
-- Storage export (Logcat, Diagnostics, or both)
+### Settings
+- Theme selector (Auto/Dark/Light) with car night mode detection
+- Default launcher (set/restore)
+- Overlay toggle (floating back + recent apps buttons)
+- Driver profile (save/restore drive mode + regen level)
+- MG iSMART cloud login/logout with status display
+- Key capture mode (VHAL 20Hz + Android KeyEvent interception)
+- AIDL transaction code viewer (all services)
+- Storage export
 
 ---
 
 ## Architecture
 
-Emegelauncher uses a **6-layer service architecture** to access vehicle data, entirely through **Java reflection** — no proprietary libraries are compiled or bundled.
+Emegelauncher uses a **7-layer service architecture** to access vehicle data, entirely through **Java reflection** — no proprietary libraries are compiled or bundled.
 
 ```
 Layer 1: Android Car API
-  ├─ CarPropertyManager ─── 943 VHAL properties (STRING/INT/FLOAT/BOOL, area-aware)
-  ├─ CarHvacManager
-  └─ CarBMSManager
+  |- CarPropertyManager --- 943 VHAL properties
+  |- CarHvacManager / CarBMSManager
 
-Layer 2: SAIC VehicleSettingsService
-  ├─ Bind: com.saicmotor.service.vehicle.VehicleService
-  ├─ Alt:  ServiceManager.getService("vehiclesetting")
-  └─ IHubService → 5 sub-services:
-      ├─ "aircondition"     → IAirConditionService     (26 methods)
-      ├─ "vehiclecondition" → IVehicleConditionService  (27 methods)
-      ├─ "vehiclesetting"   → IVehicleSettingService    (39 methods)
-      ├─ "vehiclecontrol"   → IVehicleControlService    (12 methods)
-      └─ "vehiclecharging"  → IVehicleChargingService   (25 methods)
+Layer 2: SAIC VehicleSettingsService (via DexClassLoader)
+  |- IVehicleSettingService    (128 TX codes: ADAS, comfort, ambient)
+  |- IVehicleConditionService  (27 methods: ECU status, maintenance)
+  |- IVehicleChargingService   (25 methods: charging, battery, regen)
+  |- IVehicleControlService    (12 methods: doors, windows, ESP)
+  |- IAirConditionService      (26 methods: HVAC, seat heat)
 
 Layer 3: EngineerModeService
-  └─ Bind: com.saicmotor.service.engmode.EngineeringModeService
-      └─ "system_setting" → ISystemSettingsManager (8 methods)
-         └─ Includes: 12V battery voltage, firmware versions
+  |- ISystemSettingsManager (ADB, speed, gear, power)
+  |- ISystemHardwareManager (GNSS, BT, mobile, WiFi beans)
 
-Layer 4: SaicAdapterService
-  └─ 3 separate service bindings:
-      ├─ GeneralService  → IGeneralService   (24 methods: nav, road, speed limit)
-      ├─ MapService      → IMapService       (22 methods: car type, EV port, TTS)
-      └─ VoiceVuiService → IVoiceVuiService  (11 methods: location, map state)
-
-Layer 5: SystemSettingsService
-  └─ 8 sub-services via intent actions:
-      ├─ IBtService         (6 methods: Bluetooth, CarPlay)
-      ├─ IGeneralService    (8 methods: brightness, night mode)
-      ├─ IMyCarService      (5 methods: MCU/MPU/TBox versions)
-      ├─ ISmartSoundService (17 methods: EQ, Bose, balance, fader)
-      ├─ IHotspotService    (3 methods: WiFi hotspot)
-      ├─ IGdprService       (4 methods: privacy toggles)
-      ├─ IWiFiService       (1 method)
-      └─ IDataUsageService  (2 methods)
-
+Layer 4: SaicAdapterService (3 sub-services)
+Layer 5: SystemSettingsService (8 sub-services)
 Layer 6: vehicleService_overseas
-  └─ IVehicleAidlInterface (12 methods: AVN ID, auth, activation)
 
-Additional:
-  Weather ─── Broadcast receiver + SharedPreferences polling
-  GPS ─────── Android LocationManager + GnssStatus.Callback
+Layer 7: MG iSMART Cloud API
+  |- OAuth2 + AES/CBC encryption + HMAC-SHA256 verification
+  |- Vehicle status (cabin temp, 12V, trip data)
+  |- Statistics (mileage, consumption, CO2, speed, time)
+  |- BT digital key management
+  |- Geofence, POI, Find My Car, FOTA, messages
 ```
-
-**Total: 21 service connections, ~1195 readable data points**
-
----
-
-## Vehicle Properties
-
-### Key VHAL Properties
-
-| Property | ID | Type | Unit/Scale |
-|---|---|---|---|
-| BMS_PACK_SOC | 560002053 | FLOAT | % (BMS raw) |
-| BMS_PACK_SOC_DSP | 560002052 | FLOAT | % (display) |
-| BMS_PACK_VOL | 560002054 | FLOAT | V |
-| BMS_PACK_CRNT | 560002055 | FLOAT | A |
-| BMS_ESTD_ELEC_RNG | 557904918 | INT | km |
-| CLSTR_ELEC_RNG | 557904966 | INT | km (cluster) |
-| PERF_VEHICLE_SPEED | 291504647 | FLOAT | km/h |
-| ENGINE_RPM | 291504901 | FLOAT | RPM |
-| CURRENT_GEAR | 289408001 | INT | 1=D,2=N,3=R,4=P |
-| SENSOR_TOTAL_MILEAGE | 557847910 | INT | km |
-| SENSOR_TIRE_PRESURE_FL/FR/RL/RR | 557847891-894 | INT | kPa (÷100=bar) |
-| ELEC_CSUMP_PERKM | 560002077 | FLOAT | ÷10=kWh/100km |
-| INFO_VIN | 286261504 | STRING | VIN |
-
-### Value Scaling
-
-| Raw Value | Conversion | Example |
-|---|---|---|
-| Tire pressure | ÷100 = bar | 264 → 2.64 bar |
-| Consumption | ÷10 = kWh/100km | 82.3 → 8.23 |
-| Charge time | 1023 = N/A | sentinel value |
-| Target SOC | BMS raw scale | 7% raw ≈ 100% display |
-| Gear | 1=D, 2=N, 3=R, 4=P | |
-| SOC gap | Display - Raw ≈ 7% | 65.8% raw → 73% display |
-
-For the complete list of all 943 VHAL properties and 252 SAIC service methods, see [PROPERTIES_REFERENCE.md](PROPERTIES_REFERENCE.md).
 
 ---
 
 ## No Proprietary Code
 
-This project contains **zero proprietary MG/SAIC code**.
+This project contains **zero proprietary MG/SAIC code**. Verified by automated scan of all source files, imports, dependencies, and binary assets.
 
-- **No SAIC/MG source files** are included in the project
-- **No proprietary JARs or libraries** are compiled or bundled (only `androidx.appcompat` and `androidx.constraintlayout`)
-- **No direct imports** of `android.car.*`, `com.saicmotor.*`, or `com.saicvehicleservice.*`
-- All vehicle services are accessed entirely through **Java reflection** (`Class.forName()`, `Method.invoke()`)
-- SAIC class names appear only as **string literals** for reflection lookups
-- `YFVehicleProperty.java` contains numeric constants (property IDs) — these are factual numeric values, not copyrightable code
+**Source code:**
+- **Zero proprietary imports** — no `com.saicmotor.*`, `com.saicvehicleservice.*`, `com.yfve.*`, or `android.car.*` imports anywhere in the codebase
+- All vehicle services are accessed entirely through **Java reflection** (`Class.forName()`, `Method.invoke()`, `DexClassLoader`)
+- SAIC class names appear only as **string literals** for runtime reflection lookups
+- AIDL stub classes are loaded at runtime via `DexClassLoader` from APKs already installed on the car's system partition — no stubs are compiled or bundled
+
+**Dependencies:**
+- Only **2 libraries**: `androidx.appcompat:1.1.0` and `androidx.constraintlayout:1.1.3` (standard Android Jetpack)
+- **No proprietary JARs, AARs, or native .so libraries** in the project
+
+**Cloud API:**
+- The iSMART cloud encryption protocol (AES/CBC/PKCS5Padding with MD5-derived keys, HMAC-SHA256 request verification) is **reimplemented from scratch** using standard Java crypto libraries (`javax.crypto.Cipher`, `MessageDigest`, `Mac`)
+- No code was copied from MG apps — the protocol was reverse-engineered from the open-source NewMGRemote project
+
+**Resources:**
+- **No proprietary images, icons, layouts, or assets** copied from any MG/SAIC application
+- VHAL property IDs in `YFVehicleProperty.java` are numeric constants — factual hardware register addresses, not copyrightable code
 
 ---
 
@@ -176,7 +183,7 @@ This project contains **zero proprietary MG/SAIC code**.
 ### Requirements
 - Java 11 (`openjdk-11-jdk`)
 - Android SDK with Build Tools 28.0.3
-- AOSP platform signing key (included as `platform.keystore`)
+- AOSP platform signing key (`platform.keystore`)
 
 ### Build
 
@@ -186,16 +193,6 @@ JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew assembleDebug
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`
 
-### Why Platform Signing?
-
-The app uses `android:sharedUserId="android.uid.system"` to access car services that require system-level permissions. This means the APK must be signed with the same key as the vehicle's system partition. The MG Marvel R uses the **AOSP default platform test key**, which is publicly available.
-
----
-
-## Installation
-
-TBD
-
 ---
 
 ## Target Vehicle
@@ -203,8 +200,7 @@ TBD
 | Spec | Value |
 |---|---|
 | Vehicle | MG Marvel R (EP21 platform) |
-| Display | 19.4" portrait, 1024×1280px |
-| Usable area | ~1024×760px (system overlays top/bottom) |
+| Display | 19.4" portrait, 1024x1280px |
 | OS | Android 9 Automotive (API 28) |
 | Battery | 70 kWh nominal |
 | Tire pressure | 2.9 bar recommended |
@@ -213,15 +209,18 @@ TBD
 
 ## Screens
 
-| Screen | Description |
-|---|---|
-| Home | SOC, range, weather, temps, app shortcuts |
-| All Apps | Grid of all installed applications |
-| Graphs | 7-tab live vehicle data visualization |
-| Vehicle Info | 100+ static data points |
-| Location | GPS position, satellites, JSON snapshot |
-| Diagnostics | 943 VHAL + 252 SAIC methods, filter, dual tabs |
-| Settings | Theme, default launcher, export tools |
+| Screen | Activity | Description |
+|---|---|---|
+| Home | MainActivity | SOC, range, drive mode, regen, weather, profile, shortcuts |
+| All Apps | AppsActivity | Grid of user-installed applications |
+| Graphs | GraphsActivity | 8-tab live vehicle data with gauges and charts |
+| Vehicle Info | VehicleInfoActivity | 100+ data points including cloud data |
+| Location | LocationActivity | GPS, satellites, address, JSON snapshot |
+| Cloud | CloudActivity | iSMART cloud: status, statistics graphs, BT keys, geofence, POI, FOTA |
+| Controls | ControlsActivity | Doors, windows, ambient, charging, air clean, privacy |
+| TBox | TboxActivity | EngMode hardware data, TBox network |
+| Diagnostics | DebugActivity | 943 VHAL + 252 SAIC, filter, export |
+| Settings | SettingsActivity | Theme, launcher, cloud login, profile, overlay, developer tools |
 
 ---
 
@@ -229,24 +228,30 @@ TBD
 
 ```
 app/src/main/java/com/emegelauncher/
-├── MainActivity.java          # Home screen
-├── AppsActivity.java          # App drawer
-├── GraphsActivity.java        # 7-tab vehicle graphs
-├── VehicleInfoActivity.java   # Vehicle data display
-├── LocationActivity.java      # GPS & location
-├── DebugActivity.java         # Diagnostics (VHAL + SAIC)
-├── SettingsActivity.java      # Launcher settings
-├── ThemeHelper.java           # Dark/light theme management
-├── vehicle/
-│   ├── VehicleServiceManager.java  # 6-layer service architecture
-│   ├── WeatherManager.java         # Weather broadcast + polling
-│   ├── BatteryHealthTracker.java   # SOH estimation
-│   └── YFVehicleProperty.java     # 943 VHAL property constants
-└── widget/
-    ├── ArcGaugeView.java      # Arc gauge (speed, SOC, RPM)
-    ├── LineChartView.java     # Line chart with auto-scaling
-    ├── PowerFlowBar.java      # Bidirectional power flow
-    └── TireDiagramView.java   # 4-corner tire diagram
+|- MainActivity.java          # Home screen with profile card
+|- AppsActivity.java          # App drawer
+|- GraphsActivity.java        # 8-tab vehicle graphs
+|- VehicleInfoActivity.java   # Vehicle data + cloud data display
+|- LocationActivity.java      # GPS & location
+|- CloudActivity.java         # iSMART cloud (6 tabs)
+|- ControlsActivity.java      # Quick controls + cloud controls
+|- TboxActivity.java          # TBox telematics
+|- DebugActivity.java         # Diagnostics (VHAL + SAIC)
+|- SettingsActivity.java      # Settings + cloud login + profile
+|- OverlayService.java        # Floating back/recent buttons
+|- NavProxyActivity.java      # geo: intent proxy to Telenav
+|- ThemeHelper.java           # Dark/light theme management
+|- vehicle/
+|   |- VehicleServiceManager.java  # 6-layer local service architecture
+|   |- SaicCloudManager.java      # iSMART cloud API client
+|   |- WeatherManager.java        # Weather broadcast + polling
+|   |- BatteryHealthTracker.java   # SOH estimation
+|   |- YFVehicleProperty.java     # 943 VHAL property constants
+|- widget/
+    |- ArcGaugeView.java      # Arc gauge (speed, SOC, RPM)
+    |- LineChartView.java     # Line chart with auto-scaling
+    |- GMeterView.java        # Circular G-force meter
+    |- TireDiagramView.java   # 4-corner tire pressure diagram
 ```
 
 ---
@@ -269,5 +274,6 @@ Contributions are welcome. By submitting a pull request, you agree that your con
 
 ## Acknowledgments
 
-- Built using knowledge from the [Huseyin's DriveHub] (Not released) project's reflection-based approach
+- Built using knowledge from Huseyin's DriveHub project's reflection-based approach
 - AOSP platform signing key from the Android Open Source Project
+- Cloud API protocol reverse-engineered from the NewMGRemote open-source project

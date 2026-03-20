@@ -56,7 +56,7 @@ public class CloudActivity extends Activity {
         TAB_NAMES = new String[]{
             getString(R.string.cloud_tab_status), getString(R.string.cloud_tab_stats),
             getString(R.string.cloud_tab_keys), getString(R.string.cloud_tab_geofence),
-            getString(R.string.cloud_tab_poi), getString(R.string.cloud_tab_info)
+            getString(R.string.cloud_tab_poi)
         };
 
         LinearLayout root = new LinearLayout(this);
@@ -148,7 +148,6 @@ public class CloudActivity extends Activity {
             case 2: buildKeys(); break;
             case 3: buildGeofence(); break;
             case 4: buildPoi(); break;
-            case 5: buildInfo(); break;
         }
     }
 
@@ -166,8 +165,7 @@ public class CloudActivity extends Activity {
                 });
                 break;
             case 1:
-                Toast.makeText(this, getString(R.string.cloud_fetching_stats), Toast.LENGTH_SHORT).show();
-                fetchAllStats();
+                fetchAndShowStats();
                 break;
             case 2:
                 Toast.makeText(this, getString(R.string.cloud_fetching_keys), Toast.LENGTH_SHORT).show();
@@ -181,14 +179,7 @@ public class CloudActivity extends Activity {
                 Toast.makeText(this, getString(R.string.cloud_fetching_pois), Toast.LENGTH_SHORT).show();
                 mCloud.queryFavoritePois((ok, msg) -> switchTab(4));
                 break;
-            case 5:
-                Toast.makeText(this, getString(R.string.cloud_fetching_info), Toast.LENGTH_SHORT).show();
-                mCloud.queryFeatures((ok, msg) -> {
-                    mCloud.queryTboxStatus((ok2, msg2) -> {
-                        mCloud.queryFota((ok3, msg3) -> switchTab(5));
-                    });
-                });
-                break;
+            // Info tab removed — data fetched on startup
         }
     }
 
@@ -211,7 +202,7 @@ public class CloudActivity extends Activity {
             addRow(getString(R.string.cloud_outside), formatTemp(bvs.optInt("exteriorTemperature", -999)));
 
             addSection(getString(R.string.cloud_battery_power));
-            addRow(getString(R.string.cloud_12v_battery), String.format("%.1fV", bvs.optInt("batteryVoltage", 0) * 0.25));
+            addRow(getString(R.string.cloud_12v_battery), String.format("%.1fV", bvs.optInt("batteryVoltage", 0) / 10.0));
             addRow(getString(R.string.cloud_power_mode), decodePowerMode(bvs.optInt("powerMode", -1)));
             addRow(getString(R.string.cloud_engine_status), bvs.optInt("engineStatus", 0) == 1 ? getString(R.string.cloud_running) : getString(R.string.cloud_off));
             addRow(getString(R.string.cloud_ev_range), bvs.optInt("fuelRangeElec", 0) / 10.0 + " km");
@@ -271,83 +262,156 @@ public class CloudActivity extends Activity {
 
     // ==================== Stats Tab (graphs) ====================
 
+    // ==================== Stats Tab (interactive) ====================
+
+    private String mStatsRangeType = "3"; // "1"=day, "2"=month, "3"=year
+    private java.util.Calendar mStatsDate = java.util.Calendar.getInstance();
+
     private void buildStats() {
-        addSection(getString(R.string.cloud_driving_stats));
-        addStatsNote(getString(R.string.cloud_stats_note));
+        if (!mCloud.isLoggedIn()) { showDisabled("Login required"); return; }
 
-        // Try to show cached stats
-        showStatsGraphs("mileageList", "Mileage", "km", C_BLUE);
-        showStatsGraphs("powerConsumptionList", "Consumption", "kWh/100km", C_ORANGE);
-        showStatsGraphs("co2List", "CO₂ Saved", "kg", C_GREEN);
-        showStatsGraphs("averageSpeedList", "Avg Speed", "km/h", C_TEAL);
-        showStatsGraphs("travelTimeList", "Travel Time", "min", C_PURPLE);
-    }
-
-    private void showStatsGraphs(String listKey, String label, String unit, int color) {
-        // Try day stats first, then month
-        for (String range : new String[]{"day", "month"}) {
-            String cached = mCloud.getCachedStats(listKey.replace("List", ""), range);
-            if (cached == null) {
-                // Try the combined stats
-                cached = mCloud.getCachedStats("all", range);
-            }
-            if (cached != null) {
-                try {
-                    JSONObject json = new JSONObject(cached);
-                    JSONObject data = json.optJSONObject("data");
-                    if (data == null) continue;
-                    JSONArray items = data.optJSONArray(listKey);
-                    if (items == null || items.length() == 0) continue;
-
-                    LineChartView chart = new LineChartView(this);
-                    chart.setLabel(label + " (" + range + ")");
-                    chart.setUnit(unit);
-                    chart.setLineColor(color);
-                    chart.setGridColor(cDivider);
-                    chart.setTextColor(cTextSec);
-                    chart.setBackgroundColor(cCard);
-
-                    for (int i = 0; i < items.length(); i++) {
-                        JSONObject item = items.getJSONObject(i);
-                        float val = (float) item.optDouble("value", 0);
-                        chart.addPoint(val);
-                    }
-
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 250);
-                    lp.setMargins(0, 8, 0, 8);
-                    mContent.addView(chart, lp);
-
-                    // Add summary below chart
-                    double total = 0, max = 0;
-                    for (int i = 0; i < items.length(); i++) {
-                        double v = items.getJSONObject(i).optDouble("value", 0);
-                        total += v;
-                        if (v > max) max = v;
-                    }
-                    double avg = items.length() > 0 ? total / items.length() : 0;
-                    addRow(label + " avg (" + range + ")", String.format("%.1f %s (max %.1f, total %.0f)", avg, unit, max, total));
-                    return; // Show first available range
-                } catch (Exception ignored) {}
-            }
+        // Period selector: Day | Month | Year
+        LinearLayout periodRow = new LinearLayout(this);
+        periodRow.setGravity(Gravity.CENTER);
+        periodRow.setPadding(0, 8, 0, 8);
+        String[][] periods = {{"1", "Day"}, {"2", "Month"}, {"3", "Year"}};
+        for (String[] p : periods) {
+            TextView btn = new TextView(this);
+            btn.setText(p[1]);
+            btn.setTextSize(15);
+            btn.setTextColor(p[0].equals(mStatsRangeType) ? C_BLUE : cTextTert);
+            btn.setPadding(24, 8, 24, 8);
+            btn.setOnClickListener(v -> { mStatsRangeType = p[0]; fetchAndShowStats(); });
+            periodRow.addView(btn);
         }
-        // No data available
-        addRow(label, getString(R.string.cloud_no_data_refresh));
+        mContent.addView(periodRow);
+
+        // Date navigation: < date >
+        LinearLayout navRow = new LinearLayout(this);
+        navRow.setGravity(Gravity.CENTER);
+        navRow.setPadding(0, 4, 0, 12);
+
+        TextView prevBtn = new TextView(this);
+        prevBtn.setText("  \u25C0  ");
+        prevBtn.setTextSize(18);
+        prevBtn.setTextColor(C_BLUE);
+        prevBtn.setOnClickListener(v -> {
+            switch (mStatsRangeType) {
+                case "1": mStatsDate.add(java.util.Calendar.DAY_OF_YEAR, -1); break;
+                case "2": mStatsDate.add(java.util.Calendar.MONTH, -1); break;
+                case "3": mStatsDate.add(java.util.Calendar.YEAR, -1); break;
+            }
+            fetchAndShowStats();
+        });
+        navRow.addView(prevBtn);
+
+        TextView dateLabel = new TextView(this);
+        String dateFmt;
+        switch (mStatsRangeType) {
+            case "1": dateFmt = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(mStatsDate.getTime()); break;
+            case "2": dateFmt = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(mStatsDate.getTime()); break;
+            default: dateFmt = new SimpleDateFormat("yyyy", Locale.getDefault()).format(mStatsDate.getTime()); break;
+        }
+        dateLabel.setText(dateFmt);
+        dateLabel.setTextSize(16);
+        dateLabel.setTextColor(cText);
+        dateLabel.setPadding(20, 0, 20, 0);
+        navRow.addView(dateLabel);
+
+        TextView nextBtn = new TextView(this);
+        nextBtn.setText("  \u25B6  ");
+        nextBtn.setTextSize(18);
+        nextBtn.setTextColor(C_BLUE);
+        nextBtn.setOnClickListener(v -> {
+            switch (mStatsRangeType) {
+                case "1": mStatsDate.add(java.util.Calendar.DAY_OF_YEAR, 1); break;
+                case "2": mStatsDate.add(java.util.Calendar.MONTH, 1); break;
+                case "3": mStatsDate.add(java.util.Calendar.YEAR, 1); break;
+            }
+            fetchAndShowStats();
+        });
+        navRow.addView(nextBtn);
+        mContent.addView(navRow);
+
+        // Show cached data for current rangeType
+        String cached = mCloud.getCachedStats(mStatsRangeType);
+        if (cached != null) {
+            renderStats(cached);
+        } else {
+            showMessage(getString(R.string.cloud_no_data_refresh));
+        }
     }
 
-    private void fetchAllStats() {
-        // Fetch all stat types for both day and month
-        String now = new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(new Date());
-        String[] types = {"mileage", "powerConsumption", "co2", "averageSpeed", "travelTime"};
-        final int[] done = {0};
-        final int total = types.length;
+    private void fetchAndShowStats() {
+        String dateStr = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(mStatsDate.getTime());
+        Toast.makeText(this, getString(R.string.cloud_fetching_stats), Toast.LENGTH_SHORT).show();
+        mCloud.queryStatistics(mStatsRangeType, dateStr, (ok, msg) -> {
+            if (ok) runOnUiThread(() -> switchTab(1));
+            else Toast.makeText(this, "Stats: " + msg, Toast.LENGTH_SHORT).show();
+        });
+    }
 
-        for (String type : types) {
-            mCloud.queryStatistics(type, "day", now, (ok, msg) -> {
-                done[0]++;
-                if (done[0] >= total) {
-                    runOnUiThread(() -> switchTab(1));
+    private void renderStats(String jsonStr) {
+        try {
+            JSONObject json = new JSONObject(jsonStr);
+            JSONObject data = json.optJSONObject("data");
+            if (data == null) { showMessage("No statistics data"); return; }
+
+            String[][] charts = {
+                {"mileageList", "Mileage", "km"},
+                {"powerConsumptionList", "Consumption", "kWh/100km"},
+                {"co2List", "CO\u2082 Saved", "kg"},
+                {"averageSpeedList", "Avg Speed", "km/h"},
+                {"travelTimeList", "Travel Time", "h"}
+            };
+            int[] colors = {C_BLUE, C_ORANGE, C_GREEN, C_TEAL, C_PURPLE};
+
+            for (int c = 0; c < charts.length; c++) {
+                JSONArray items = data.optJSONArray(charts[c][0]);
+                if (items == null || items.length() == 0) continue;
+
+                // Chart
+                LineChartView chart = new LineChartView(this);
+                chart.setLabel(charts[c][1]);
+                chart.setUnit(charts[c][2]);
+                chart.setLineColor(colors[c]);
+                chart.setGridColor(cDivider);
+                chart.setTextColor(cTextSec);
+                chart.setBackgroundColor(cCard);
+
+                double total = 0, max = 0;
+                int nonZero = 0;
+                for (int i = 0; i < items.length(); i++) {
+                    double v = items.getJSONObject(i).optDouble("value", 0);
+                    chart.addPoint((float) v);
+                    total += v;
+                    if (v > max) max = v;
+                    if (v > 0) nonZero++;
                 }
-            });
+
+                LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(-1, 200);
+                chartLp.setMargins(0, 8, 0, 4);
+                mContent.addView(chart, chartLp);
+
+                // Summary row
+                double avg = nonZero > 0 ? total / nonZero : 0;
+                String summary;
+                if (charts[c][0].equals("travelTimeList")) {
+                    int totalH = (int) total;
+                    int totalM = (int) ((total - totalH) * 60);
+                    summary = String.format("Total: %dh %dm | Avg: %.1fh | Max: %.1fh", totalH, totalM, avg, max);
+                } else {
+                    summary = String.format("Total: %.1f | Avg: %.1f | Max: %.1f %s", total, avg, max, charts[c][2]);
+                }
+                addRow(charts[c][1], summary);
+            }
+
+            // If no charts were rendered
+            if (data.optJSONArray("mileageList") == null) {
+                showMessage("No data for this period");
+            }
+        } catch (Exception e) {
+            showMessage("Parse error: " + e.getMessage());
         }
     }
 
@@ -466,15 +530,18 @@ public class CloudActivity extends Activity {
         addSection(getString(R.string.cloud_set_geofence));
 
         addActionButton(getString(R.string.cloud_set_geofence_current), () -> {
-            // Use GPS location from LocationManager
+            // Use SAIC navigation service for GPS
             try {
-                android.location.LocationManager lm = (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
-                android.location.Location loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
-                if (loc == null) loc = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
-                if (loc == null) { Toast.makeText(this, "No GPS fix", Toast.LENGTH_SHORT).show(); return; }
-
-                double lat = loc.getLatitude();
-                double lon = loc.getLongitude();
+                String locJson = com.emegelauncher.vehicle.VehicleServiceManager.getInstance(this)
+                    .callSaicMethod("adaptervoice", "getCurLocationDesc");
+                double tmpLat = 0, tmpLon = 0;
+                if (locJson != null && locJson.startsWith("{")) {
+                    org.json.JSONObject locObj = new org.json.JSONObject(locJson);
+                    tmpLat = locObj.optDouble("lat", 0);
+                    tmpLon = locObj.optDouble("lon", 0);
+                }
+                if (tmpLat == 0 && tmpLon == 0) { Toast.makeText(this, "No GPS", Toast.LENGTH_SHORT).show(); return; }
+                final double lat = tmpLat, lon = tmpLon;
 
                 LinearLayout layout = new LinearLayout(this);
                 layout.setOrientation(LinearLayout.VERTICAL);
@@ -528,11 +595,17 @@ public class CloudActivity extends Activity {
 
         addActionButton(getString(R.string.cloud_send_gps), () -> {
             try {
-                android.location.LocationManager lm = (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
-                android.location.Location loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
-                if (loc == null) loc = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
-                if (loc == null) { Toast.makeText(this, "No GPS fix", Toast.LENGTH_SHORT).show(); return; }
-                mCloud.sendPoiToCar("Current Location", loc.getLatitude(), loc.getLongitude(), null,
+                // Use SAIC navigation service for GPS (works on head unit without LocationManager)
+                String locJson = com.emegelauncher.vehicle.VehicleServiceManager.getInstance(this)
+                    .callSaicMethod("adaptervoice", "getCurLocationDesc");
+                double lat = 0, lon = 0;
+                if (locJson != null && locJson.startsWith("{")) {
+                    org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                    lat = loc.optDouble("lat", 0);
+                    lon = loc.optDouble("lon", 0);
+                }
+                if (lat == 0 && lon == 0) { Toast.makeText(this, "No GPS", Toast.LENGTH_SHORT).show(); return; }
+                mCloud.sendPoiToCar("Current Location", lat, lon, null,
                     (ok, msg) -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -732,7 +805,7 @@ public class CloudActivity extends Activity {
 
     private String formatTemp(int raw) {
         if (raw == -999 || raw == 0) return "N/A";
-        return (raw - 40) + "°C";
+        return raw + "°C (raw)";
     }
 
     private String decodePowerMode(int mode) {

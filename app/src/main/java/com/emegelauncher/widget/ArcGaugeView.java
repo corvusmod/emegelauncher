@@ -82,7 +82,7 @@ public class ArcGaugeView extends View {
     public void setUnit(String u) { this.unit = u; }
     public void setLabel(String l) { this.label = l; }
     public void setFgColor(int c) { this.fgColor = c; this.fgColorEnd = lightenColor(c, 0.4f); }
-    public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.3f)); }
+    public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.15f)); }
     public void setTextColor(int c) { textPaint.setColor(c); }
     public void setLabelColor(int c) { labelPaint.setColor(c); }
 
@@ -98,10 +98,11 @@ public class ArcGaugeView extends View {
         glowPaint.setStrokeWidth(glowStrokeW);
 
         float pad = glowStrokeW + 6;
-        // Force square arc area centered in the view
-        float arcSize = size - pad * 2;
+        // Force square arc area, shifted up to leave room for label below
+        float labelSpace = size * 0.14f;
+        float arcSize = size - pad * 2 - labelSpace;
         float ox = (w - arcSize) / 2;
-        float oy = (h - arcSize) / 2;
+        float oy = (h - arcSize - labelSpace) / 2;
         arcRect.set(ox, oy, ox + arcSize, oy + arcSize);
         glowRect.set(ox - 2, oy - 2, ox + arcSize + 2, oy + arcSize + 2);
 
@@ -167,11 +168,12 @@ public class ArcGaugeView extends View {
         labelPaint.setTextSize(size * 0.09f);
         canvas.drawText(unit, cx, cy + size * 0.18f, labelPaint);
 
-        // Label
+        // Label (just below the arc)
         if (!label.isEmpty()) {
-            labelPaint.setTextSize(size * 0.08f);
+            labelPaint.setTextSize(size * 0.1f);
             labelPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-            canvas.drawText(label, cx, h * 0.12f, labelPaint);
+            float labelY = oy + arcSize + labelPaint.getTextSize() + 6;
+            canvas.drawText(label, cx, labelY, labelPaint);
             labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         }
     }

@@ -16,6 +16,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
@@ -40,9 +41,9 @@ public class TireDiagramView extends View {
     public TireDiagramView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
 
     private void init() {
-        carPaint.setColor(0xFF3A3A3C);
+        carPaint.setColor(0xFF8E8E93);
         carPaint.setStyle(Paint.Style.STROKE);
-        carPaint.setStrokeWidth(2f);
+        carPaint.setStrokeWidth(2.5f);
         carFillPaint.setStyle(Paint.Style.FILL);
         carFillPaint.setColor(0xFF1A1A1E);
         tirePaint.setStyle(Paint.Style.FILL);
@@ -85,29 +86,71 @@ public class TireDiagramView extends View {
     protected void onDraw(Canvas canvas) {
         float w = getWidth(), h = getHeight();
         float cx = w / 2, cy = h / 2 - 10;
-        float carW = w * 0.26f, carH = h * 0.55f;
+        float carW = w * 0.18f, carH = h * 0.55f;
 
         // Title
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setTextSize(22f);
-        canvas.drawText("TIRE PRESSURE & TEMPERATURE", cx, cy - carH / 2 - 30, textPaint);
+        canvas.drawText(getContext().getString(com.emegelauncher.R.string.graph_tire_title), cx, cy - carH / 2 - 30, textPaint);
         textPaint.setTextSize(26f);
 
-        // Car body outline (no fill - works on both light and dark themes)
-        RectF carRect = new RectF(cx - carW / 2, cy - carH / 2, cx + carW / 2, cy + carH / 2);
+        // Car body — top-down SUV/crossover silhouette (MG Marvel R style)
         carPaint.setStrokeWidth(2.5f);
-        canvas.drawRoundRect(carRect, carW * 0.35f, carW * 0.25f, carPaint);
+        Path carPath = new Path();
+        float l = cx - carW / 2, r = cx + carW / 2;
+        float t = cy - carH / 2, b = cy + carH / 2;
+        float rr = carW * 0.22f; // corner radius
 
-        // Windshield line
-        Paint windshieldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        windshieldPaint.setColor(0xFF3A3A3C);
-        windshieldPaint.setStrokeWidth(1.5f);
-        windshieldPaint.setStyle(Paint.Style.STROKE);
-        RectF wsRect = new RectF(cx - carW * 0.32f, cy - carH * 0.28f, cx + carW * 0.32f, cy - carH * 0.08f);
-        canvas.drawRoundRect(wsRect, 8, 8, windshieldPaint);
+        // Front (top) — narrower nose with curved hood
+        carPath.moveTo(l + rr, t);
+        carPath.quadTo(cx, t - carH * 0.04f, r - rr, t); // slight curve for hood
+        carPath.quadTo(r, t, r, t + rr);
 
-        // Center line
-        canvas.drawLine(cx, cy - carH * 0.05f, cx, cy + carH * 0.35f, windshieldPaint);
+        // Right side — gentle bulge for fenders
+        carPath.lineTo(r, cy - carH * 0.15f);
+        carPath.quadTo(r + carW * 0.04f, cy, r, cy + carH * 0.15f); // side bulge
+        carPath.lineTo(r, b - rr);
+        carPath.quadTo(r, b, r - rr, b);
+
+        // Rear (bottom) — wider, flat
+        carPath.lineTo(l + rr, b);
+        carPath.quadTo(l, b, l, b - rr);
+
+        // Left side — mirror of right
+        carPath.lineTo(l, cy + carH * 0.15f);
+        carPath.quadTo(l - carW * 0.04f, cy, l, cy - carH * 0.15f);
+        carPath.lineTo(l, t + rr);
+        carPath.quadTo(l, t, l + rr, t);
+        carPath.close();
+
+        canvas.drawPath(carPath, carPaint);
+
+        // Windshield (front window)
+        Paint wsPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        wsPaint.setColor(carPaint.getColor());
+        wsPaint.setStrokeWidth(1.5f);
+        wsPaint.setStyle(Paint.Style.STROKE);
+        Path wsPath = new Path();
+        float wsT = cy - carH * 0.30f, wsB = cy - carH * 0.12f;
+        wsPath.moveTo(l + carW * 0.18f, wsT);
+        wsPath.quadTo(cx, wsT - 4, r - carW * 0.18f, wsT);
+        wsPath.lineTo(r - carW * 0.12f, wsB);
+        wsPath.lineTo(l + carW * 0.12f, wsB);
+        wsPath.close();
+        canvas.drawPath(wsPath, wsPaint);
+
+        // Rear window
+        Path rwPath = new Path();
+        float rwT = cy + carH * 0.15f, rwB = cy + carH * 0.28f;
+        rwPath.moveTo(l + carW * 0.12f, rwT);
+        rwPath.lineTo(r - carW * 0.12f, rwT);
+        rwPath.lineTo(r - carW * 0.18f, rwB);
+        rwPath.quadTo(cx, rwB + 4, l + carW * 0.18f, rwB);
+        rwPath.close();
+        canvas.drawPath(rwPath, wsPaint);
+
+        // Center line (roof ridge)
+        canvas.drawLine(cx, cy - carH * 0.08f, cx, cy + carH * 0.12f, wsPaint);
 
         // Tire positions
         float[][] tirePos = {

@@ -17,6 +17,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -59,9 +60,11 @@ public class MainActivity extends Activity {
     private ViewPager mPager;
 
     // Main page widgets (updated by polling)
-    private TextView mWeatherDesc, mWeatherOutTemp, mWeatherCabinTemp;
+    private TextView mWeatherDesc, mWeatherForecastTemp, mWeatherSensorTemp, mWeatherCabinTemp;
+    private ImageView mWeatherIcon;
     private TextView mBatteryPct, mBatteryRange, mBatteryEta, mBatteryBms;
     private TextView mDriveMode, mRegenLevel;
+    private LinearLayout mDriveModeBar;
 
     // Theme colors
     private int cBg, cCard, cText, cTextSec, cTextTert, cDivider;
@@ -73,19 +76,29 @@ public class MainActivity extends Activity {
         mLastDarkMode = ThemeHelper.isDarkMode(this);
         resolveColors();
 
+        // Show disclaimer on first run — cannot be bypassed
+        if (!getSharedPreferences("emegelauncher", MODE_PRIVATE).getBoolean("disclaimer_accepted", false)) {
+            showDisclaimer();
+            return;
+        }
+
+        initLauncher();
+    }
+
+    private void initLauncher() {
         mVehicle = VehicleServiceManager.getInstance(this);
         mVehicle.bindService();
         mCloud = new SaicCloudManager(this);
         mWeather = new WeatherManager();
         mWeather.register(this, (weather, temp) -> {
             if (mWeatherDesc != null) mWeatherDesc.setText(weather);
-            if (mWeatherOutTemp != null) mWeatherOutTemp.setText(temp + "\u00B0C");
+            if (mWeatherForecastTemp != null) mWeatherForecastTemp.setText(temp + "\u00B0C");
         });
 
         // ViewPager fills the screen
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(cBg);
+        root.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
 
         mPager = new ViewPager(this);
         mPager.setAdapter(new HomePagerAdapter());
@@ -105,6 +118,69 @@ public class MainActivity extends Activity {
         }
         autoRestoreProfile();
         queryCloudOnce();
+    }
+
+    private void showDisclaimer() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(cBg);
+        layout.setPadding(40, 40, 40, 40);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView title = new TextView(this);
+        title.setText(getString(R.string.disclaimer_title));
+        title.setTextSize(22);
+        title.setTextColor(cText);
+        title.setGravity(Gravity.CENTER);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        title.setPadding(0, 0, 0, 24);
+        layout.addView(title);
+
+        TextView body = new TextView(this);
+        body.setText(getString(R.string.disclaimer_text));
+        body.setTextSize(14);
+        body.setTextColor(cTextSec);
+        body.setLineSpacing(4, 1.1f);
+        body.setPadding(0, 0, 0, 32);
+        layout.addView(body);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+
+        TextView declineBtn = new TextView(this);
+        declineBtn.setText(getString(R.string.disclaimer_decline));
+        declineBtn.setTextSize(16);
+        declineBtn.setTextColor(ThemeHelper.accentRed(this));
+        declineBtn.setPadding(40, 16, 40, 16);
+        declineBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        declineBtn.setOnClickListener(v -> {
+            finishAffinity();
+            System.exit(0);
+        });
+        buttons.addView(declineBtn);
+
+        View spacer = new View(this);
+        spacer.setLayoutParams(new LinearLayout.LayoutParams(40, 1));
+        buttons.addView(spacer);
+
+        TextView acceptBtn = new TextView(this);
+        acceptBtn.setText(getString(R.string.disclaimer_accept));
+        acceptBtn.setTextSize(16);
+        acceptBtn.setTextColor(ThemeHelper.accentGreen(this));
+        acceptBtn.setPadding(40, 16, 40, 16);
+        acceptBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        acceptBtn.setOnClickListener(v -> {
+            getSharedPreferences("emegelauncher", MODE_PRIVATE).edit()
+                .putBoolean("disclaimer_accepted", true).apply();
+            initLauncher();
+        });
+        buttons.addView(acceptBtn);
+
+        layout.addView(buttons);
+        scroll.addView(layout);
+        setContentView(scroll);
     }
 
     // ==================== ViewPager Adapter ====================
@@ -139,26 +215,29 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER);
-        bar.setPadding(0, 6, 0, 8);
-        bar.setBackgroundColor(cBg);
+        bar.setPadding(0, 4, 0, 6);
 
-        String[] labels = {"Graphs", "\u2022", "Apps", "Other"};
+        int accent = ThemeHelper.accentBlue(this);
         for (int i = 0; i < 4; i++) {
             TextView dot = new TextView(this);
             dot.setTag("dot_" + i);
             dot.setText("\u2022");
-            dot.setTextSize(18);
-            dot.setTextColor(i == PAGE_MAIN ? ThemeHelper.accentBlue(this) : cTextTert);
-            dot.setPadding(12, 0, 12, 0);
+            dot.setTextSize(i == PAGE_MAIN ? 14 : 10);
+            dot.setTextColor(i == PAGE_MAIN ? accent : cTextTert);
+            dot.setPadding(8, 0, 8, 0);
             bar.addView(dot);
         }
 
         mPager.addOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
             @Override
             public void onPageSelected(int pos) {
+                int accentColor = ThemeHelper.accentBlue(MainActivity.this);
                 for (int i = 0; i < 4; i++) {
                     TextView d = bar.findViewWithTag("dot_" + i);
-                    if (d != null) d.setTextColor(i == pos ? ThemeHelper.accentBlue(MainActivity.this) : cTextTert);
+                    if (d != null) {
+                        d.setTextColor(i == pos ? accentColor : cTextTert);
+                        d.setTextSize(i == pos ? 14 : 10);
+                    }
                 }
             }
         });
@@ -174,51 +253,58 @@ public class MainActivity extends Activity {
 
     private View buildGraphsPage() {
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(cBg);
         page.setPadding(16, 4, 16, 4);
         page.setOnClickListener(v -> startActivity(new Intent(this, GraphsActivity.class)));
 
         // 4 gauges in 2x2
         LinearLayout gaugeRow1 = new LinearLayout(this);
+        gaugeRow1.setBackgroundResource(R.drawable.card_bg_ripple);
+        gaugeRow1.setPadding(8, 8, 8, 8);
         mGpSpeed = newGauge(getString(R.string.speed), "km/h", 220, ThemeHelper.accentBlue(this));
         mGpSoc = newGauge(getString(R.string.battery), "%", 100, ThemeHelper.accentGreen(this));
-        gaugeRow1.addView(mGpSpeed, new LinearLayout.LayoutParams(0, 200, 1f));
-        gaugeRow1.addView(mGpSoc, new LinearLayout.LayoutParams(0, 200, 1f));
+        gaugeRow1.addView(mGpSpeed, new LinearLayout.LayoutParams(0, 340, 1f));
+        gaugeRow1.addView(mGpSoc, new LinearLayout.LayoutParams(0, 340, 1f));
         page.addView(gaugeRow1);
 
         LinearLayout gaugeRow2 = new LinearLayout(this);
+        gaugeRow2.setBackgroundResource(R.drawable.card_bg_ripple);
+        gaugeRow2.setPadding(8, 8, 8, 8);
         mGpRpm = newGauge(getString(R.string.motor), "RPM", 12000, ThemeHelper.accentOrange(this));
         mGpEcon = newGauge(getString(R.string.efficiency), "", 100, ThemeHelper.accentTeal(this));
-        gaugeRow2.addView(mGpRpm, new LinearLayout.LayoutParams(0, 200, 1f));
-        gaugeRow2.addView(mGpEcon, new LinearLayout.LayoutParams(0, 200, 1f));
+        gaugeRow2.addView(mGpRpm, new LinearLayout.LayoutParams(0, 340, 1f));
+        gaugeRow2.addView(mGpEcon, new LinearLayout.LayoutParams(0, 340, 1f));
         page.addView(gaugeRow2);
 
         // Power gauge + G-Meter side by side
         LinearLayout chartsRow = new LinearLayout(this);
         chartsRow.setOrientation(LinearLayout.HORIZONTAL);
+        chartsRow.setBackgroundResource(R.drawable.card_bg_ripple);
+        chartsRow.setPadding(8, 8, 8, 8);
 
         mGpPowerGauge = new com.emegelauncher.widget.PowerGaugeView(this);
         mGpPowerGauge.setMaxKw(150);
-        mGpPowerGauge.setLabel("Power");
+        mGpPowerGauge.setLabel(getString(R.string.power_label));
         mGpPowerGauge.setUnit("kW");
         mGpPowerGauge.setConsumeColor(ThemeHelper.accentOrange(this));
         mGpPowerGauge.setRegenColor(ThemeHelper.accentGreen(this));
         mGpPowerGauge.setBgColor(cCard);
         mGpPowerGauge.setTextColor(cText);
         mGpPowerGauge.setLabelColor(cTextSec);
-        LinearLayout.LayoutParams powerLp = new LinearLayout.LayoutParams(0, 200, 1f);
+        LinearLayout.LayoutParams powerLp = new LinearLayout.LayoutParams(0, 340, 1f);
         powerLp.setMargins(0, 6, 4, 4);
         chartsRow.addView(mGpPowerGauge, powerLp);
 
         mGpGMeter = new com.emegelauncher.widget.GMeterView(this);
+        mGpGMeter.setMaxG(2.0f);
         mGpGMeter.setDotColor(ThemeHelper.accentRed(this));
         mGpGMeter.setBgColor(cCard);
         mGpGMeter.setRingColor(cDivider);
         mGpGMeter.setTextColor(cText);
         mGpGMeter.setLabelColor(cTextSec);
-        LinearLayout.LayoutParams gmeterLp = new LinearLayout.LayoutParams(0, 200, 1f);
+        LinearLayout.LayoutParams gmeterLp = new LinearLayout.LayoutParams(0, 340, 1f);
         gmeterLp.setMargins(4, 6, 0, 4);
         chartsRow.addView(mGpGMeter, gmeterLp);
 
@@ -231,10 +317,11 @@ public class MainActivity extends Activity {
         infoRow.setGravity(Gravity.CENTER_VERTICAL);
 
         mGpRangeText = new TextView(this);
-        mGpRangeText.setText("Range: -- km  |  Gear: --  |  Mode: --");
-        mGpRangeText.setTextSize(13);
+        mGpRangeText.setText(String.format(getString(R.string.range_gear_mode), "--", "--", "--"));
+        mGpRangeText.setTextSize(18);
         mGpRangeText.setTextColor(cText);
         infoRow.addView(mGpRangeText);
+        infoRow.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-1, -2);
         infoLp.setMargins(0, 4, 0, 4);
@@ -261,6 +348,7 @@ public class MainActivity extends Activity {
         g.setFgColor(color);
         g.setBgArcColor(cCard);
         g.setTextColor(cText);
+        g.setLabelColor(cTextSec);
         return g;
     }
 
@@ -269,7 +357,7 @@ public class MainActivity extends Activity {
     private View buildMainPage() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(cBg);
+        page.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
         page.setPadding(16, 8, 16, 0);
 
         // 3x2 button grid
@@ -286,18 +374,18 @@ public class MainActivity extends Activity {
         // Row 2: Map | Music
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.addView(buildBigButton(getString(R.string.map), "\uD83D\uDDFA", ThemeHelper.accentBlue(this),
+        row2.addView(buildBigButton(getString(R.string.map), R.drawable.ic_map, ThemeHelper.accentBlue(this),
             () -> launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity")), bigBtnLP(true));
-        row2.addView(buildBigButton(getString(R.string.music), "\u266B", ThemeHelper.accentPurple(this),
+        row2.addView(buildBigButton(getString(R.string.music), R.drawable.ic_music, ThemeHelper.accentPurple(this),
             () -> launchCarApp("com.saicmotor.hmi.music", "com.saicmotor.hmi.music.ui.activity.MusicActivity")), bigBtnLP(false));
         grid.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Row 3: Radio | Phone
         LinearLayout row3 = new LinearLayout(this);
         row3.setOrientation(LinearLayout.HORIZONTAL);
-        row3.addView(buildBigButton(getString(R.string.radio), "\uD83D\uDCFB", ThemeHelper.accentOrange(this),
+        row3.addView(buildBigButton(getString(R.string.radio), R.drawable.ic_radio, ThemeHelper.accentOrange(this),
             () -> launchCarApp("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity")), bigBtnLP(true));
-        row3.addView(buildBigButton(getString(R.string.phone), "\uD83D\uDCDE", ThemeHelper.accentGreen(this),
+        row3.addView(buildBigButton(getString(R.string.phone), R.drawable.ic_phone, ThemeHelper.accentGreen(this),
             () -> launchCarApp("com.saicmotor.hmi.btcall", "com.saicmotor.hmi.btcall.BtCallActivity")), bigBtnLP(false));
         grid.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
 
@@ -312,93 +400,138 @@ public class MainActivity extends Activity {
     private View buildWeatherCard() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(cCard);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
         card.setPadding(24, 20, 24, 20);
-        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setElevation(6f);
         card.setOnClickListener(v -> launchCarApp("com.saicmotor.weathers", "com.saicmotor.weathers.activity.MainActivity"));
 
+        // Weather icon
+        mWeatherIcon = new ImageView(this);
+        mWeatherIcon.setImageResource(R.drawable.ic_weather_partly_cloudy);
+        mWeatherIcon.setColorFilter(ThemeHelper.accentOrange(this));
+        mWeatherIcon.setLayoutParams(new LinearLayout.LayoutParams(80, 80));
+        card.addView(mWeatherIcon);
+
+        // Weather description (from weather app broadcast)
         mWeatherDesc = new TextView(this);
         mWeatherDesc.setText(getString(R.string.weather));
-        mWeatherDesc.setTextSize(16);
+        mWeatherDesc.setTextSize(15);
         mWeatherDesc.setTextColor(cText);
+        mWeatherDesc.setGravity(Gravity.CENTER);
+        mWeatherDesc.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         card.addView(mWeatherDesc);
 
-        mWeatherOutTemp = new TextView(this);
-        mWeatherOutTemp.setText("--\u00B0C");
-        mWeatherOutTemp.setTextSize(32);
-        mWeatherOutTemp.setTextColor(ThemeHelper.accentOrange(this));
-        card.addView(mWeatherOutTemp);
+        // Forecast temperature (from weather app)
+        mWeatherForecastTemp = new TextView(this);
+        mWeatherForecastTemp.setText("--\u00B0C");
+        mWeatherForecastTemp.setTextSize(32);
+        mWeatherForecastTemp.setTextColor(ThemeHelper.accentOrange(this));
+        mWeatherForecastTemp.setGravity(Gravity.CENTER);
+        mWeatherForecastTemp.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        card.addView(mWeatherForecastTemp);
 
+        // Outside sensor temperature (from SAIC AirCondition / VHAL)
+        mWeatherSensorTemp = new TextView(this);
+        mWeatherSensorTemp.setText(getString(R.string.outside) + ": --\u00B0C");
+        mWeatherSensorTemp.setTextSize(13);
+        mWeatherSensorTemp.setTextColor(cTextSec);
+        mWeatherSensorTemp.setGravity(Gravity.CENTER);
+        card.addView(mWeatherSensorTemp);
+
+        // Cabin temperature (from cloud, hidden if unavailable)
         mWeatherCabinTemp = new TextView(this);
         mWeatherCabinTemp.setTextSize(13);
         mWeatherCabinTemp.setTextColor(cTextSec);
+        mWeatherCabinTemp.setGravity(Gravity.CENTER);
         mWeatherCabinTemp.setVisibility(View.GONE);
         card.addView(mWeatherCabinTemp);
 
         return card;
     }
 
+    private com.emegelauncher.widget.BatteryView mBatteryIcon;
+
     private View buildBatteryCard() {
         LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(cCard);
-        card.setPadding(24, 20, 24, 20);
-        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
+        card.setPadding(16, 16, 20, 16);
+        card.setGravity(Gravity.CENTER);
+        card.setElevation(6f);
         card.setOnClickListener(v -> launchCarApp(
             "com.saicmotor.hmi.vehiclesettings",
             "com.saicmotor.hmi.vehiclesettings.chargemanagement.ui.ChargeManagementActivity"));
 
-        TextView label = new TextView(this);
-        label.setText(getString(R.string.energy));
-        label.setTextSize(12);
-        label.setTextColor(cTextTert);
-        card.addView(label);
+        // Battery icon with dynamic fill (left side)
+        mBatteryIcon = new com.emegelauncher.widget.BatteryView(this);
+        mBatteryIcon.setOutlineColor(cTextTert);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(70, -1);
+        iconLp.setMargins(4, 12, 16, 12);
+        card.addView(mBatteryIcon, iconLp);
 
+        // Text column (right side, centered)
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setGravity(Gravity.CENTER);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        // SOC% — large and prominent
         mBatteryPct = new TextView(this);
         mBatteryPct.setText("--%");
-        mBatteryPct.setTextSize(32);
+        mBatteryPct.setTextSize(34);
         mBatteryPct.setTextColor(cText);
-        card.addView(mBatteryPct);
+        mBatteryPct.setGravity(Gravity.CENTER);
+        mBatteryPct.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        textCol.addView(mBatteryPct);
 
+        // Range — equally prominent
         mBatteryRange = new TextView(this);
         mBatteryRange.setText("-- km");
-        mBatteryRange.setTextSize(14);
+        mBatteryRange.setTextSize(20);
         mBatteryRange.setTextColor(ThemeHelper.accentTeal(this));
-        card.addView(mBatteryRange);
+        mBatteryRange.setGravity(Gravity.CENTER);
+        mBatteryRange.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        textCol.addView(mBatteryRange);
 
         mBatteryEta = new TextView(this);
-        mBatteryEta.setTextSize(11);
+        mBatteryEta.setTextSize(12);
         mBatteryEta.setTextColor(cTextSec);
-        card.addView(mBatteryEta);
+        mBatteryEta.setGravity(Gravity.CENTER);
+        textCol.addView(mBatteryEta);
 
         mBatteryBms = new TextView(this);
-        mBatteryBms.setTextSize(10);
+        mBatteryBms.setTextSize(12);
         mBatteryBms.setTextColor(cTextTert);
-        card.addView(mBatteryBms);
+        mBatteryBms.setGravity(Gravity.CENTER);
+        textCol.addView(mBatteryBms);
+
+        card.addView(textCol);
 
         return card;
     }
 
-    private View buildBigButton(String text, String icon, int accentColor, Runnable action) {
+    private View buildBigButton(String text, int iconRes, int accentColor, Runnable action) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(cCard);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
         card.setGravity(Gravity.CENTER);
+        card.setElevation(6f);
         card.setOnClickListener(v -> action.run());
 
-        TextView iconTv = new TextView(this);
-        iconTv.setText(icon);
-        iconTv.setTextSize(36);
-        iconTv.setTextColor(accentColor);
-        iconTv.setGravity(Gravity.CENTER);
-        card.addView(iconTv);
+        ImageView iconView = new ImageView(this);
+        iconView.setImageResource(iconRes);
+        iconView.setColorFilter(accentColor);
+        iconView.setLayoutParams(new LinearLayout.LayoutParams(80, 80));
+        card.addView(iconView);
 
         TextView labelTv = new TextView(this);
         labelTv.setText(text);
-        labelTv.setTextSize(16);
+        labelTv.setTextSize(22);
         labelTv.setTextColor(cText);
         labelTv.setGravity(Gravity.CENTER);
         labelTv.setPadding(0, 8, 0, 0);
+        labelTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         card.addView(labelTv);
 
         return card;
@@ -407,21 +540,33 @@ public class MainActivity extends Activity {
     private View buildDriveModeBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setBackgroundColor(cCard);
+        bar.setBackgroundResource(R.drawable.card_bg_ripple);
         bar.setPadding(20, 10, 20, 10);
         bar.setGravity(Gravity.CENTER_VERTICAL);
+        mDriveModeBar = bar;
+
+        // Drive mode icon
+        ImageView modeIcon = new ImageView(this);
+        modeIcon.setImageResource(R.drawable.ic_speed);
+        modeIcon.setColorFilter(cTextSec);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(28, 28);
+        iconLp.setMargins(0, 0, 12, 0);
+        modeIcon.setLayoutParams(iconLp);
+        bar.addView(modeIcon);
 
         mDriveMode = new TextView(this);
-        mDriveMode.setText("Mode: --");
+        mDriveMode.setText(String.format(getString(R.string.mode_label), "--"));
         mDriveMode.setTextSize(14);
         mDriveMode.setTextColor(cText);
+        mDriveMode.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         mDriveMode.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         bar.addView(mDriveMode);
 
         mRegenLevel = new TextView(this);
-        mRegenLevel.setText("Regen: --");
+        mRegenLevel.setText(String.format(getString(R.string.regen_label), 0));
         mRegenLevel.setTextSize(14);
         mRegenLevel.setTextColor(ThemeHelper.accentTeal(this));
+        mRegenLevel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         mRegenLevel.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         mRegenLevel.setGravity(Gravity.CENTER);
         bar.addView(mRegenLevel);
@@ -432,14 +577,7 @@ public class MainActivity extends Activity {
         restoreBtn.setTextSize(20);
         restoreBtn.setTextColor(ThemeHelper.accentGreen(this));
         restoreBtn.setPadding(16, 0, 0, 0);
-        restoreBtn.setOnClickListener(v -> {
-            android.content.SharedPreferences prefs = getSharedPreferences("emegelauncher", MODE_PRIVATE);
-            int savedRegen = prefs.getInt("profile_regen_level", -1);
-            if (savedRegen >= 0 && mVehicle.hasSettingBinder()) {
-                boolean ok = mVehicle.transactSettingInt(0xA1, savedRegen);
-                Toast.makeText(this, getString(ok ? R.string.profile_restored_ok : R.string.transact_failed), Toast.LENGTH_SHORT).show();
-            }
-        });
+        restoreBtn.setVisibility(View.GONE); // No regen/drive mode setters on Marvel R
         bar.addView(restoreBtn);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -450,7 +588,7 @@ public class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams bigBtnLP(boolean isLeft) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
-        lp.setMargins(isLeft ? 0 : 4, 4, isLeft ? 4 : 0, 4);
+        lp.setMargins(isLeft ? 0 : 8, 8, isLeft ? 8 : 0, 8);
         return lp;
     }
 
@@ -459,15 +597,15 @@ public class MainActivity extends Activity {
     private View buildAppsPage() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(cBg);
+        page.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
         page.setPadding(16, 8, 16, 0);
 
         // Top half: app grid
         GridView appGrid = new GridView(this);
         appGrid.setNumColumns(4);
-        appGrid.setVerticalSpacing(8);
-        appGrid.setHorizontalSpacing(8);
-        appGrid.setPadding(4, 4, 4, 4);
+        appGrid.setVerticalSpacing(16);
+        appGrid.setHorizontalSpacing(12);
+        appGrid.setPadding(8, 12, 8, 12);
         List<AppInfo> apps = loadApps();
         appGrid.setAdapter(new AppGridAdapter(apps));
         appGrid.setOnItemClickListener((p, v, pos, id) -> {
@@ -486,26 +624,44 @@ public class MainActivity extends Activity {
         btnGrid.setOrientation(LinearLayout.VERTICAL);
         btnGrid.setPadding(0, 4, 0, 0);
 
-        // Row 1: 4 buttons
+        // Row 1: 4 buttons (CarPlay/360 greyed out if unavailable)
         LinearLayout r1 = new LinearLayout(this);
-        r1.addView(appBtn(getString(R.string.carplay), () -> launchCarApp("com.allgo.carplay.service", "com.allgo.carplay.service.CarPlayActivity")), gridLP());
-        r1.addView(appBtn(getString(R.string.android_auto), () -> launchCarApp("com.allgo.app.androidauto", "com.allgo.app.androidauto.ProjectionActivity")), gridLP());
-        r1.addView(appBtn(getString(R.string.video), () -> launchCarApp("com.saicmotor.hmi.video", "com.saicmotor.hmi.video.ui.activity.UsbVideoActivity")), gridLP());
-        r1.addView(appBtn(getString(R.string.view_360), () -> launchCarApp("com.saicmotor.hmi.aroundview", "com.saicmotor.hmi.aroundview.aroundviewconfig.ui.AroundViewActivity")), gridLP());
+        View cpBtn = appBtn(getString(R.string.carplay), R.drawable.ic_carplay, () -> launchCarApp("com.allgo.carplay.service", "com.allgo.carplay.service.CarPlayActivity"));
+        String cpStatus = mVehicle.callSaicMethod("sysbt", "getCarPlayConnected");
+        if (!"true".equalsIgnoreCase(cpStatus) && !"1".equals(cpStatus)) {
+            cpBtn.setAlpha(0.3f); cpBtn.setOnClickListener(null);
+        }
+        r1.addView(cpBtn, gridLP());
+
+        View aaBtn = appBtn(getString(R.string.android_auto), R.drawable.ic_carplay, () -> launchCarApp("com.allgo.app.androidauto", "com.allgo.app.androidauto.ProjectionActivity"));
+        // Android Auto uses same BT service — check if connected
+        if (!"true".equalsIgnoreCase(cpStatus) && !"1".equals(cpStatus)) {
+            aaBtn.setAlpha(0.3f); aaBtn.setOnClickListener(null);
+        }
+        r1.addView(aaBtn, gridLP());
+        r1.addView(appBtn(getString(R.string.video), R.drawable.ic_video, () -> launchCarApp("com.saicmotor.hmi.video", "com.saicmotor.hmi.video.ui.activity.UsbVideoActivity")), gridLP());
+        View view360Btn = appBtn(getString(R.string.view_360), R.drawable.ic_360, () -> launchCarApp("com.saicmotor.hmi.aroundview", "com.saicmotor.hmi.aroundview.aroundviewconfig.ui.AroundViewActivity"));
+        // Check AVM_CAL_MD (360 calibration) — 0 means no cameras installed/calibrated
+        String avmCal = mVehicle.getPropertyValue(com.emegelauncher.vehicle.YFVehicleProperty.AVM_CAL_MD);
+        if ("0".equals(avmCal) || "N/A".equals(avmCal) || avmCal == null) {
+            view360Btn.setAlpha(0.3f);
+            view360Btn.setOnClickListener(null);
+        }
+        r1.addView(view360Btn, gridLP());
         btnGrid.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Row 2: 3 buttons
         LinearLayout r2 = new LinearLayout(this);
-        r2.addView(appBtn(getString(R.string.car_settings), () -> launchCarApp("com.saicmotor.hmi.vehiclesettings", "com.saicmotor.hmi.vehiclesettings.vehicleconfig.ui.VehicleSettingsActivity")), gridLP());
-        r2.addView(appBtn(getString(R.string.system_settings), () -> launchCarApp("com.saicmotor.hmi.systemsettings", "com.saicmotor.hmi.systemsettings.SettingsActivity")), gridLP());
-        r2.addView(appBtn(getString(R.string.launcher_settings_short), () -> startActivity(new Intent(this, SettingsActivity.class))), gridLP());
+        r2.addView(appBtn(getString(R.string.car_settings), R.drawable.ic_settings, () -> launchCarApp("com.saicmotor.hmi.vehiclesettings", "com.saicmotor.hmi.vehiclesettings.vehicleconfig.ui.VehicleSettingsActivity")), gridLP());
+        r2.addView(appBtn(getString(R.string.system_settings), R.drawable.ic_settings, () -> launchCarApp("com.saicmotor.hmi.systemsettings", "com.saicmotor.hmi.systemsettings.SettingsActivity")), gridLP());
+        r2.addView(appBtn(getString(R.string.launcher_settings_short), R.drawable.ic_settings, () -> startActivity(new Intent(this, SettingsActivity.class))), gridLP());
         btnGrid.addView(r2, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Row 3: 3 buttons
         LinearLayout r3 = new LinearLayout(this);
-        r3.addView(appBtn(getString(R.string.rescue), () -> launchCarApp("com.saicmotor.rescuecall", "com.saicmotor.rescuecall.module.ICallCenterAct")), gridLP());
-        r3.addView(appBtn(getString(R.string.touchpoint), () -> launchCarApp("com.saic.saicmaintenance", "com.saic.saicmaintenance.module.maintaince.MaintaiceEp21Activity")), gridLP());
-        r3.addView(appBtn(getString(R.string.manual), () -> launchCarApp("com.saicmotor.hmi.pdfreader", "com.saicmotor.hmi.pdfreader.PdfReaderActivity")), gridLP());
+        r3.addView(appBtn(getString(R.string.rescue), R.drawable.ic_rescue, () -> launchCarApp("com.saicmotor.rescuecall", "com.saicmotor.rescuecall.module.ICallCenterAct")), gridLP());
+        r3.addView(appBtn(getString(R.string.touchpoint), R.drawable.ic_touchpoint, () -> launchCarApp("com.saic.saicmaintenance", "com.saic.saicmaintenance.module.maintaince.MaintaiceEp21Activity")), gridLP());
+        r3.addView(appBtn(getString(R.string.manual), R.drawable.ic_manual, () -> launchCarApp("com.saicmotor.hmi.pdfreader", "com.saicmotor.hmi.pdfreader.PdfReaderActivity")), gridLP());
         btnGrid.addView(r3, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         page.addView(btnGrid, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -513,14 +669,30 @@ public class MainActivity extends Activity {
         return page;
     }
 
-    private View appBtn(String label, Runnable action) {
-        TextView btn = new TextView(this);
-        btn.setText(label);
-        btn.setTextSize(13);
-        btn.setTextColor(cText);
-        btn.setBackgroundColor(cCard);
+    private View appBtn(String label, int iconRes, Runnable action) {
+        LinearLayout btn = new LinearLayout(this);
+        btn.setOrientation(LinearLayout.VERTICAL);
+        btn.setBackgroundResource(R.drawable.card_bg_ripple);
         btn.setGravity(Gravity.CENTER);
+        btn.setElevation(4f);
         btn.setOnClickListener(v -> action.run());
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(cText);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(40, 40));
+        btn.addView(icon);
+
+        TextView labelTv = new TextView(this);
+        labelTv.setText(label);
+        labelTv.setTextSize(11);
+        labelTv.setTextColor(cText);
+        labelTv.setGravity(Gravity.CENTER);
+        labelTv.setPadding(0, 4, 0, 0);
+        labelTv.setMaxLines(2);
+        labelTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        btn.addView(labelTv);
+
         return btn;
     }
 
@@ -534,9 +706,9 @@ public class MainActivity extends Activity {
 
     private View buildOtherPage() {
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(cBg);
         page.setPadding(16, 8, 16, 8);
 
         // 2x3 button grid
@@ -544,28 +716,19 @@ public class MainActivity extends Activity {
         btnGrid.setOrientation(LinearLayout.VERTICAL);
 
         LinearLayout r1 = new LinearLayout(this);
-        r1.addView(otherBtn(getString(R.string.diagnostics), ThemeHelper.accentRed(this), () -> startActivity(new Intent(this, DebugActivity.class))), gridLP());
-        r1.addView(otherBtn(getString(R.string.vehicle_info), ThemeHelper.accentPurple(this), () -> startActivity(new Intent(this, VehicleInfoActivity.class))), gridLP());
+        r1.addView(otherBtn(getString(R.string.diagnostics), R.drawable.ic_diagnostics, ThemeHelper.accentRed(this), () -> startActivity(new Intent(this, DebugActivity.class))), gridLP());
+        r1.addView(otherBtn(getString(R.string.vehicle_info), R.drawable.ic_vehicle_info, ThemeHelper.accentPurple(this), () -> startActivity(new Intent(this, VehicleInfoActivity.class))), gridLP());
         btnGrid.addView(r1, new LinearLayout.LayoutParams(-1, 200));
 
         LinearLayout r2 = new LinearLayout(this);
-        r2.addView(otherBtn(getString(R.string.location), ThemeHelper.accentGreen(this), () -> startActivity(new Intent(this, LocationActivity.class))), gridLP());
-        r2.addView(otherBtn(getString(R.string.tbox), ThemeHelper.accentOrange(this), () -> startActivity(new Intent(this, TboxActivity.class))), gridLP());
+        r2.addView(otherBtn(getString(R.string.location), R.drawable.ic_location, ThemeHelper.accentGreen(this), () -> startActivity(new Intent(this, LocationActivity.class))), gridLP());
+        r2.addView(otherBtn(getString(R.string.tbox), R.drawable.ic_tbox, ThemeHelper.accentOrange(this), () -> startActivity(new Intent(this, TboxActivity.class))), gridLP());
         btnGrid.addView(r2, new LinearLayout.LayoutParams(-1, 200));
 
         LinearLayout r3 = new LinearLayout(this);
-        r3.addView(otherBtn(getString(R.string.cloud), ThemeHelper.accentBlue(this), () -> startActivity(new Intent(this, CloudActivity.class))), gridLP());
+        r3.addView(otherBtn(getString(R.string.cloud), R.drawable.ic_cloud, ThemeHelper.accentBlue(this), () -> startActivity(new Intent(this, CloudActivity.class))), gridLP());
+        r3.addView(otherBtn("USB Camera", R.drawable.ic_video, ThemeHelper.accentOrange(this), () -> startActivity(new Intent(this, UvcCameraActivity.class))), gridLP());
         btnGrid.addView(r3, new LinearLayout.LayoutParams(-1, 200));
-
-        LinearLayout r4 = new LinearLayout(this);
-        r4.addView(otherBtn(getString(R.string.find_my_car), ThemeHelper.accentOrange(this), () -> {
-            if (mCloud.isLoggedIn()) {
-                mCloud.findMyCar(1, (ok, msg) -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
-            } else {
-                Toast.makeText(this, getString(R.string.cloud_login_required), Toast.LENGTH_SHORT).show();
-            }
-        }), gridLP());
-        btnGrid.addView(r4, new LinearLayout.LayoutParams(-1, 200));
 
         page.addView(btnGrid);
 
@@ -573,9 +736,9 @@ public class MainActivity extends Activity {
         addInfoSection(page, getString(R.string.cloud_status_label));
         addInfoRow(page, "cloud_status", mCloud.isLoggedIn() ? getString(R.string.cloud_info_logged) : getString(R.string.cloud_info_not_logged));
         String cabinTemp = mCloud.getInteriorTempStr();
-        if (cabinTemp != null) addInfoRow(page, "cloud_cabin", "Cabin: " + cabinTemp + "\u00B0C");
+        if (cabinTemp != null) addInfoRow(page, "cloud_cabin", getString(R.string.cloud_cabin) + ": " + cabinTemp + "\u00B0C");
         String batt12v = mCloud.getBatteryVoltageStr();
-        if (batt12v != null) addInfoRow(page, "cloud_12v", "12V Battery: " + batt12v + "V");
+        if (batt12v != null) addInfoRow(page, "cloud_12v", getString(R.string.cloud_12v_battery) + ": " + batt12v + "V");
 
         String tboxJson = mCloud.getCachedTboxStatus();
         if (tboxJson != null) {
@@ -585,7 +748,7 @@ public class MainActivity extends Activity {
                 if (td != null) {
                     int st = td.optInt("status", -1);
                     String stStr = st == 0 ? "Online" : st == 1 ? "Offline" : st == 2 ? "Sleep" : "Unknown";
-                    addInfoRow(page, "tbox_status", "TBox: " + stStr);
+                    addInfoRow(page, "tbox_status", getString(R.string.tbox) + ": " + stStr);
                 }
             } catch (Exception ignored) {}
         }
@@ -610,18 +773,27 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
-    private View otherBtn(String label, int accentColor, Runnable action) {
+    private View otherBtn(String label, int iconRes, int accentColor, Runnable action) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(cCard);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
         card.setGravity(Gravity.CENTER);
+        card.setElevation(4f);
         card.setOnClickListener(v -> action.run());
+
+        ImageView iconView = new ImageView(this);
+        iconView.setImageResource(iconRes);
+        iconView.setColorFilter(accentColor);
+        iconView.setLayoutParams(new LinearLayout.LayoutParams(56, 56));
+        card.addView(iconView);
 
         TextView labelTv = new TextView(this);
         labelTv.setText(label);
         labelTv.setTextSize(16);
         labelTv.setTextColor(accentColor);
         labelTv.setGravity(Gravity.CENTER);
+        labelTv.setPadding(0, 8, 0, 0);
+        labelTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         card.addView(labelTv);
 
         return card;
@@ -680,7 +852,7 @@ public class MainActivity extends Activity {
             "com.saicmotor.rescuecall", "com.saicmotor.saicinbox",
             "com.saicmotor.update", "com.saicmotor.onlinemedia",
             "com.saic.saicmaintenance",
-            "com.saicmotor.hmi.ep21avnlogin", "com.saicmotor.ep21avnlogin",
+            "com.saicmotor.hmi.ep21avnlogin", "com.saicmotor.ep21avnlogin", "com.saic.avnlogin",
             "com.yfve.carotherservice", "com.yfve.usbupdate", "com.yfve.fileservice",
             "com.yfve.server.devicemanager",
             "com.allgo.carplay.service", "com.allgo.app.androidauto",
@@ -697,7 +869,6 @@ public class MainActivity extends Activity {
         for (ResolveInfo ri : pm.queryIntentActivities(intent, 0)) {
             String pkg = ri.activityInfo.packageName;
             if (hidden.contains(pkg)) continue;
-            if (pkg.toLowerCase().contains("ep21avnlogin")) continue;
             AppInfo info = new AppInfo();
             info.label = ri.loadLabel(pm).toString();
             info.packageName = pkg;
@@ -718,16 +889,27 @@ public class MainActivity extends Activity {
             LinearLayout cell = new LinearLayout(MainActivity.this);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER);
-            cell.setPadding(4, 8, 4, 8);
+            cell.setPadding(4, 16, 4, 16);
 
+            // Icon with rounded background wrapper
+            LinearLayout iconWrapper = new LinearLayout(MainActivity.this);
+            iconWrapper.setGravity(Gravity.CENTER);
+            GradientDrawable iconBg = new GradientDrawable();
+            iconBg.setShape(GradientDrawable.RECTANGLE);
+            iconBg.setCornerRadius(12);
+            iconBg.setColor(0x15FFFFFF);
+            iconWrapper.setBackground(iconBg);
+            iconWrapper.setPadding(8, 8, 8, 8);
+            iconWrapper.setLayoutParams(new LinearLayout.LayoutParams(80, 80));
             ImageView icon = new ImageView(MainActivity.this);
             icon.setImageDrawable(apps.get(pos).icon);
-            icon.setLayoutParams(new LinearLayout.LayoutParams(64, 64));
-            cell.addView(icon);
+            icon.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
+            iconWrapper.addView(icon);
+            cell.addView(iconWrapper);
 
             TextView label = new TextView(MainActivity.this);
             label.setText(apps.get(pos).label);
-            label.setTextSize(11);
+            label.setTextSize(13);
             label.setTextColor(cText);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(2);
@@ -744,6 +926,11 @@ public class MainActivity extends Activity {
         String socDsp = mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP);
         String soc = isValid(socSaic) ? socSaic : (isValid(socDsp) ? socDsp : null);
         if (soc != null && mBatteryPct != null) mBatteryPct.setText(soc + "%");
+
+        // Battery icon fill level
+        if (mBatteryIcon != null && soc != null) {
+            mBatteryIcon.setSoc(parseFloat(soc));
+        }
 
         // Range
         String rangeSaic = mVehicle.callSaicMethod("charging", "getCurrentEnduranceMileage");
@@ -764,16 +951,48 @@ public class MainActivity extends Activity {
         // Battery ETA
         updateBatteryEta();
 
-        // Outside temp
+        // Outside sensor temp (from SAIC AirCondition / VHAL)
         String outTemp = mVehicle.getOutsideTemp();
         if (!isValid(outTemp)) outTemp = mVehicle.getPropertyValue(YFVehicleProperty.ENV_OUTSIDE_TEMPERATURE);
-        if (isValid(outTemp) && mWeatherOutTemp != null) mWeatherOutTemp.setText(outTemp + "\u00B0C");
+        if (isValid(outTemp) && mWeatherSensorTemp != null) {
+            mWeatherSensorTemp.setText(getString(R.string.outside) + ": " + outTemp + "\u00B0C");
+        }
+
+        // Weather condition icon
+        if (mWeatherIcon != null && mWeatherDesc != null) {
+            String desc = mWeatherDesc.getText().toString().toLowerCase();
+            if (desc.contains("storm") || desc.contains("tormenta") || desc.contains("thunder") || desc.contains("trueno") || desc.contains("lightning") || desc.contains("relámpago")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_storm);
+                mWeatherIcon.setColorFilter(0xFFFFD600);
+            } else if (desc.contains("rain") || desc.contains("lluvia") || desc.contains("drizzle") || desc.contains("llovizna") || desc.contains("shower") || desc.contains("chubasco")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_rain);
+                mWeatherIcon.setColorFilter(ThemeHelper.accentBlue(this));
+            } else if (desc.contains("snow") || desc.contains("nieve") || desc.contains("ice") || desc.contains("hielo") || desc.contains("sleet")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_snow);
+                mWeatherIcon.setColorFilter(0xFFFFFFFF);
+            } else if (desc.contains("fog") || desc.contains("niebla") || desc.contains("mist") || desc.contains("bruma") || desc.contains("haze") || desc.contains("calima")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_fog);
+                mWeatherIcon.setColorFilter(cTextSec);
+            } else if (desc.contains("partly") || desc.contains("parcial") || desc.contains("mostly") || desc.contains("mayormente")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_partly_cloudy);
+                mWeatherIcon.setColorFilter(ThemeHelper.accentOrange(this));
+            } else if (desc.contains("cloud") || desc.contains("nube") || desc.contains("overcast") || desc.contains("nublado") || desc.contains("cubierto")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_cloudy);
+                mWeatherIcon.setColorFilter(cTextSec);
+            } else if (desc.contains("sunny") || desc.contains("soleado") || desc.contains("clear") || desc.contains("despejado")) {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_sunny);
+                mWeatherIcon.setColorFilter(ThemeHelper.accentOrange(this));
+            } else {
+                mWeatherIcon.setImageResource(R.drawable.ic_weather_partly_cloudy);
+                mWeatherIcon.setColorFilter(ThemeHelper.accentOrange(this));
+            }
+        }
 
         // Cabin temp (from cloud)
         if (mWeatherCabinTemp != null) {
             String cabin = mCloud.getInteriorTempStr();
             if (cabin != null) {
-                mWeatherCabinTemp.setText("Cabin: " + cabin + "\u00B0C");
+                mWeatherCabinTemp.setText(getString(R.string.cloud_cabin) + ": " + cabin + "\u00B0C");
                 mWeatherCabinTemp.setVisibility(View.VISIBLE);
             }
         }
@@ -791,6 +1010,29 @@ public class MainActivity extends Activity {
                 default: modeName = "Normal";
             }
             mDriveMode.setText(String.format(getString(R.string.mode_label), modeName));
+
+            // Color-code drive mode bar
+            if (mDriveModeBar != null) {
+                int tint;
+                switch (dm) {
+                    case 0: tint = 0x1A30D158; break;  // Eco: green tint
+                    case 2: tint = 0x1AFF453A; break;  // Sport: red tint
+                    case 6: tint = 0x1A26A69A; break;  // Winter: cyan tint
+                    default: tint = 0x1A2979FF; break;  // Normal: blue tint
+                }
+                // Blend tint with card color: alpha-composite the tint over cCard
+                int tintA = (tint >> 24) & 0xFF;
+                float tintF = tintA / 255f;
+                int blendR = (int)(((tint >> 16) & 0xFF) * tintF + ((cCard >> 16) & 0xFF) * (1 - tintF));
+                int blendG = (int)(((tint >> 8) & 0xFF) * tintF + ((cCard >> 8) & 0xFF) * (1 - tintF));
+                int blendB = (int)((tint & 0xFF) * tintF + (cCard & 0xFF) * (1 - tintF));
+                int blended = 0xFF000000 | (blendR << 16) | (blendG << 8) | blendB;
+                GradientDrawable barBg = new GradientDrawable();
+                barBg.setShape(GradientDrawable.RECTANGLE);
+                barBg.setCornerRadius(16);
+                barBg.setColor(blended);
+                mDriveModeBar.setBackground(barBg);
+            }
         }
         if (mRegenLevel != null) {
             String rgRaw = mVehicle.getPropertyValue(YFVehicleProperty.AAD_EPTRGTNLVL);
@@ -833,14 +1075,21 @@ public class MainActivity extends Activity {
 
         // Range + Gear + Mode info
         if (mGpRangeText != null) {
-            String range = mVehicle.getPropertyValue(YFVehicleProperty.CLSTR_ELEC_RNG);
+            // Range: try SAIC first, then VHAL cluster (same logic as GraphsActivity)
+            float rangeSaicF = parseFloat(mVehicle.callSaicMethod("charging", "getCurrentEnduranceMileage"));
+            String clstrRangeStr = mVehicle.getPropertyValue(YFVehicleProperty.CLSTR_ELEC_RNG);
+            String displayRange;
+            if (rangeSaicF > 0) displayRange = String.valueOf((int) rangeSaicF);
+            else if (isValid(clstrRangeStr)) displayRange = clstrRangeStr;
+            else displayRange = "--";
+
             int gearVal = (int) parseFloat(mVehicle.callSaicMethod("condition", "getCarGear"));
             String gear;
             switch (gearVal) { case 1: gear = "P"; break; case 2: gear = "R"; break; case 3: gear = "N"; break; case 4: gear = "D"; break; default: gear = String.valueOf(gearVal); }
             int dm = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE));
             String mode;
             switch (dm) { case 0: mode = "Eco"; break; case 2: mode = "Sport"; break; case 6: mode = "Winter"; break; default: mode = "Normal"; }
-            mGpRangeText.setText("Range: " + (isValid(range) ? range : "--") + " km  |  Gear: " + gear + "  |  " + mode);
+            mGpRangeText.setText(String.format(getString(R.string.range_gear_mode), displayRange, gear, mode));
         }
     }
 
@@ -901,20 +1150,24 @@ public class MainActivity extends Activity {
 
     private void queryCloudOnce() {
         if (!mCloud.isLoggedIn()) return;
-        mHandler.postDelayed(() -> mCloud.queryVehicleStatus((ok, msg) -> Log.d(TAG, "Cloud: " + msg)), 8000);
+        mHandler.postDelayed(() -> mCloud.queryVehicleStatus((ok, msg) -> {
+            Log.d(TAG, "Cloud status: " + msg);
+            // Fetch all other cloud data
+            mCloud.queryCharging(null);
+            mCloud.queryBtKeys(null);
+            mCloud.queryFeatures(null);
+            mCloud.queryTboxStatus(null);
+            mCloud.queryFota(null);
+            mCloud.queryFavoritePois(null);
+            // Statistics — fetch year view on startup
+            String now = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+            mCloud.queryStatistics("3", now, null); // "3" = year
+        }), 8000);
     }
 
     private void autoRestoreProfile() {
-        android.content.SharedPreferences prefs = getSharedPreferences("emegelauncher", MODE_PRIVATE);
-        if (!prefs.getBoolean("profile_auto_restore", false)) return;
-        int savedRegen = prefs.getInt("profile_regen_level", -1);
-        if (savedRegen < 0) return;
-        mHandler.postDelayed(() -> {
-            if (mVehicle.hasSettingBinder()) {
-                boolean ok = mVehicle.transactSettingInt(0xA1, savedRegen);
-                Log.d(TAG, "Auto-restore regen " + savedRegen + ": " + ok);
-            }
-        }, 5000);
+        // Regen/drive mode setters do not exist on Marvel R firmware
+        // TX code scan of all 5 SAIC services confirmed no setter available
     }
 
     private void launchCarApp(String pkg, String cls) {

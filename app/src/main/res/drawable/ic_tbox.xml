@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Signal tower -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11,14h2v8h-2z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,22h8v-2H8z" />
+    <!-- Tower top -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2L9,10h6z" />
+    <!-- Signal waves left -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7.05,5.64L5.64,4.22C3.83,6.03 2.73,8.47 2.73,11.18h2c0,-2.16 0.88,-4.12 2.32,-5.54z" />
+    <!-- Signal waves right -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.95,5.64C18.39,7.06 19.27,9.02 19.27,11.18h2c0,-2.71 -1.1,-5.15 -2.91,-6.96L16.95,5.64z" />
+</vector>

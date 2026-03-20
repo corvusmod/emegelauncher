@@ -154,7 +154,7 @@ public class GraphsActivity extends Activity {
 
         // Back button
         TextView back = new TextView(this);
-        back.setText("BACK");
+        back.setText(getString(R.string.back));
         back.setTextSize(13);
         back.setTextColor(C_BLUE);
         back.setPadding(20, 12, 20, 12);
@@ -187,40 +187,40 @@ public class GraphsActivity extends Activity {
     private void buildDashboard() {
         // Speed + SOC gauges side by side
         LinearLayout row1 = newRow();
-        mSpeedGauge = newGauge("Speed", "km/h", 220, C_BLUE);
-        mSocGauge = newGauge("Battery", "%", 100, C_GREEN);
+        mSpeedGauge = newGauge(getString(R.string.graph_speed), "km/h", 220, C_BLUE);
+        mSocGauge = newGauge(getString(R.string.graph_battery), "%", 100, C_GREEN);
         row1.addView(mSpeedGauge, gaugeLP());
         row1.addView(mSocGauge, gaugeLP());
         mContent.addView(row1);
 
         // RPM + Efficiency gauges
         LinearLayout row2 = newRow();
-        mRpmGauge = newGauge("Motor", "RPM", 12000, C_ORANGE);
-        mEfficiencyGauge = newGauge("Efficiency", "", 100, C_TEAL);
+        mRpmGauge = newGauge(getString(R.string.graph_motor), "RPM", 12000, C_ORANGE);
+        mEfficiencyGauge = newGauge(getString(R.string.graph_efficiency), "", 100, C_TEAL);
         row2.addView(mRpmGauge, gaugeLP());
         row2.addView(mEfficiencyGauge, gaugeLP());
         mContent.addView(row2);
 
         // Energy flow chart (positive = consumption, negative = regen)
-        mEnergyFlowChart = newChart("Energy Flow (+consume / -regen)", "kW", C_TEAL);
+        mEnergyFlowChart = newChart(getString(R.string.graph_energy_flow), "kW", C_TEAL);
         mContent.addView(mEnergyFlowChart, chartLP());
 
         // Gear + Range info row
         LinearLayout row3 = newRow();
         row3.setPadding(20, 16, 20, 16);
 
-        mGearText = newInfoLabel("Gear: --");
-        mRangeText = newInfoLabel("Range: --");
+        mGearText = newInfoLabel(getString(R.string.graph_gear, "--"));
+        mRangeText = newInfoLabel(getString(R.string.graph_range_none));
         row3.addView(mGearText, new LinearLayout.LayoutParams(0, -2, 1f));
         row3.addView(mRangeText, new LinearLayout.LayoutParams(0, -2, 1f));
         mContent.addView(row3);
 
         // G-Force chart (compact, from G-Meter data)
-        mDashGChart = newChart("G-Force", "G", C_RED);
+        mDashGChart = newChart(getString(R.string.graph_gforce), "G", C_RED);
         mContent.addView(mDashGChart, chartLP());
 
         // Drive mode
-        TextView drvMode = newInfoLabel("Drive Mode: --");
+        TextView drvMode = newInfoLabel(getString(R.string.graph_drive_mode, "--"));
         drvMode.setTag("dash_drive_mode");
         mContent.addView(drvMode, infoLP());
     }
@@ -230,19 +230,19 @@ public class GraphsActivity extends Activity {
     private LineChartView mSocBmsChart;
 
     private void buildEnergy() {
-        mSocChart = newChart("SOC (Display)", "%", C_GREEN);
+        mSocChart = newChart(getString(R.string.graph_soc_display), "%", C_GREEN);
         mContent.addView(mSocChart, chartLP());
 
-        mSocBmsChart = newChart("SOC (BMS Raw)", "%", C_TEAL);
+        mSocBmsChart = newChart(getString(R.string.graph_soc_bms), "%", C_TEAL);
         mContent.addView(mSocBmsChart, chartLP());
 
-        mVoltChart = newChart("Pack Voltage", "V", C_ORANGE);
+        mVoltChart = newChart(getString(R.string.graph_pack_voltage), "V", C_ORANGE);
         mContent.addView(mVoltChart, chartLP());
 
-        mCurrentChart = newChart("Pack Current", "A", C_BLUE);
+        mCurrentChart = newChart(getString(R.string.graph_pack_current), "A", C_BLUE);
         mContent.addView(mCurrentChart, chartLP());
 
-        mConsumptionChart = newChart("Consumption", "kWh/100km", C_PURPLE);
+        mConsumptionChart = newChart(getString(R.string.graph_consumption), "kWh/100km", C_PURPLE);
         mContent.addView(mConsumptionChart, chartLP());
     }
 
@@ -250,83 +250,83 @@ public class GraphsActivity extends Activity {
 
     private void buildCharging() {
         // Live power gauge
-        mChargeRateGauge = newGauge("Charge Power", "kW", 150, C_GREEN);
+        mChargeRateGauge = newGauge(getString(R.string.graph_charge_power), "kW", 150, C_GREEN);
         mContent.addView(mChargeRateGauge, new LinearLayout.LayoutParams(-1, 250));
 
         // Live charts
-        mChargePowerChart = newChart("Charge Power (live)", "kW", C_GREEN);
+        mChargePowerChart = newChart(getString(R.string.graph_charge_power_live), "kW", C_GREEN);
         mContent.addView(mChargePowerChart, chartLP());
 
-        mChargeCurrentChart = newChart("Current (Battery vs Charger)", "A", C_ORANGE);
+        mChargeCurrentChart = newChart(getString(R.string.graph_current_batt_charger), "A", C_ORANGE);
         mContent.addView(mChargeCurrentChart, chartLP());
 
-        mChargeVoltChart = newChart("Voltage (Pack vs Charger Input)", "V", C_BLUE);
+        mChargeVoltChart = newChart(getString(R.string.graph_voltage_pack_charger), "V", C_BLUE);
         mContent.addView(mChargeVoltChart, chartLP());
 
         addDivider();
 
         // Status info
-        mChargeStatus = newInfoLabel("Status: --");
+        mChargeStatus = newInfoLabel(getString(R.string.graph_status, "--"));
         mContent.addView(mChargeStatus, infoLP());
 
-        mChargeTime = newInfoLabel("Time Remaining: --");
+        mChargeTime = newInfoLabel(getString(R.string.graph_time_remaining, "--"));
         mContent.addView(mChargeTime, infoLP());
 
-        mTargetSoc = newInfoLabel("Target SOC: --");
+        mTargetSoc = newInfoLabel(getString(R.string.graph_target_soc_none));
         mContent.addView(mTargetSoc, infoLP());
 
-        mPlugStatus = newInfoLabel("Plug: --");
+        mPlugStatus = newInfoLabel(getString(R.string.graph_plug, "--"));
         mContent.addView(mPlugStatus, infoLP());
 
-        mDoorStatus = newInfoLabel("Charge Door: --");
+        mDoorStatus = newInfoLabel(getString(R.string.graph_charge_door, "--"));
         mContent.addView(mDoorStatus, infoLP());
 
         addDivider();
 
         // Technical details (AC/DC)
-        TextView secHeader = newInfoLabel("CHARGER DETAILS");
+        TextView secHeader = newInfoLabel(getString(R.string.graph_charger_details));
         secHeader.setTextColor(cTextTert);
         secHeader.setTextSize(12);
         mContent.addView(secHeader, infoLP());
 
         // AC onboard charger info
-        TextView onbdPlug = newInfoLabel("AC Plug (Onboard): --");
+        TextView onbdPlug = newInfoLabel(getString(R.string.graph_ac_plug_onboard, "--"));
         onbdPlug.setTag("chrg_onbd_plug");
         mContent.addView(onbdPlug, infoLP());
 
-        TextView onbdVolt = newInfoLabel("AC Input Voltage: --");
+        TextView onbdVolt = newInfoLabel(getString(R.string.graph_ac_input_voltage, "--"));
         onbdVolt.setTag("chrg_ac_volt");
         mContent.addView(onbdVolt, infoLP());
 
-        TextView onbdCrnt = newInfoLabel("AC Input Current: --");
+        TextView onbdCrnt = newInfoLabel(getString(R.string.graph_ac_input_current, "--"));
         onbdCrnt.setTag("chrg_ac_crnt");
         mContent.addView(onbdCrnt, infoLP());
 
         // DC off-board charger info
-        TextView offbdPlug = newInfoLabel("DC Plug (Off-board): --");
+        TextView offbdPlug = newInfoLabel(getString(R.string.graph_dc_plug_offboard, "--"));
         offbdPlug.setTag("chrg_offbd_plug");
         mContent.addView(offbdPlug, infoLP());
 
         // BMS limits
-        TextView optCrnt = newInfoLabel("BMS Optimal Current: --");
+        TextView optCrnt = newInfoLabel(getString(R.string.graph_bms_optimal_current, "--"));
         optCrnt.setTag("chrg_opt_crnt");
         mContent.addView(optCrnt, infoLP());
 
-        TextView stopReason = newInfoLabel("Charge Stop Reason: --");
+        TextView stopReason = newInfoLabel(getString(R.string.graph_charge_stop_reason, "--"));
         stopReason.setTag("chrg_stop_reason");
         mContent.addView(stopReason, infoLP());
 
-        TextView altCrnt = newInfoLabel("Alternating Current: --");
+        TextView altCrnt = newInfoLabel(getString(R.string.graph_alternating_current, "--"));
         altCrnt.setTag("chrg_alt_crnt");
         mContent.addView(altCrnt, infoLP());
 
         // Session energy
-        TextView sessionEnergy = newInfoLabel("Session Energy: --");
+        TextView sessionEnergy = newInfoLabel(getString(R.string.graph_session_energy, "--"));
         sessionEnergy.setTag("chrg_session_energy");
         mContent.addView(sessionEnergy, infoLP());
 
         // Scheduled charging
-        TextView schedInfo = newInfoLabel("Scheduled Charge: --");
+        TextView schedInfo = newInfoLabel(getString(R.string.graph_scheduled_off));
         schedInfo.setTag("chrg_schedule");
         mContent.addView(schedInfo, infoLP());
     }
@@ -335,11 +335,7 @@ public class GraphsActivity extends Activity {
 
     private void buildHealth() {
         // Disclaimer
-        TextView disclaimer = newInfoLabel(
-            "Battery health (SOH) is AUTO-CALCULATED by tracking charge sessions. " +
-            "This is an estimation based on energy input vs SOC change — not a value " +
-            "from the car's BMS. Accuracy improves with more charge sessions recorded. " +
-            "For an official battery health assessment, contact an MG service center.");
+        TextView disclaimer = newInfoLabel(getString(R.string.graph_health_disclaimer));
         disclaimer.setTextColor(C_ORANGE);
         disclaimer.setTextSize(13);
         disclaimer.setPadding(20, 20, 20, 20);
@@ -351,67 +347,66 @@ public class GraphsActivity extends Activity {
         float soh = mHealthTracker.getEstimatedSoh();
         float cap = mHealthTracker.getEstimatedCapacity();
 
-        ArcGaugeView sohGauge = newGauge("Est. SOH", "%", 100,
+        ArcGaugeView sohGauge = newGauge(getString(R.string.graph_est_soh), "%", 100,
             soh >= 90 ? C_GREEN : soh >= 75 ? C_ORANGE : C_RED);
         if (soh > 0) sohGauge.setValue(soh);
         mContent.addView(sohGauge, new LinearLayout.LayoutParams(-1, 280));
 
-        TextView capLabel = newInfoLabel("Est. Capacity: " +
-            (cap > 0 ? String.format("%.1f kWh", cap) : "No data yet") +
-            " (Nominal: 70 kWh)");
+        TextView capLabel = newInfoLabel(getString(R.string.graph_est_capacity,
+            cap > 0 ? String.format("%.1f kWh", cap) : getString(R.string.graph_no_data_yet)));
         capLabel.setTag("health_capacity");
         mContent.addView(capLabel, infoLP());
 
-        TextView sessionsCount = newInfoLabel("Charge sessions recorded: " +
-            mHealthTracker.getSessions().length());
+        TextView sessionsCount = newInfoLabel(getString(R.string.graph_sessions_recorded,
+            mHealthTracker.getSessions().length()));
         mContent.addView(sessionsCount, infoLP());
 
         // Tracking status
         if (mHealthTracker.isCurrentlyTracking()) {
-            TextView tracking = newInfoLabel("Currently tracking charge session...");
+            TextView tracking = newInfoLabel(getString(R.string.graph_tracking_session));
             tracking.setTextColor(C_GREEN);
             tracking.setTag("health_tracking");
             mContent.addView(tracking, infoLP());
 
-            TextView energySoFar = newInfoLabel("Energy accumulated: " +
-                String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar()));
+            TextView energySoFar = newInfoLabel(getString(R.string.graph_energy_accumulated,
+                String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar())));
             energySoFar.setTag("health_energy_sofar");
             mContent.addView(energySoFar, infoLP());
         }
 
         // Resting voltage analysis
         addDivider();
-        TextView voltHeader = newInfoLabel("RESTING VOLTAGE ANALYSIS");
+        TextView voltHeader = newInfoLabel(getString(R.string.graph_resting_voltage));
         voltHeader.setTextColor(cTextTert);
         voltHeader.setTextSize(12);
         mContent.addView(voltHeader, infoLP());
 
-        TextView restVolt = newInfoLabel("Pack Voltage: --");
+        TextView restVolt = newInfoLabel(getString(R.string.graph_pack_voltage_val, "--"));
         restVolt.setTag("health_rest_volt");
         mContent.addView(restVolt, infoLP());
 
-        TextView restSoc = newInfoLabel("BMS SOC: --");
+        TextView restSoc = newInfoLabel(getString(R.string.graph_bms_soc, "--"));
         restSoc.setTag("health_rest_soc");
         mContent.addView(restSoc, infoLP());
 
-        TextView restCrnt = newInfoLabel("Standby Current: --");
+        TextView restCrnt = newInfoLabel(getString(R.string.graph_standby_current, "--"));
         restCrnt.setTag("health_rest_crnt");
         mContent.addView(restCrnt, infoLP());
 
-        TextView socGap = newInfoLabel("SOC Gap (Display - Raw): --");
+        TextView socGap = newInfoLabel(getString(R.string.graph_soc_gap, "--"));
         socGap.setTag("health_soc_gap");
         mContent.addView(socGap, infoLP());
 
         // Session history
         addDivider();
-        TextView histHeader = newInfoLabel("CHARGE SESSION HISTORY");
+        TextView histHeader = newInfoLabel(getString(R.string.graph_session_history));
         histHeader.setTextColor(cTextTert);
         histHeader.setTextSize(12);
         mContent.addView(histHeader, infoLP());
 
         JSONArray sessions = mHealthTracker.getSessions();
         if (sessions.length() == 0) {
-            mContent.addView(newInfoLabel("No charge sessions recorded yet. Plug in your car to start tracking."), infoLP());
+            mContent.addView(newInfoLabel(getString(R.string.graph_no_sessions_hint)), infoLP());
         } else {
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault());
             // Show last 10 sessions, newest first
@@ -419,11 +414,13 @@ public class GraphsActivity extends Activity {
                 try {
                     JSONObject s = sessions.getJSONObject(i);
                     String date = sdf.format(new Date(s.getLong("ts")));
-                    String line = date +
-                        " | " + s.getDouble("s0") + "→" + s.getDouble("s1") + "%" +
-                        " | " + s.getDouble("e") + " kWh" +
-                        " | Cap: " + s.getDouble("cap") + " kWh" +
-                        " | SOH: " + s.getDouble("soh") + "%";
+                    String line = getString(R.string.graph_session_line,
+                        date,
+                        String.valueOf(s.getDouble("s0")),
+                        String.valueOf(s.getDouble("s1")),
+                        String.valueOf(s.getDouble("e")),
+                        String.valueOf(s.getDouble("cap")),
+                        String.valueOf(s.getDouble("soh")));
                     TextView tv = newInfoLabel(line);
                     tv.setTextSize(11);
                     mContent.addView(tv, infoLP());
@@ -451,8 +448,8 @@ public class GraphsActivity extends Activity {
         // Temp info labels
         LinearLayout row = newRow();
         row.setPadding(20, 12, 20, 12);
-        TextView insideLabel = newInfoLabel("HVAC Set: --");
-        TextView outsideLabel = newInfoLabel("Outside: --");
+        TextView insideLabel = newInfoLabel(getString(R.string.graph_hvac_set, "--"));
+        TextView outsideLabel = newInfoLabel(getString(R.string.graph_outside_temp, "--"));
         row.addView(insideLabel, new LinearLayout.LayoutParams(0, -2, 1f));
         row.addView(outsideLabel, new LinearLayout.LayoutParams(0, -2, 1f));
         mContent.addView(row);
@@ -461,7 +458,7 @@ public class GraphsActivity extends Activity {
 
         // Air Quality section
         addDivider();
-        TextView aqHeader = newInfoLabel("AIR QUALITY");
+        TextView aqHeader = newInfoLabel(getString(R.string.graph_air_quality));
         aqHeader.setTextColor(cTextTert);
         aqHeader.setTextSize(12);
         mContent.addView(aqHeader, infoLP());
@@ -469,43 +466,43 @@ public class GraphsActivity extends Activity {
         // PM2.5 chart removed — car has dust filter but no active PM2.5 sensor (CAL_AQS=00, value=253=sentinel)
 
         // Air quality detail labels
-        TextView pm25InLabel = newInfoLabel("PM2.5 Inside: --");
+        TextView pm25InLabel = newInfoLabel(getString(R.string.graph_pm25_inside, "--"));
         pm25InLabel.setTag("aq_pm25_in");
         mContent.addView(pm25InLabel, infoLP());
 
-        TextView pm25OutLabel = newInfoLabel("PM2.5 Outside: --");
+        TextView pm25OutLabel = newInfoLabel(getString(R.string.graph_pm25_outside, "--"));
         pm25OutLabel.setTag("aq_pm25_out");
         mContent.addView(pm25OutLabel, infoLP());
 
-        TextView pm25FilterLabel = newInfoLabel("PM2.5 Filter: --");
+        TextView pm25FilterLabel = newInfoLabel(getString(R.string.graph_pm25_filter, "--"));
         pm25FilterLabel.setTag("aq_pm25_filter");
         mContent.addView(pm25FilterLabel, infoLP());
 
-        TextView aqsLabel = newInfoLabel("Air Quality Sensor (AQS): --");
+        TextView aqsLabel = newInfoLabel(getString(R.string.graph_aqs, "--"));
         aqsLabel.setTag("aq_aqs");
         mContent.addView(aqsLabel, infoLP());
 
-        TextView ionLabel = newInfoLabel("Ionizer: --");
+        TextView ionLabel = newInfoLabel(getString(R.string.graph_ionizer, "--"));
         ionLabel.setTag("aq_ionizer");
         mContent.addView(ionLabel, infoLP());
 
-        TextView anionLabel = newInfoLabel("Anion Status: --");
+        TextView anionLabel = newInfoLabel(getString(R.string.graph_anion_status, "--"));
         anionLabel.setTag("aq_anion");
         mContent.addView(anionLabel, infoLP());
 
-        TextView filterLifeLabel = newInfoLabel("Filter Life: --");
+        TextView filterLifeLabel = newInfoLabel(getString(R.string.graph_filter_life, "--"));
         filterLifeLabel.setTag("aq_filter_life");
         mContent.addView(filterLifeLabel, infoLP());
 
-        TextView filterLevelLabel = newInfoLabel("Filter Usage Level: --");
+        TextView filterLevelLabel = newInfoLabel(getString(R.string.graph_filter_usage, "--"));
         filterLevelLabel.setTag("aq_filter_level");
         mContent.addView(filterLevelLabel, infoLP());
 
-        TextView airPurifierLabel = newInfoLabel("Air Purifier Switch: --");
+        TextView airPurifierLabel = newInfoLabel(getString(R.string.graph_air_purifier, "--"));
         airPurifierLabel.setTag("aq_purifier_sw");
         mContent.addView(airPurifierLabel, infoLP());
 
-        TextView autoRecircLabel = newInfoLabel("Auto Recirculation: --");
+        TextView autoRecircLabel = newInfoLabel(getString(R.string.graph_auto_recirc, "--"));
         autoRecircLabel.setTag("aq_auto_recirc");
         mContent.addView(autoRecircLabel, infoLP());
     }
@@ -513,37 +510,37 @@ public class GraphsActivity extends Activity {
     // ==================== Trip ====================
 
     private void buildTrip() {
-        mOdometer = newInfoLabel("Odometer: --");
+        mOdometer = newInfoLabel(getString(R.string.graph_odometer, "--"));
         mContent.addView(mOdometer, infoLP());
 
-        mAvgConsumption = newInfoLabel("Avg Consumption: --");
+        mAvgConsumption = newInfoLabel(getString(R.string.graph_avg_consumption, "--"));
         mContent.addView(mAvgConsumption, infoLP());
 
-        mTotalConsumed = newInfoLabel("Total Consumed (trip): --");
+        mTotalConsumed = newInfoLabel(getString(R.string.graph_total_consumed, "--"));
         mContent.addView(mTotalConsumed, infoLP());
 
-        mRegenEnergy = newInfoLabel("Regen Energy (trip): --");
+        mRegenEnergy = newInfoLabel(getString(R.string.graph_regen_energy, "--"));
         mContent.addView(mRegenEnergy, infoLP());
 
-        mRegenRange = newInfoLabel("Regen Range (trip): --");
+        mRegenRange = newInfoLabel(getString(R.string.graph_regen_range, "--"));
         mContent.addView(mRegenRange, infoLP());
 
         // Since-charge stats
         addDivider();
-        TextView header = newInfoLabel("SINCE LAST CHARGE");
+        TextView header = newInfoLabel(getString(R.string.graph_since_last_charge));
         header.setTextColor(cTextTert);
         header.setTextSize(12);
         mContent.addView(header, infoLP());
 
-        TextView chargeConsumed = newInfoLabel("Consumed: --");
+        TextView chargeConsumed = newInfoLabel(getString(R.string.graph_consumed, "--"));
         chargeConsumed.setTag("trip_charge_consumed");
         mContent.addView(chargeConsumed, infoLP());
 
-        TextView chargeRegen = newInfoLabel("Regen Energy: --");
+        TextView chargeRegen = newInfoLabel(getString(R.string.graph_regen_energy_val, "--"));
         chargeRegen.setTag("trip_charge_regen");
         mContent.addView(chargeRegen, infoLP());
 
-        TextView chargeRegenRange = newInfoLabel("Regen Range: --");
+        TextView chargeRegenRange = newInfoLabel(getString(R.string.graph_regen_range_val, "--"));
         chargeRegenRange.setTag("trip_charge_regen_range");
         mContent.addView(chargeRegenRange, infoLP());
     }
@@ -603,7 +600,7 @@ public class GraphsActivity extends Activity {
         // Gear: SAIC condition → VHAL
         int gearVal = (int) readSaicFloat("condition", "getCarGear");
         if (gearVal == 0) gearVal = (int) readFloat(YFVehicleProperty.SENSOR_GEAR_STS);
-        mGearText.setText("Gear: " + decodeGear(gearVal));
+        mGearText.setText(getString(R.string.graph_gear, decodeGear(gearVal)));
 
         // Range: display value only (SAIC or cluster) — NO fallback to BMS
         float rangeSaic = readSaicFloat("charging", "getCurrentEnduranceMileage");
@@ -615,12 +612,15 @@ public class GraphsActivity extends Activity {
 
         String rangeLabel;
         if (displayRange != null) {
-            rangeLabel = "Range: " + displayRange + " km";
-            if (isValidVal(bmsRange)) rangeLabel += " (BMS: " + bmsRange + ")";
+            if (isValidVal(bmsRange)) {
+                rangeLabel = getString(R.string.graph_range_bms, displayRange, bmsRange);
+            } else {
+                rangeLabel = getString(R.string.graph_range, displayRange);
+            }
         } else if (isValidVal(bmsRange)) {
-            rangeLabel = "Range (BMS only): " + bmsRange + " km";
+            rangeLabel = getString(R.string.graph_range_bms_only, bmsRange);
         } else {
-            rangeLabel = "Range: --";
+            rangeLabel = getString(R.string.graph_range_none);
         }
         mRangeText.setText(rangeLabel);
 
@@ -632,16 +632,16 @@ public class GraphsActivity extends Activity {
 
         // Drive mode
         int drvMode = (int) readFloat(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
-        updateTaggedLabel("dash_drive_mode", "Drive Mode: " + decodeDriveMode(drvMode));
+        updateTaggedLabel("dash_drive_mode", getString(R.string.graph_drive_mode, decodeDriveMode(drvMode)));
     }
 
-    private static String decodeDriveMode(int raw) {
+    private String decodeDriveMode(int raw) {
         switch (raw) {
-            case 0: return "Eco";
-            case 1: return "Normal";
-            case 2: return "Sport";
-            case 6: return "Winter";
-            default: return "Unknown (" + raw + ")";
+            case 0: return getString(R.string.graph_drive_eco);
+            case 1: return getString(R.string.graph_drive_normal);
+            case 2: return getString(R.string.graph_drive_sport);
+            case 6: return getString(R.string.graph_drive_winter);
+            default: return getString(R.string.graph_drive_unknown, raw);
         }
     }
 
@@ -701,8 +701,8 @@ public class GraphsActivity extends Activity {
         mChargeCurrentChart.addPoint(Math.abs(packCrnt));
         mChargeVoltChart.addPoint(packVolt);
 
-        mChargeStatus.setText("Status: " + decodeChargeStatus(chrgSts) + " (LIVE)");
-        mChargeTime.setText("Time Remaining: " + (timeRemain >= 1023 ? "N/A" : (int) timeRemain + " min"));
+        mChargeStatus.setText(getString(R.string.graph_status_live, decodeChargeStatus(chrgSts)));
+        mChargeTime.setText(getString(R.string.graph_time_remaining, timeRemain >= 1023 ? "N/A" : getString(R.string.graph_time_remaining_min, (int) timeRemain)));
 
         float targetSoc = readFloat(YFVehicleProperty.BMS_DISCHRG_TRGT_SOC_RESP);
         if (targetSoc <= 0) targetSoc = readFloat(YFVehicleProperty.CHRG_TRGT_SOC);
@@ -710,26 +710,26 @@ public class GraphsActivity extends Activity {
         if (targetSoc > 0 && targetSoc <= 10) {
             int displayTarget = (int)((targetSoc + 3) * 10);
             displayTarget = Math.min(100, displayTarget);
-            mTargetSoc.setText("Target SOC: " + displayTarget + "% (raw: " + (int) targetSoc + ")");
+            mTargetSoc.setText(getString(R.string.graph_target_soc, displayTarget, (int) targetSoc));
         } else if (targetSoc > 10) {
-            mTargetSoc.setText("Target SOC: " + (int) targetSoc + "%");
+            mTargetSoc.setText(getString(R.string.graph_target_soc_pct, (int) targetSoc));
         } else {
-            mTargetSoc.setText("Target SOC: --");
+            mTargetSoc.setText(getString(R.string.graph_target_soc_none));
         }
 
-        mPlugStatus.setText("Plug: " + (readFloat(YFVehicleProperty.EV_CHARGE_PORT_CONNECTED) > 0 ? "Connected" : "Disconnected"));
-        mDoorStatus.setText("Charge Door: " + decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS)));
+        mPlugStatus.setText(getString(R.string.graph_plug, readFloat(YFVehicleProperty.EV_CHARGE_PORT_CONNECTED) > 0 ? getString(R.string.graph_connected) : getString(R.string.graph_disconnected)));
+        mDoorStatus.setText(getString(R.string.graph_charge_door, decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS))));
 
-        updateTaggedLabel("chrg_onbd_plug", "AC Plug (Onboard): " + (onbdPlug ? "Connected" : "No"));
-        updateTaggedLabel("chrg_offbd_plug", "DC Plug (Off-board): " + (offbdPlug ? "Connected" : "No"));
-        updateTaggedLabel("chrg_ac_volt", "AC Input Voltage: " + fmt(acVolt) + " V");
-        updateTaggedLabel("chrg_ac_crnt", "AC Input Current: " + fmt(acCrnt) + " A");
-        updateTaggedLabel("chrg_opt_crnt", "BMS Optimal Current: " + fmt(optCrnt) + " A" +
-            (optCrnt > 0 ? " (BMS limits charge rate)" : ""));
-        updateTaggedLabel("chrg_stop_reason", "Charge Stop Reason: " + mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN));
-        updateTaggedLabel("chrg_alt_crnt", "Alternating Current: " + mVehicle.getPropertyValue(YFVehicleProperty.ALTNG_CHRG_CRNT) + " A");
-        updateTaggedLabel("chrg_session_energy", "Session Energy: " +
-            String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar()));
+        updateTaggedLabel("chrg_onbd_plug", getString(R.string.graph_ac_plug_onboard, onbdPlug ? getString(R.string.graph_connected) : "No"));
+        updateTaggedLabel("chrg_offbd_plug", getString(R.string.graph_dc_plug_offboard, offbdPlug ? getString(R.string.graph_connected) : "No"));
+        updateTaggedLabel("chrg_ac_volt", getString(R.string.graph_ac_input_voltage, fmt(acVolt) + " V"));
+        updateTaggedLabel("chrg_ac_crnt", getString(R.string.graph_ac_input_current, fmt(acCrnt) + " A"));
+        updateTaggedLabel("chrg_opt_crnt", getString(R.string.graph_bms_optimal_current, fmt(optCrnt) + " A") +
+            (optCrnt > 0 ? getString(R.string.graph_bms_limits_rate) : ""));
+        updateTaggedLabel("chrg_stop_reason", getString(R.string.graph_charge_stop_reason, mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN)));
+        updateTaggedLabel("chrg_alt_crnt", getString(R.string.graph_alternating_current, mVehicle.getPropertyValue(YFVehicleProperty.ALTNG_CHRG_CRNT) + " A"));
+        updateTaggedLabel("chrg_session_energy", getString(R.string.graph_session_energy,
+            String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar())));
 
         int stH = (int) readFloat(YFVehicleProperty.RESER_ST_HOUR);
         int stM = (int) readFloat(YFVehicleProperty.RESER_ST_MIN);
@@ -737,9 +737,9 @@ public class GraphsActivity extends Activity {
         int spM = (int) readFloat(YFVehicleProperty.RESER_SP_MIN);
         int reserCtrl = (int) readFloat(YFVehicleProperty.RESER_CTRL);
         if (reserCtrl > 0) {
-            updateTaggedLabel("chrg_schedule", String.format("Scheduled: %02d:%02d → %02d:%02d", stH, stM, spH, spM));
+            updateTaggedLabel("chrg_schedule", getString(R.string.graph_scheduled_charge, String.format("%02d:%02d → %02d:%02d", stH, stM, spH, spM)));
         } else {
-            updateTaggedLabel("chrg_schedule", "Scheduled Charge: Off");
+            updateTaggedLabel("chrg_schedule", getString(R.string.graph_scheduled_off));
         }
 
         // Save snapshot for later viewing
@@ -764,16 +764,16 @@ public class GraphsActivity extends Activity {
     }
 
     private void updateChargingStored(int chrgSts) {
-        mChargeStatus.setText("Status: " + decodeChargeStatus(chrgSts));
+        mChargeStatus.setText(getString(R.string.graph_status, decodeChargeStatus(chrgSts)));
 
         JSONObject snap = mHealthTracker.getLastChargeSnapshot();
         if (snap == null) {
             mChargeRateGauge.setValue(0);
-            mChargeTime.setText("Time Remaining: N/A");
-            mTargetSoc.setText("Target SOC: --");
-            mPlugStatus.setText("Plug: Disconnected");
-            mDoorStatus.setText("Charge Door: " + decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS)));
-            updateTaggedLabel("chrg_session_energy", "No charge session recorded yet");
+            mChargeTime.setText(getString(R.string.graph_time_remaining_na));
+            mTargetSoc.setText(getString(R.string.graph_target_soc_none));
+            mPlugStatus.setText(getString(R.string.graph_plug, getString(R.string.graph_disconnected)));
+            mDoorStatus.setText(getString(R.string.graph_charge_door, decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS))));
+            updateTaggedLabel("chrg_session_energy", getString(R.string.graph_no_session));
             return;
         }
 
@@ -781,30 +781,30 @@ public class GraphsActivity extends Activity {
             // Show stored data with timestamp
             long ts = snap.getLong("ts");
             String when = new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(ts));
-            mChargeStatus.setText("Last Charge: " + decodeChargeStatus(snap.getInt("status")) + " (" + when + ")");
+            mChargeStatus.setText(getString(R.string.graph_last_charge, decodeChargeStatus(snap.getInt("status")), when));
             mChargeRateGauge.setValue((float) snap.getDouble("powerKw"));
-            mChargeTime.setText("Time Remaining: N/A (session ended)");
+            mChargeTime.setText(getString(R.string.graph_time_remaining_ended));
 
             float startSoc = (float) snap.getDouble("startSoc");
             float endSoc = (float) snap.getDouble("socRaw");
             float socDsp = (float) snap.getDouble("socDsp");
-            mTargetSoc.setText("Charged: " + fmt(startSoc) + "% → " + fmt(endSoc) + "% BMS (" + fmt(socDsp) + "% display)");
+            mTargetSoc.setText(getString(R.string.graph_charged_range, fmt(startSoc), fmt(endSoc), fmt(socDsp)));
 
-            mPlugStatus.setText("Plug: Disconnected");
-            mDoorStatus.setText("Charge Door: " + decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS)));
+            mPlugStatus.setText(getString(R.string.graph_plug, getString(R.string.graph_disconnected)));
+            mDoorStatus.setText(getString(R.string.graph_charge_door, decodeDoorStatus((int) readFloat(YFVehicleProperty.BMS_CHRG_DOOR_POS_STS))));
 
             boolean onbd = snap.optBoolean("onbdPlug", false);
             boolean offbd = snap.optBoolean("offbdPlug", false);
-            String chargeType = offbd ? "DC (fast)" : (onbd ? "AC (onboard)" : "Unknown");
-            updateTaggedLabel("chrg_onbd_plug", "Charge Type: " + chargeType);
-            updateTaggedLabel("chrg_offbd_plug", "DC Plug: " + (offbd ? "Was connected" : "No"));
-            updateTaggedLabel("chrg_ac_volt", "AC Input Voltage: " + snap.optDouble("acVolt", 0) + " V");
-            updateTaggedLabel("chrg_ac_crnt", "AC Input Current: " + snap.optDouble("acCrnt", 0) + " A");
-            updateTaggedLabel("chrg_opt_crnt", "BMS Optimal Current: " + snap.optDouble("optCrnt", 0) + " A");
-            updateTaggedLabel("chrg_stop_reason", "Charge Stop Reason: " + mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN));
-            updateTaggedLabel("chrg_alt_crnt", "Peak Power: " + snap.optDouble("powerKw", 0) + " kW");
-            updateTaggedLabel("chrg_session_energy", "Session Energy: " + snap.optDouble("energy", 0) + " kWh");
-            updateTaggedLabel("chrg_schedule", "Pack Voltage (last): " + snap.optDouble("packVolt", 0) + " V | Current: " + snap.optDouble("packCrnt", 0) + " A");
+            String chargeType = offbd ? getString(R.string.graph_dc_fast) : (onbd ? getString(R.string.graph_ac_onboard) : getString(R.string.graph_unknown));
+            updateTaggedLabel("chrg_onbd_plug", getString(R.string.graph_charge_type, chargeType));
+            updateTaggedLabel("chrg_offbd_plug", getString(R.string.graph_dc_plug, offbd ? getString(R.string.graph_was_connected) : "No"));
+            updateTaggedLabel("chrg_ac_volt", getString(R.string.graph_ac_input_voltage, snap.optDouble("acVolt", 0) + " V"));
+            updateTaggedLabel("chrg_ac_crnt", getString(R.string.graph_ac_input_current, snap.optDouble("acCrnt", 0) + " A"));
+            updateTaggedLabel("chrg_opt_crnt", getString(R.string.graph_bms_optimal_current, snap.optDouble("optCrnt", 0) + " A"));
+            updateTaggedLabel("chrg_stop_reason", getString(R.string.graph_charge_stop_reason, mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN)));
+            updateTaggedLabel("chrg_alt_crnt", getString(R.string.graph_peak_power, snap.optDouble("powerKw", 0)));
+            updateTaggedLabel("chrg_session_energy", getString(R.string.graph_session_energy, snap.optDouble("energy", 0) + " kWh"));
+            updateTaggedLabel("chrg_schedule", getString(R.string.graph_pack_volt_last, String.valueOf(snap.optDouble("packVolt", 0)), String.valueOf(snap.optDouble("packCrnt", 0))));
         } catch (Exception ignored) {
             mChargeRateGauge.setValue(0);
         }
@@ -827,24 +827,23 @@ public class GraphsActivity extends Activity {
         float socDsp = readFloat(YFVehicleProperty.BMS_PACK_SOC_DSP);
         float crnt = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
 
-        updateTaggedLabel("health_rest_volt", "Pack Voltage: " + fmt(volt) + " V");
-        updateTaggedLabel("health_rest_soc", "BMS SOC: " + fmt(socRaw) + "%");
-        updateTaggedLabel("health_rest_crnt", "Standby Current: " + fmt(crnt) + " A");
-        updateTaggedLabel("health_soc_gap", "SOC Gap (Display - Raw): " +
-            String.format("%.1f%%", socDsp - socRaw));
+        updateTaggedLabel("health_rest_volt", getString(R.string.graph_pack_voltage_val, fmt(volt)));
+        updateTaggedLabel("health_rest_soc", getString(R.string.graph_bms_soc, fmt(socRaw)));
+        updateTaggedLabel("health_rest_crnt", getString(R.string.graph_standby_current, fmt(crnt)));
+        updateTaggedLabel("health_soc_gap", getString(R.string.graph_soc_gap,
+            String.format("%.1f%%", socDsp - socRaw)));
 
         if (mHealthTracker.isCurrentlyTracking()) {
-            updateTaggedLabel("health_tracking", "Tracking... Energy: " +
-                String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar()));
-            updateTaggedLabel("health_energy_sofar", "Start SOC: " +
-                fmt(mHealthTracker.getSessionStartSoc()) + "% → Current: " + fmt(socRaw) + "%");
+            updateTaggedLabel("health_tracking", getString(R.string.graph_tracking_energy,
+                String.format("%.2f kWh", mHealthTracker.getSessionEnergySoFar())));
+            updateTaggedLabel("health_energy_sofar", getString(R.string.graph_start_soc_current,
+                fmt(mHealthTracker.getSessionStartSoc()), fmt(socRaw)));
         }
 
         // Update capacity label
         float cap = mHealthTracker.getEstimatedCapacity();
-        updateTaggedLabel("health_capacity", "Est. Capacity: " +
-            (cap > 0 ? String.format("%.1f kWh", cap) : "No data yet") +
-            " (Nominal: 70 kWh)");
+        updateTaggedLabel("health_capacity", getString(R.string.graph_est_capacity,
+            cap > 0 ? String.format("%.1f kWh", cap) : getString(R.string.graph_no_data_yet)));
     }
 
     private void updateTires() {
@@ -869,47 +868,47 @@ public class GraphsActivity extends Activity {
         float outside = readServiceFloat("getOutsideTemp");
         if (outside == 0) outside = readFloat(YFVehicleProperty.ENV_OUTSIDE_TEMPERATURE);
 
-        updateTaggedLabel("climate_inside", "HVAC Set: " + (inside > 0 ? fmt(inside) + "°C" : "Off"));
-        updateTaggedLabel("climate_outside", "Outside: " + fmt(outside) + "°C");
+        updateTaggedLabel("climate_inside", getString(R.string.graph_hvac_set, inside > 0 ? fmt(inside) + "°C" : getString(R.string.graph_hvac_off)));
+        updateTaggedLabel("climate_outside", getString(R.string.graph_outside_temp, fmt(outside) + "°C"));
 
         // PM2.5: value 253 = no sensor (CAN sentinel 0xFD)
         float pm25inSaic = readSaicFloat("aircondition", "getPm25Concentration");
-        String pm25InStr = (pm25inSaic >= 253 || pm25inSaic < 0) ? "No sensor" :
+        String pm25InStr = (pm25inSaic >= 253 || pm25inSaic < 0) ? getString(R.string.graph_no_sensor) :
             (pm25inSaic > 0 ? fmt(pm25inSaic) : "0");
-        updateTaggedLabel("aq_pm25_in", "PM2.5 Inside: " + pm25InStr + " µg/m³");
-        updateTaggedLabel("aq_pm25_out", "PM2.5 Outside: " + fmt(readFloat(YFVehicleProperty.HVAC_PM25_OUTCAR)) + " µg/m³");
+        updateTaggedLabel("aq_pm25_in", getString(R.string.graph_pm25_inside, pm25InStr));
+        updateTaggedLabel("aq_pm25_out", getString(R.string.graph_pm25_outside, fmt(readFloat(YFVehicleProperty.HVAC_PM25_OUTCAR))));
 
         String pm25f = mVehicle.getPm25Filter();
         if (pm25f.equals("N/A")) pm25f = mVehicle.getPropertyValue(YFVehicleProperty.HVAC_PM25_FILTER);
-        updateTaggedLabel("aq_pm25_filter", "PM2.5 Filter: " + pm25f);
+        updateTaggedLabel("aq_pm25_filter", getString(R.string.graph_pm25_filter, pm25f));
 
         String anion = mVehicle.getAnionStatus();
         if (anion.equals("N/A")) anion = mVehicle.getPropertyValue(YFVehicleProperty.HVAC_ANION_STATUS);
-        updateTaggedLabel("aq_anion", "Anion Status: " + decodeOnOff(anion));
+        updateTaggedLabel("aq_anion", getString(R.string.graph_anion_status, decodeOnOff(anion)));
 
-        updateTaggedLabel("aq_aqs", "Air Quality Sensor (AQS): " + mVehicle.getPropertyValue(YFVehicleProperty.HVAC_CUST_AIR_QULT));
-        updateTaggedLabel("aq_ionizer", "Ionizer: " + decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_IONIZER)));
-        updateTaggedLabel("aq_filter_life", "Filter Life: " + mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_FLTR_LIFE) + "%");
-        updateTaggedLabel("aq_filter_level", "Filter Usage Level: " + mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_FLTR_CSUMLVL));
-        updateTaggedLabel("aq_purifier_sw", "Air Purifier Switch: " + decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_ONOFF_SW)));
-        updateTaggedLabel("aq_auto_recirc", "Auto Recirculation: " + decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AUTO_RECIRC_ON)));
+        updateTaggedLabel("aq_aqs", getString(R.string.graph_aqs, mVehicle.getPropertyValue(YFVehicleProperty.HVAC_CUST_AIR_QULT)));
+        updateTaggedLabel("aq_ionizer", getString(R.string.graph_ionizer, decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_IONIZER))));
+        updateTaggedLabel("aq_filter_life", getString(R.string.graph_filter_life, mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_FLTR_LIFE)));
+        updateTaggedLabel("aq_filter_level", getString(R.string.graph_filter_usage, mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_FLTR_CSUMLVL)));
+        updateTaggedLabel("aq_purifier_sw", getString(R.string.graph_air_purifier, decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AIRCLNR_ONOFF_SW))));
+        updateTaggedLabel("aq_auto_recirc", getString(R.string.graph_auto_recirc, decodeOnOff(mVehicle.getPropertyValue(YFVehicleProperty.HVAC_AUTO_RECIRC_ON))));
     }
 
     private void updateTrip() {
         if (mOdometer == null) return;
-        mOdometer.setText("Odometer: " + mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TOTAL_MILEAGE) + " km");
+        mOdometer.setText(getString(R.string.graph_odometer, mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TOTAL_MILEAGE)));
 
         // Avg consumption: raw value is in Wh/km, convert to kWh/100km (/10)
         float avgRaw = readFloat(YFVehicleProperty.CRNT_AVG_ELEC_CSUMP);
-        mAvgConsumption.setText("Avg Consumption: " + String.format("%.1f", avgRaw / 100f) + " kWh/100km");
+        mAvgConsumption.setText(getString(R.string.graph_avg_consumption, String.format("%.1f", avgRaw / 100f)));
 
-        mTotalConsumed.setText("Total Consumed (trip): " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_START) + " Wh");
-        mRegenEnergy.setText("Regen Energy (trip): " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_START) + " Wh");
-        mRegenRange.setText("Regen Range (trip): " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_START) + " km");
+        mTotalConsumed.setText(getString(R.string.graph_total_consumed, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_START)));
+        mRegenEnergy.setText(getString(R.string.graph_regen_energy, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_START)));
+        mRegenRange.setText(getString(R.string.graph_regen_range, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_START)));
 
-        updateTaggedLabel("trip_charge_consumed", "Consumed: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_CHARGE) + " Wh");
-        updateTaggedLabel("trip_charge_regen", "Regen Energy: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_CHARGE) + " Wh");
-        updateTaggedLabel("trip_charge_regen_range", "Regen Range: " + mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_CHARGE) + " km");
+        updateTaggedLabel("trip_charge_consumed", getString(R.string.graph_consumed, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_CHARGE)));
+        updateTaggedLabel("trip_charge_regen", getString(R.string.graph_regen_energy_val, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_CHARGE)));
+        updateTaggedLabel("trip_charge_regen_range", getString(R.string.graph_regen_range_val, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_CHARGE)));
     }
 
     // ==================== G-Meter ====================
@@ -929,34 +928,34 @@ public class GraphsActivity extends Activity {
         mContent.addView(mGMeter, new LinearLayout.LayoutParams(-1, 400));
 
         // Longitudinal G chart (accel/brake over time)
-        mLongGChart = newChart("Longitudinal G (accel/brake)", "G", C_GREEN);
+        mLongGChart = newChart(getString(R.string.graph_long_g), "G", C_GREEN);
         mContent.addView(mLongGChart, chartLP());
 
         // Lateral G chart (cornering over time)
-        mLatGChart = newChart("Lateral G (cornering)", "G", C_ORANGE);
+        mLatGChart = newChart(getString(R.string.graph_lat_g), "G", C_ORANGE);
         mContent.addView(mLatGChart, chartLP());
 
         // Aggressive driving indicator
         addDivider();
-        TextView aggressiveLabel = newInfoLabel("Aggressive Driving: --");
+        TextView aggressiveLabel = newInfoLabel(getString(R.string.graph_aggressive_driving, "--"));
         aggressiveLabel.setTag("gmeter_aggressive");
         mContent.addView(aggressiveLabel, infoLP());
 
-        TextView peakLongG = newInfoLabel("Peak Longitudinal: --");
+        TextView peakLongG = newInfoLabel(getString(R.string.graph_peak_long, "--"));
         peakLongG.setTag("gmeter_peak_long");
         mContent.addView(peakLongG, infoLP());
 
-        TextView peakLatG = newInfoLabel("Peak Lateral: --");
+        TextView peakLatG = newInfoLabel(getString(R.string.graph_peak_lat, "--"));
         peakLatG.setTag("gmeter_peak_lat");
         mContent.addView(peakLatG, infoLP());
 
         addDivider();
 
-        TextView regenVal = newInfoLabel("Regen Level: --");
+        TextView regenVal = newInfoLabel(getString(R.string.graph_regen_level, 0).replace("0", "--"));
         regenVal.setTag("gmeter_regen");
         mContent.addView(regenVal, infoLP());
 
-        TextView onePedalVal = newInfoLabel("One Pedal Mode: --");
+        TextView onePedalVal = newInfoLabel(getString(R.string.graph_one_pedal, "--"));
         onePedalVal.setTag("gmeter_one_pedal");
         mContent.addView(onePedalVal, infoLP());
     }
@@ -981,20 +980,20 @@ public class GraphsActivity extends Activity {
 
         // Aggressive driving: value meaning TBD, show raw
         String aggressiveStr;
-        if (aggressive > 0.5) aggressiveStr = "Yes (" + fmt(aggressive) + ")";
-        else if (aggressive > 0) aggressiveStr = "Mild (" + fmt(aggressive) + ")";
-        else aggressiveStr = "No";
-        updateTaggedLabel("gmeter_aggressive", "Aggressive Driving: " + aggressiveStr);
+        if (aggressive > 0.5) aggressiveStr = getString(R.string.graph_aggressive_yes, fmt(aggressive));
+        else if (aggressive > 0) aggressiveStr = getString(R.string.graph_aggressive_mild, fmt(aggressive));
+        else aggressiveStr = getString(R.string.graph_aggressive_no);
+        updateTaggedLabel("gmeter_aggressive", getString(R.string.graph_aggressive_driving, aggressiveStr));
 
-        updateTaggedLabel("gmeter_peak_long", "Peak Longitudinal: " + String.format("%.2f G", mPeakLongG));
-        updateTaggedLabel("gmeter_peak_lat", "Peak Lateral: " + String.format("%.2f G", mPeakLatG));
+        updateTaggedLabel("gmeter_peak_long", getString(R.string.graph_peak_long, String.format("%.2f G", mPeakLongG)));
+        updateTaggedLabel("gmeter_peak_lat", getString(R.string.graph_peak_lat, String.format("%.2f G", mPeakLatG)));
 
         // Regen level (+1 for user-facing display) and one-pedal
         int regenLvl = (int) readFloat(YFVehicleProperty.AAD_EPTRGTNLVL);
-        updateTaggedLabel("gmeter_regen", "Regen Level: " + (regenLvl + 1));
+        updateTaggedLabel("gmeter_regen", getString(R.string.graph_regen_level, regenLvl + 1));
 
         float onePedal = readFloat(YFVehicleProperty.SIGNAL_PEDAL_ON);
-        updateTaggedLabel("gmeter_one_pedal", "One Pedal Mode: " + (onePedal > 0 ? "ON" : "OFF"));
+        updateTaggedLabel("gmeter_one_pedal", getString(R.string.graph_one_pedal, onePedal > 0 ? "ON" : "OFF"));
     }
 
     // ==================== Value decoders ====================
@@ -1123,7 +1122,7 @@ public class GraphsActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams gaugeLP() {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 200, 1f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 340, 1f);
         lp.setMargins(4, 4, 4, 4);
         return lp;
     }

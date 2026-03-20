@@ -84,7 +84,7 @@ public class AppsActivity extends Activity {
             "com.saicmotor.update", "com.saicmotor.onlinemedia",
             "com.saic.saicmaintenance",
             // SAIC system utilities
-            "com.saicmotor.hmi.ep21avnlogin", "com.saicmotor.ep21avnlogin", "com.saicmotor.ep21avnlogin",
+            "com.saicmotor.hmi.ep21avnlogin", "com.saicmotor.ep21avnlogin", "com.saic.avnlogin",
             // YFVE system services
             "com.yfve.carotherservice", "com.yfve.usbupdate", "com.yfve.fileservice",
             "com.yfve.server.devicemanager",
@@ -107,7 +107,6 @@ public class AppsActivity extends Activity {
         for (ResolveInfo ri : activities) {
             String pkg = ri.activityInfo.packageName;
             if (hidden.contains(pkg)) continue;
-            if (pkg.toLowerCase().contains("ep21avnlogin")) continue;
 
             AppInfo info = new AppInfo();
             info.label = ri.loadLabel(pm).toString();

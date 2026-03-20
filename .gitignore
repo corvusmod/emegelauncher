@@ -45,3 +45,7 @@ CLAUDE.md
 plan.md
 .claude
 .gemini
+
+# Internal docs (not for public repo)
+CI_SETUP.md
+UI_REFACTOR_SPEC.md

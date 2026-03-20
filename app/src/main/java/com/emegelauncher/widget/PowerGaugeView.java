@@ -11,11 +11,13 @@
 
 package com.emegelauncher.widget;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 /**
  * Power gauge with 0 at top, positive (consumption) sweeps right, negative (regen) sweeps left.
@@ -78,8 +80,16 @@ public class PowerGaugeView extends View {
     }
 
     public void setValue(float kw) {
-        this.value = Math.max(-maxKw, Math.min(maxKw, kw));
-        invalidate();
+        float newVal = Math.max(-maxKw, Math.min(maxKw, kw));
+        if (newVal != this.value) {
+            float old = this.value;
+            this.value = newVal;
+            ValueAnimator anim = ValueAnimator.ofFloat(old, newVal);
+            anim.setDuration(300);
+            anim.setInterpolator(new DecelerateInterpolator());
+            anim.addUpdateListener(a -> { this.value = (float) a.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
     }
 
     public void setMaxKw(float max) { this.maxKw = max; }
@@ -87,7 +97,7 @@ public class PowerGaugeView extends View {
     public void setUnit(String u) { this.unit = u; }
     public void setConsumeColor(int c) { consumeColor = c; fgArcPaint.setColor(c); }
     public void setRegenColor(int c) { regenColor = c; regenArcPaint.setColor(c); }
-    public void setBgColor(int c) { bgArcPaint.setColor(darken(c, 0.3f)); }
+    public void setBgColor(int c) { bgArcPaint.setColor(darken(c, 0.15f)); }
     public void setTextColor(int c) { textPaint.setColor(c); }
     public void setLabelColor(int c) { labelPaint.setColor(c); }
 
@@ -96,9 +106,10 @@ public class PowerGaugeView extends View {
         float w = getWidth();
         float h = getHeight();
         float pad = 20;
-        float size = Math.min(w, h) - pad * 2;
+        float labelSpace = Math.min(w, h) * 0.14f;
+        float size = Math.min(w, h) - pad * 2 - labelSpace;
         float cx = w / 2f;
-        float cy = h / 2f;
+        float cy = (h - labelSpace) / 2f;
         arcRect.set(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
 
         // Background arc
@@ -138,17 +149,11 @@ public class PowerGaugeView extends View {
         labelPaint.setTextSize(Math.min(w, h) * 0.09f);
         canvas.drawText(unit, cx, cy + textPaint.getTextSize() * 0.8f, labelPaint);
 
-        // Label at bottom
-        canvas.drawText(label, cx, cy + size / 2 - 4, labelPaint);
+        // Label just below the arc
+        float labelY = cy + size / 2 + labelPaint.getTextSize() + 6;
+        canvas.drawText(label, cx, labelY, labelPaint);
 
-        // Min/Max labels
-        labelPaint.setTextSize(Math.min(w, h) * 0.07f);
-        float lblY = cy + size / 2 * 0.7f;
-        labelPaint.setTextAlign(Paint.Align.LEFT);
-        canvas.drawText("-" + (int) maxKw, pad + 4, lblY, labelPaint);
-        labelPaint.setTextAlign(Paint.Align.RIGHT);
-        canvas.drawText("+" + (int) maxKw, w - pad - 4, lblY, labelPaint);
-        labelPaint.setTextAlign(Paint.Align.CENTER);
+        // Min/Max labels removed for cleaner look
     }
 
     private static int darken(int color, float factor) {

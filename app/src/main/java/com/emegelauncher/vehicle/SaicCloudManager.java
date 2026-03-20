@@ -114,7 +114,10 @@ public class SaicCloudManager {
                     return;
                 }
                 mToken = data.getString("access_token");
-                mPrefs.edit().putString("token", mToken).apply();
+                mPrefs.edit().putString("token", mToken)
+                    .putString("login_user", username.trim())
+                    .putString("login_pass", password.trim())
+                    .apply();
 
                 // Get VIN
                 fetchVin();
@@ -156,8 +159,8 @@ public class SaicCloudManager {
                 String path = "/vehicle/status?vin=" + URLEncoder.encode(hashedVin, "UTF-8")
                     + "&vehStatusReqType=2";
 
-                // First request — may return event-id for polling
-                String[] respAndEventId = doRequestWithEventId("GET", path, null, "application/json", null, true);
+                // First request — may return event-id for polling (NewMGRemote sends "0" initially)
+                String[] respAndEventId = doRequestWithEventId("GET", path, null, "application/json", "0", true);
                 if (respAndEventId == null || respAndEventId[0] == null) {
                     mQuerying = false; post(cb, false, "Network error"); return;
                 }
@@ -186,8 +189,16 @@ public class SaicCloudManager {
                 }
 
                 JSONObject json = new JSONObject(resp);
+                int apiCode = json.optInt("code", -1);
+                String apiMsg = json.optString("message", "");
+                Log.d(TAG, "API response code=" + apiCode + " msg=" + apiMsg + " eventId=" + returnedEventId);
+                if (apiCode != 0) {
+                    mQuerying = false;
+                    post(cb, false, "API error " + apiCode + ": " + apiMsg);
+                    return;
+                }
                 JSONObject data = json.optJSONObject("data");
-                if (data == null) { mQuerying = false; post(cb, false, "No data"); return; }
+                if (data == null) { mQuerying = false; post(cb, false, "No data in response"); return; }
 
                 JSONObject bvs = data.optJSONObject("basicVehicleStatus");
                 if (bvs != null) {
@@ -203,7 +214,7 @@ public class SaicCloudManager {
                 mPrefs.edit().putString("last_full_status", data.toString()).apply();
 
                 StringBuilder msg = new StringBuilder("Cloud data received");
-                if (mInteriorTemp != Integer.MIN_VALUE) msg.append(", cabin ").append(mInteriorTemp - 40).append("°C");
+                if (mInteriorTemp != Integer.MIN_VALUE) msg.append(", cabin ").append(mInteriorTemp).append("°C");
                 if (mBatteryVoltage != Integer.MIN_VALUE) msg.append(", 12V ").append(String.format("%.1f", mBatteryVoltage * 0.25)).append("V");
                 post(cb, true, msg.toString());
             } catch (Exception e) {
@@ -216,24 +227,35 @@ public class SaicCloudManager {
 
     // ==================== Statistics ====================
 
-    public void queryStatistics(String type, String rangeType, String rangeTime, CloudCallback cb) {
+    /**
+     * Query driving statistics from cloud.
+     * @param rangeType "1"=day, "2"=month, "3"=year
+     * @param rangeTime "yyyy-MM-dd" format date
+     */
+    public void queryStatistics(String rangeType, String rangeTime, CloudCallback cb) {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String path = "/vehicle/statisticsInfo?vin=" + ue(mVin)
-                    + "&type=" + ue(type) + "&rangeType=" + ue(rangeType) + "&rangeTime=" + ue(rangeTime);
+                // type "1,2,3,4,5" = all stats (mileage, consumption, co2, speed, travel time)
+                String path = "/vehicle/statisticsInfo?vin=" + ue(sha256(mVin))
+                    + "&type=" + ue("1,2,3,4,5")
+                    + "&rangeType=" + ue(rangeType)
+                    + "&rangeTime=" + ue(rangeTime);
+                Log.d(TAG, "queryStatistics path=" + path);
                 String resp = doGet(path);
                 if (resp == null) { post(cb, false, "Network error"); return; }
-                // Store raw JSON for CloudActivity to parse
-                mPrefs.edit().putString("stats_" + type + "_" + rangeType, resp)
+                Log.d(TAG, "queryStatistics response length=" + resp.length());
+                // Cache by rangeType
+                mPrefs.edit().putString("stats_" + rangeType, resp)
                     .putLong("stats_time", System.currentTimeMillis()).apply();
                 post(cb, true, resp);
             } catch (Exception e) { post(cb, false, e.getMessage()); }
         }).start();
     }
 
-    public String getCachedStats(String type, String rangeType) {
-        return mPrefs.getString("stats_" + type + "_" + rangeType, null);
+    /** Get cached stats JSON for a range type ("1"=day, "2"=month, "3"=year) */
+    public String getCachedStats(String rangeType) {
+        return mPrefs.getString("stats_" + rangeType, null);
     }
 
     // ==================== BT Digital Keys ====================
@@ -274,7 +296,7 @@ public class SaicCloudManager {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String resp = doGet("/fota/campaign?vin=" + ue(mVin));
+                String resp = doGet("/fota/campaign?vin=" + ue(sha256(mVin)));
                 if (resp == null) { post(cb, false, "Network error"); return; }
                 mPrefs.edit().putString("fota", resp).apply();
                 post(cb, true, resp);
@@ -290,7 +312,7 @@ public class SaicCloudManager {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String resp = doGet("/vehicle/tbox/onlineStatus?vin=" + ue(mVin));
+                String resp = doGet("/vehicle/tbox/onlineStatus?vin=" + ue(sha256(mVin)));
                 if (resp == null) { post(cb, false, "Network error"); return; }
                 mPrefs.edit().putString("tbox_status", resp).apply();
                 post(cb, true, resp);
@@ -306,7 +328,7 @@ public class SaicCloudManager {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String resp = doGet("/vehicle/featureList?vin=" + ue(mVin));
+                String resp = doGet("/vehicle/featureList?vin=" + ue(sha256(mVin)));
                 if (resp == null) { post(cb, false, "Network error"); return; }
                 mPrefs.edit().putString("features", resp).apply();
                 post(cb, true, resp);
@@ -323,7 +345,7 @@ public class SaicCloudManager {
         new Thread(() -> {
             try {
                 String eventId = String.valueOf(System.currentTimeMillis());
-                String resp = doGetWithEvent("/vehicle/charging/mgmtData?vin=" + ue(mVin), eventId);
+                String resp = doGetWithEvent("/vehicle/charging/mgmtData?vin=" + ue(sha256(mVin)), eventId);
                 if (resp == null) { post(cb, false, "Network error"); return; }
                 mPrefs.edit().putString("charging", resp).apply();
                 post(cb, true, resp);
@@ -335,22 +357,92 @@ public class SaicCloudManager {
 
     // ==================== Force Status Refresh (wake TBox) ====================
 
+    /** Try to re-login with stored credentials (called on 401) */
+    private boolean tryReLogin() {
+        String user = mPrefs.getString("login_user", null);
+        String pass = mPrefs.getString("login_pass", null);
+        if (user == null || pass == null) {
+            Log.w(TAG, "No stored credentials for re-login");
+            mToken = null;
+            mPrefs.edit().remove("token").apply();
+            return false;
+        }
+        try {
+            Log.d(TAG, "Re-logging in as: " + user);
+            String passwordHash = sha1(pass);
+            long ts = System.currentTimeMillis() / 1000;
+            String deviceId = "emegelauncher*****************************************" + ts + "###com.saicmotor.europecar";
+            int loginType = user.contains("@") ? 2 : 1;
+            String body = "grant_type=password"
+                + "&username=" + URLEncoder.encode(user, "UTF-8")
+                + "&password=" + passwordHash
+                + "&scope=all"
+                + "&deviceId=" + URLEncoder.encode(deviceId, "UTF-8")
+                + "&deviceType=0&language=EN&loginType=" + loginType;
+
+            // Use a direct HTTP call (not doPost which would recurse on 401)
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(BASE_URL + "oauth/token").openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+            String sendDate = String.valueOf(System.currentTimeMillis());
+            String resourcePath = "/oauth/token";
+            conn.setRequestProperty("tenant-id", TENANT_ID);
+            conn.setRequestProperty("user-type", USER_TYPE);
+            conn.setRequestProperty("app-send-date", sendDate);
+            conn.setRequestProperty("app-content-encrypted", CONTENT_ENCRYPTED);
+            conn.setRequestProperty("original-content-type", "application/x-www-form-urlencoded");
+            conn.setRequestProperty("Authorization", BASIC_AUTH);
+            String encBody = encryptRequest(resourcePath, sendDate, "", body, "application/x-www-form-urlencoded");
+            String verification = calculateVerification(resourcePath, sendDate, "application/x-www-form-urlencoded", encBody, "");
+            conn.setRequestProperty("app-verification-string", verification);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                os.write(encBody.getBytes(StandardCharsets.UTF_8));
+            }
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                String respBody = sb.toString();
+                // Decrypt
+                String respEnc = conn.getHeaderField("app-content-encrypted");
+                if ("1".equals(respEnc)) {
+                    String respDate = conn.getHeaderField("app-send-date");
+                    String respType = conn.getHeaderField("original-content-type");
+                    if (respDate == null) respDate = sendDate;
+                    if (respType == null) respType = "application/json";
+                    String dec = decryptResponse(respDate, respType, respBody);
+                    if (dec != null) respBody = dec;
+                }
+                JSONObject json = new JSONObject(respBody);
+                if (json.optInt("code", -1) == 0) {
+                    JSONObject data = json.optJSONObject("data");
+                    if (data != null && data.has("access_token")) {
+                        mToken = data.getString("access_token");
+                        mPrefs.edit().putString("token", mToken).apply();
+                        Log.i(TAG, "Re-login successful, new token obtained");
+                        conn.disconnect();
+                        return true;
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception e) {
+            Log.e(TAG, "Re-login failed", e);
+        }
+        mToken = null;
+        mPrefs.edit().remove("token").apply();
+        return false;
+    }
+
+    /** Refresh data — in-car mode, no TBox wake needed, just query directly */
     public void forceRefresh(CloudCallback cb) {
-        if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
-        new Thread(() -> {
-            try {
-                String eventId = String.valueOf(System.currentTimeMillis());
-                JSONObject body = new JSONObject();
-                body.put("rvcReqType", "18"); // Force refresh
-                body.put("vin", mVin);
-                String resp = doPostWithEvent("/vehicle/control", body.toString(), "application/json", eventId);
-                if (resp == null) { post(cb, false, "Network error"); return; }
-                post(cb, true, "TBox wake request sent");
-                // Wait and re-query status
-                Thread.sleep(5000);
-                queryVehicleStatus(cb);
-            } catch (Exception e) { post(cb, false, e.getMessage()); }
-        }).start();
+        queryVehicleStatus(cb);
     }
 
     // ==================== Find My Car ====================
@@ -363,7 +455,7 @@ public class SaicCloudManager {
                 String eventId = String.valueOf(System.currentTimeMillis());
                 JSONObject body = new JSONObject();
                 body.put("rvcReqType", "0");
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 org.json.JSONArray params = new org.json.JSONArray();
                 JSONObject p = new JSONObject();
                 p.put("paramId", 10);
@@ -394,7 +486,7 @@ public class SaicCloudManager {
                 body.put("chrgCtrlReq", chrgCtrlReq);
                 body.put("tboxV2XReq", 0);
                 body.put("tboxEleccLckCtrlReq", 0);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPostWithEvent("/vehicle/charging/control", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? "Charging control sent" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -410,7 +502,7 @@ public class SaicCloudManager {
                 body.put("altngChrgCrntReq", currentLimit);
                 body.put("onBdChrgTrgtSOCReq", targetSoc);
                 body.put("tboxV2XSpSOCReq", 0);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPostWithEvent("/vehicle/charging/setting", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? "Charging settings updated" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -429,7 +521,7 @@ public class SaicCloudManager {
                 body.put("rsvanSpMintue", stopM);
                 body.put("tboxReserCtrlReq", enable ? 1 : 2);
                 body.put("tboxAdpPubChrgSttnReq", 0);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPostWithEvent("/vehicle/charging/reservation", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? "Scheduled charging updated" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -446,7 +538,7 @@ public class SaicCloudManager {
                 body.put("chrgCtrlReq", 0);
                 body.put("tboxV2XReq", chrgCtrlReq);
                 body.put("tboxEleccLckCtrlReq", 0);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPostWithEvent("/vehicle/charging/control", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? "V2L control sent" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -465,7 +557,7 @@ public class SaicCloudManager {
                 body.put("keyReference", keyRef);
                 body.put("keyTag", keyTag);
                 body.put("keyStatus", keyStatus);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPostWithEvent("/vehicle/btkey/activation", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? "Key updated" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -518,7 +610,7 @@ public class SaicCloudManager {
                 pos.put("latitude", (int)(lat * 1000000));
                 pos.put("longitude", (int)(lon * 1000000));
                 body.put("position", pos);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 String resp = doPost("/vehicle/geofence/setting", body.toString(), "application/json", true);
                 post(cb, resp != null, resp != null ? "Geofence updated" : "Failed");
             } catch (Exception e) { post(cb, false, e.getMessage()); }
@@ -529,7 +621,7 @@ public class SaicCloudManager {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String resp = doGet("/vehicle/geofence/setting?vin=" + ue(mVin));
+                String resp = doGet("/vehicle/geofence/setting?vin=" + ue(sha256(mVin)));
                 if (resp == null) { post(cb, false, "Network error"); return; }
                 mPrefs.edit().putString("geofence", resp).apply();
                 post(cb, true, resp);
@@ -548,7 +640,7 @@ public class SaicCloudManager {
                 String eventId = String.valueOf(System.currentTimeMillis());
                 JSONObject body = new JSONObject();
                 body.put("rvcReqType", rvcType);
-                body.put("vin", mVin);
+                body.put("vin", sha256(mVin));
                 if (params != null) body.put("rvcParams", params);
                 String resp = doPostWithEvent("/vehicle/control", body.toString(), "application/json", eventId);
                 post(cb, resp != null, resp != null ? successMsg : "Failed");
@@ -569,16 +661,16 @@ public class SaicCloudManager {
         mPrefs.edit().clear().apply();
     }
 
-    /** Interior temp in °C (raw value is offset by +40) */
+    /** Interior temp in °C — display raw value, conversion TBD based on real data */
     public String getInteriorTempStr() {
         if (mInteriorTemp == Integer.MIN_VALUE) return null;
-        return String.valueOf(mInteriorTemp - 40);
+        return String.valueOf(mInteriorTemp);
     }
 
-    /** 12V battery voltage (raw value × 0.25) */
+    /** 12V battery voltage (raw value ÷ 10) */
     public String getBatteryVoltageStr() {
         if (mBatteryVoltage == Integer.MIN_VALUE) return null;
-        return String.format("%.1f", mBatteryVoltage * 0.25);
+        return String.format("%.1f", mBatteryVoltage / 10.0);
     }
 
     // ==================== HTTP ====================
@@ -610,6 +702,7 @@ public class SaicCloudManager {
         HttpURLConnection conn = null;
         try {
             String fullUrl = BASE_URL + (path.startsWith("/") ? path.substring(1) : path);
+            Log.d(TAG, "HTTP " + method + " " + fullUrl + " event-id=" + eventId);
             conn = (HttpURLConnection) new URL(fullUrl).openConnection();
             conn.setRequestMethod(method);
             conn.setConnectTimeout(15000);
@@ -617,7 +710,7 @@ public class SaicCloudManager {
 
             String sendDate = String.valueOf(System.currentTimeMillis());
             String token = mToken != null ? mToken : "";
-            String resourcePath = path.contains("?") ? path.substring(0, path.indexOf("?")) : path;
+            String resourcePath = path;
             if (!resourcePath.startsWith("/")) resourcePath = "/" + resourcePath;
 
             conn.setRequestProperty("tenant-id", TENANT_ID);
@@ -648,8 +741,24 @@ public class SaicCloudManager {
             }
 
             int code = conn.getResponseCode();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(
-                code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(), StandardCharsets.UTF_8));
+            Log.d(TAG, "HTTP " + code + " " + method + " " + path);
+
+            // Handle 401 — token expired, auto re-login with stored credentials
+            if (code == 401) {
+                Log.w(TAG, "HTTP 401 Unauthorized — attempting auto re-login");
+                if (tryReLogin()) {
+                    Log.i(TAG, "Re-login successful, but caller must retry the request");
+                }
+                return null;
+            }
+
+            java.io.InputStream responseStream = (code >= 200 && code < 300)
+                ? conn.getInputStream() : conn.getErrorStream();
+            if (responseStream == null) {
+                Log.e(TAG, "No response stream for HTTP " + code);
+                return null;
+            }
+            BufferedReader reader = new BufferedReader(new InputStreamReader(responseStream, StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) sb.append(line);
@@ -658,6 +767,7 @@ public class SaicCloudManager {
 
             // Extract event-id from response header
             String respEventId = conn.getHeaderField("event-id");
+            Log.d(TAG, "HTTP response body(" + responseBody.length() + ") event-id=" + respEventId);
 
             String respEncrypted = conn.getHeaderField("app-content-encrypted");
             if ("1".equals(respEncrypted) && !responseBody.isEmpty()) {
@@ -681,6 +791,7 @@ public class SaicCloudManager {
         HttpURLConnection conn = null;
         try {
             String fullUrl = BASE_URL + (path.startsWith("/") ? path.substring(1) : path);
+            Log.d(TAG, "HTTP " + method + " " + fullUrl + " event-id=" + eventId);
             conn = (HttpURLConnection) new URL(fullUrl).openConnection();
             conn.setRequestMethod(method);
             conn.setConnectTimeout(15000);
@@ -688,7 +799,7 @@ public class SaicCloudManager {
 
             String sendDate = String.valueOf(System.currentTimeMillis());
             String token = mToken != null ? mToken : "";
-            String resourcePath = path.contains("?") ? path.substring(0, path.indexOf("?")) : path;
+            String resourcePath = path;
             if (!resourcePath.startsWith("/")) resourcePath = "/" + resourcePath;
 
             // Headers
@@ -722,13 +833,42 @@ public class SaicCloudManager {
             }
 
             int code = conn.getResponseCode();
+            Log.d(TAG, "HTTP response code=" + code + " for " + method + " " + path);
+
+            // Handle 401 — token expired
+            if (code == 401) {
+                Log.w(TAG, "HTTP 401 Unauthorized — token expired, clearing credentials");
+                mToken = null;
+                mPrefs.edit().remove("token").apply();
+                return null;
+            }
+
+            // Handle error responses
+            if (code < 200 || code >= 300) {
+                java.io.InputStream errStream = conn.getErrorStream();
+                if (errStream != null) {
+                    BufferedReader errReader = new BufferedReader(new InputStreamReader(errStream, StandardCharsets.UTF_8));
+                    StringBuilder errSb = new StringBuilder();
+                    String errLine;
+                    while ((errLine = errReader.readLine()) != null) errSb.append(errLine);
+                    errReader.close();
+                    String errBody = errSb.toString();
+                    Log.e(TAG, "HTTP error " + code + " body(" + errBody.length() + "): " + errBody.substring(0, Math.min(500, errBody.length())));
+                    return null;
+                } else {
+                    Log.e(TAG, "HTTP error " + code + " (no error stream)");
+                    return null;
+                }
+            }
+
             BufferedReader reader = new BufferedReader(new InputStreamReader(
-                code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(), StandardCharsets.UTF_8));
+                conn.getInputStream(), StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) sb.append(line);
             reader.close();
             String responseBody = sb.toString();
+            Log.d(TAG, "HTTP response body(" + responseBody.length() + ")");
 
             // Decrypt response if encrypted
             String respEncrypted = conn.getHeaderField("app-content-encrypted");

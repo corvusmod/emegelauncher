@@ -32,91 +32,100 @@ A custom home screen launcher for the **MG Marvel R** electric vehicle, designed
 
 ## Features
 
-### Home Screen
-- **Battery & Range**: SOC percentage, BMS raw SOC, estimated range (cluster + BMS sources)
-- **Drive Mode & Regen**: Live display of current drive mode (Eco/Normal/Sport/Winter) and regen level
-- **Weather**: Temperature from SAIC weather service
-- **Outside Temperature**: From air conditioning service with VHAL fallback
-- **Driver Profile**: Save/restore drive mode and regen level, auto-restore on start
-- **App Shortcuts**: Navigation, Radio, Music, Phone, 360 View, CarPlay, Android Auto, Video, Vehicle Settings, System Settings, Rescue, Touchpoint, Manual
+### 4-Screen Swipeable Launcher
+Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
+
+### Main Screen (default)
+- **Weather**: Dynamic weather icon (sunny/cloudy/rain/snow/fog/storm), forecast temp, outside sensor temp, cabin temp from cloud (when available). Tap opens weather app.
+- **Battery**: Dynamic battery fill icon showing SOC level (green >50%, orange 20-50%, red <20%), SOC percentage, range, standby estimate, BMS raw data. Tap opens car's charge management screen.
+- **Map / Music / Radio / Phone**: Large touch-friendly buttons to launch respective apps
+- **Drive Mode bar**: Current mode (Eco/Normal/Sport/Winter) + regen level
 - **Auto Theme**: Follows car display (day/night), or manual dark/light override
+
+### Live Dashboard (swipe left)
+- **4 gauges**: Speed, Battery SOC, RPM, Efficiency — animated arc gauges with labels below
+- **Power gauge**: Centered zero-point arc (orange=consumption, green=regen), animated transitions
+- **G-Meter**: Round 2D G-force visualization (2G max)
+- **Info bar**: Range, gear, drive mode — all live data updated every 2 seconds
+- Tap opens full 8-tab GraphsActivity
 
 ### Vehicle Graphs (8 tabs)
 | Tab | Content |
 |---|---|
-| **Dashboard** | Speed, SOC, RPM, Efficiency gauges + energy flow chart + gear + range + drive mode |
+| **Dashboard** | Speed, SOC, RPM, Efficiency gauges + energy flow chart + G-force chart + gear + range + drive mode |
 | **Energy** | SOC (display + BMS raw), pack voltage, pack current, consumption (kWh/100km) |
 | **Charging** | Live power/current/voltage charts when charging, stored session data when idle |
 | **Health** | Auto-calculated SOH estimation, capacity tracking, charge session history |
-| **Tires** | 4-corner pressure diagram with color-coded thresholds (2.5-3.3 bar) |
-| **Climate** | Temperature monitoring, HVAC status |
+| **Tires** | Top-down car silhouette with 4-corner pressure + temperature, color-coded (2.5-3.3 bar) |
+| **Climate** | HVAC status, outside temp, air quality sensors |
 | **Trip** | Odometer, avg consumption, total consumed, regen energy/range |
-| **G-Meter** | 2D G-force visualization, longitudinal/lateral charts, regen level, one-pedal status |
+| **G-Meter** | 2D G-force circle, longitudinal/lateral charts, regen level, one-pedal status |
 
 ### iSMART Cloud Integration
-Connects to MG's cloud API (`gateway-mg-eu.soimt.com`) for data not available locally on the head unit.
+Connects to MG's cloud API for data not available locally. Auto re-login on token expiry.
 
-**Read-only data:**
-- Cabin temperature (interior temp sensor — not available via VHAL)
-- 12V battery voltage
-- Trip statistics with graphs (mileage, consumption kWh/100km, CO2 saved, avg speed, travel time)
-- TBox online/offline/sleep status, SMS wake limits
-- Vehicle feature support matrix, firmware versions (AVN MCU/MPU, TBox MCU/MPU)
-- FOTA update campaigns with ECU details
-- Notifications (alarm, command, news)
+**Vehicle status** (fetched on car start):
+- Cabin temperature, 12V battery voltage (÷10 scaling)
+- All doors/windows/locks/lights/tyres/sunroof status
+- Trip data (mileage today, since charge, current journey, odometer)
+- Power mode, engine status, EV range, seat heating, steering heat
 
-**Write controls:**
-- BT Digital Key management (activate, deactivate, revoke keys)
-- Air clean mode
-- Scheduled charging (set time window, enable/disable)
-- Geofence (create at current GPS position with radius, delete)
-- Send POI to car navigation (current location or custom coordinates)
-- Find My Car (horn + lights, or lights only)
-- Force TBox wake + status refresh
+**Driving statistics** (interactive):
+- Day / Month / Year period selector with date navigation arrows
+- 5 chart types: Mileage, Consumption, CO₂ Saved, Avg Speed, Travel Time
+- Summary row per chart: total, average, max values
+
+**BT Digital Key management**: View keys with status/MAC/validity, activate/deactivate/revoke
+
+**Geofence**: View current config, create at GPS position with radius, delete
+
+**Send POI to car navigation**: Current position (from SAIC nav service) or custom coordinates, favorites list
 
 All cloud features are **greyed out and disabled** when not logged in.
 
-### Navigation Proxy
-Registers as the system handler for standard `geo:` URI intents, forwarding them to the car's Telenav navigation. This allows **any third-party app** (e.g. charging station finders) to send addresses to the car's navigation without knowing about Telenav specifically.
+### Apps Screen (swipe right)
+- **Top half**: Scrollable 4-column grid of user-installed apps (system apps hidden)
+- **Bottom half**: 4-3-3 button grid — CarPlay, Android Auto (disabled when not connected), Video, 360 View (disabled when no cameras), Car/System/Launcher Settings, Rescue, MG Support, Manual
 
-Supported formats:
-- `geo:lat,lon` — navigate to coordinates
-- `geo:lat,lon?q=label` — navigate with label
-- `geo:0,0?q=search+query` — search for destination
-- `google.navigation:q=lat,lon` — Google Maps compatible
+### Other Screen (swipe far right)
+- **Tool buttons**: Diagnostics, Vehicle Info, Location, TBox, Cloud, USB Camera
+- **Cloud status**: Login state, cabin temp, 12V battery, TBox status
+- **Quick actions**: Force data refresh, overlay toggle
+
+### USB Camera (UVC)
+- User-space UVC camera support via AndroidUSBCamera library (jiangdongguo)
+- Lists connected USB cameras with VID/PID/interface details
+- Tap to open preview on AspectRatioTextureView
+- Extensive debug logging for troubleshooting
+
+### Navigation Proxy
+Registers as system handler for `geo:` and `google.navigation:` URI intents, forwarding to Telenav. Any third-party app can send addresses to the car's navigation.
 
 ### Vehicle Info
-100+ data points: Identity (VIN, MAC, HW/SW versions), Status, Battery, HVAC, ADAS configuration (AEB, FCW, BSD, LKA, TJA, RCTA), APA status, drive mode, Comfort settings, Doors/Windows, ECU status, Maintenance, Lights (SAIC-specific), System, Sensors, Cloud data (cabin temp, 12V, trip stats).
-
-### Quick Controls
-- **Doors & Windows**: Lock/unlock, individual window sliders, sunroof
-- **Ambient Lighting**: On/off, brightness, color, breathing effect, drive mode link
-- **Charging**: Battery pre-heat, charge port lock (local SAIC service)
-- **Cloud Controls**: Air clean, scheduled charging, V2L (require iSMART login)
-- **Privacy**: Privacy mode, map/voice/music data sharing, mobile data, remote control
-- **Developer**: ADB debugging toggle
+100+ data points: Identity, Status, Battery, HVAC, ADAS (AEB, FCW, BSD, LKA, TJA, RCTA), APA, drive mode, Comfort, Doors/Windows, ECU status, Maintenance, Lights, System, Sensors, Cloud data, Vehicle Overseas security info.
 
 ### TBox (Telematics)
-EngMode vehicle status (speed, gear, parking brake, power type), hardware info beans (GNSS with lat/lon/signal/gyro, Bluetooth with connected device, Mobile network with IMEI/signal, WiFi), TBox network interface.
+EngMode vehicle status, hardware info beans (GNSS, BT, mobile, WiFi with full field extraction), TBox network, Vehicle Overseas security data (server URL, auth token, AVN ID).
 
 ### Location & GPS
-GPS position, altitude, accuracy, bearing, speed, satellites (used/visible), street address from navigation service, JSON snapshot, DMS/UTM coordinate formats.
+GPS position, satellites, street address from SAIC navigation service, JSON snapshot, DMS/UTM formats.
 
 ### Diagnostics
-- **VHAL Properties**: 943 vehicle properties with descriptions, live values, filtering
-- **SAIC Services**: 252 methods across 21 connections, organized by service
-- **AIDL TX Codes**: Enumerate transaction codes from all SAIC Stub classes
-- **Export**: Logcat, diagnostics dump (including TX codes, binder info), or both to USB/internal storage
+- 943 VHAL properties + 252 SAIC methods with filtering
+- AIDL TX code enumeration for all 5 SAIC services
+- Export: Logcat, diagnostics dump (TX codes, binder info), charge session data, or all
 
 ### Settings
-- Theme selector (Auto/Dark/Light) with car night mode detection
-- Default launcher (set/restore)
-- Overlay toggle (floating back + recent apps buttons)
-- Driver profile (save/restore drive mode + regen level)
-- MG iSMART cloud login/logout with status display
-- Key capture mode (VHAL 20Hz + Android KeyEvent interception)
-- AIDL transaction code viewer (all services)
-- Storage export
+- Theme (Auto/Dark/Light), default launcher, overlay toggle
+- MG iSMART cloud login/logout with auto re-login
+- Driver profile (save/restore settings — read-only on Marvel R, no regen/drive mode setters available)
+- Key capture mode (20Hz VHAL + Android KeyEvent interception)
+- AIDL TX code viewer (all services)
+- Storage export (logcat, diagnostics, charge data)
+- Version info + licenses/acknowledgments
+
+### First-Run Disclaimer
+Mandatory legal disclaimer on first launch. Cannot be bypassed — must accept to use the app.
 
 ---
 
@@ -146,10 +155,16 @@ Layer 6: vehicleService_overseas
 
 Layer 7: MG iSMART Cloud API
   |- OAuth2 + AES/CBC encryption + HMAC-SHA256 verification
-  |- Vehicle status (cabin temp, 12V, trip data)
-  |- Statistics (mileage, consumption, CO2, speed, time)
-  |- BT digital key management
-  |- Geofence, POI, Find My Car, FOTA, messages
+  |- Auto re-login on 401 (token expiry)
+  |- Vehicle status (cabin temp, 12V battery ÷10, trip data)
+  |- Statistics (day/month/year with 5 metric types)
+  |- BT digital key management (activate/deactivate/revoke)
+  |- Geofence, POI (via SAIC nav service GPS), FOTA
+
+Layer 8: USB Camera (UVC)
+  |- AndroidUSBCamera library (jiangdongguo v3.2.3)
+  |- User-space UVC via USB Host API (no kernel driver needed)
+  |- Device detection, permission, preview on TextureView
 ```
 
 ---
@@ -165,8 +180,9 @@ This project contains **zero proprietary MG/SAIC code**. Verified by automated s
 - AIDL stub classes are loaded at runtime via `DexClassLoader` from APKs already installed on the car's system partition — no stubs are compiled or bundled
 
 **Dependencies:**
-- Only **2 libraries**: `androidx.appcompat:1.1.0` and `androidx.constraintlayout:1.1.3` (standard Android Jetpack)
-- **No proprietary JARs, AARs, or native .so libraries** in the project
+- `androidx.appcompat:1.1.0` and `androidx.constraintlayout:1.1.3` (standard Android Jetpack)
+- `AndroidUSBCamera:libausbc:3.2.3` + `libuvc:3.2.3` (open-source UVC camera, JitPack)
+- **No proprietary JARs, AARs, or native .so libraries** from MG/SAIC in the project
 
 **Cloud API:**
 - The iSMART cloud encryption protocol (AES/CBC/PKCS5Padding with MD5-derived keys, HMAC-SHA256 request verification) is **reimplemented from scratch** using standard Java crypto libraries (`javax.crypto.Cipher`, `MessageDigest`, `Mac`)
@@ -180,18 +196,68 @@ This project contains **zero proprietary MG/SAIC code**. Verified by automated s
 
 ## Building
 
-### Requirements
+### Local Build
+
+**Requirements:**
 - Java 11 (`openjdk-11-jdk`)
 - Android SDK with Build Tools 28.0.3
 - AOSP platform signing key (`platform.keystore`)
-
-### Build
 
 ```bash
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew assembleDebug
 ```
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+## Installation
+
+> **WARNING: Only download Emegelauncher from this official repository.** This application runs with full system privileges on your vehicle's head unit. A tampered version from an untrusted source could silently access your vehicle data, credentials, GPS location, and cloud accounts. If you did not build the APK yourself, only trust releases published on this GitHub page.
+
+### What you need
+
+- The APK file (download from [Releases](../../releases) or build it yourself)
+- A USB memory stick formatted as **FAT32**
+
+### First-time installation
+
+1. **Prepare the USB**: Copy the `.apk` file to the **root** of the FAT32 USB drive. Insert the drive into the **left USB port** behind the infotainment screen.
+
+2. **Open Android Settings**: Since the MG Marvel R doesn't expose the Settings app directly, use this workaround:
+   - Open **Amazon Music** (or any app that shows the Android keyboard)
+   - Tap any text field so the keyboard appears
+   - **Press and hold** the globe/language icon (🌐) on the keyboard until a gear icon (⚙) appears
+   - Tap the **gear icon** — this opens Android Settings
+
+3. **Find the Files app**: In the Settings search bar, type **"Applications"**. Once the Applications section appears, look for **"Files"** and tap it. The file manager will open.
+
+4. **Install the APK**: In the file manager, look at the **left sidebar** — you'll see your USB drive listed. Tap it, then tap the **APK file**. Follow the prompts to install.
+
+5. **Set as launcher**: After installation, press the **round HOME button** on the dashboard. A dialog will appear asking which launcher to use. Select **Emegelauncher** and choose **"Just once"** for testing. Once you're happy with it, you can choose **"Always"** to set it as the default launcher.
+
+### Updating an existing installation
+
+1. Copy the **new APK** to the root of your FAT32 USB drive and insert it into the left USB port.
+
+2. From the launcher, swipe to the **Apps** page and open the **Files** app.
+
+3. In the file manager, select the USB drive from the left sidebar and tap the **new APK file**. Confirm the installation.
+
+4. After installation completes, the next time you press the **HOME button** the updated version will run automatically.
+
+> **Sharing this project?** Please share the link to this GitHub page — not the APK file directly. This way, everyone gets the latest version, can verify the source code, and stays protected from tampered copies.
+
+---
+
+## Supported Languages
+
+| Language | Status |
+|---|---|
+| English | Full support (default) |
+| Spanish (Espa\u00f1ol) | Full support — all UI, settings, graphs, cloud, diagnostics, disclaimer |
+
+The app automatically uses the device locale. Additional languages can be added by creating a new `values-XX/strings.xml` resource file.
 
 ---
 
@@ -211,16 +277,15 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`
 
 | Screen | Activity | Description |
 |---|---|---|
-| Home | MainActivity | SOC, range, drive mode, regen, weather, profile, shortcuts |
-| All Apps | AppsActivity | Grid of user-installed applications |
+| Main | MainActivity (ViewPager) | 4-screen swipeable launcher: Graphs, Main, Apps, Other |
 | Graphs | GraphsActivity | 8-tab live vehicle data with gauges and charts |
 | Vehicle Info | VehicleInfoActivity | 100+ data points including cloud data |
 | Location | LocationActivity | GPS, satellites, address, JSON snapshot |
-| Cloud | CloudActivity | iSMART cloud: status, statistics graphs, BT keys, geofence, POI, FOTA |
-| Controls | ControlsActivity | Doors, windows, ambient, charging, air clean, privacy |
-| TBox | TboxActivity | EngMode hardware data, TBox network |
-| Diagnostics | DebugActivity | 943 VHAL + 252 SAIC, filter, export |
-| Settings | SettingsActivity | Theme, launcher, cloud login, profile, overlay, developer tools |
+| Cloud | CloudActivity | iSMART cloud: status, statistics, BT keys, geofence, POI |
+| TBox | TboxActivity | EngMode hardware data, security info, TBox network |
+| USB Camera | UvcCameraActivity | USB camera detection, preview via AndroidUSBCamera (UVC) |
+| Diagnostics | DebugActivity | 943 VHAL + 252 SAIC, filter, TX codes, export |
+| Settings | SettingsActivity | Theme, cloud login, profile, overlay, developer tools |
 
 ---
 
@@ -228,30 +293,31 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`
 
 ```
 app/src/main/java/com/emegelauncher/
-|- MainActivity.java          # Home screen with profile card
-|- AppsActivity.java          # App drawer
+|- MainActivity.java          # 4-screen ViewPager launcher (Graphs/Main/Apps/Other)
 |- GraphsActivity.java        # 8-tab vehicle graphs
 |- VehicleInfoActivity.java   # Vehicle data + cloud data display
 |- LocationActivity.java      # GPS & location
-|- CloudActivity.java         # iSMART cloud (6 tabs)
-|- ControlsActivity.java      # Quick controls + cloud controls
-|- TboxActivity.java          # TBox telematics
-|- DebugActivity.java         # Diagnostics (VHAL + SAIC)
-|- SettingsActivity.java      # Settings + cloud login + profile
-|- OverlayService.java        # Floating back/recent buttons
+|- CloudActivity.java         # iSMART cloud (5 tabs: Status, Stats, Keys, Geofence, POI)
+|- TboxActivity.java          # TBox telematics + security info
+|- UvcCameraActivity.java     # USB camera detection and preview (UVC)
 |- NavProxyActivity.java      # geo: intent proxy to Telenav
+|- DebugActivity.java         # Diagnostics (VHAL + SAIC)
+|- SettingsActivity.java      # Settings, cloud login, profile, about
+|- OverlayService.java        # Floating back/recent buttons (vertical)
 |- ThemeHelper.java           # Dark/light theme management
 |- vehicle/
-|   |- VehicleServiceManager.java  # 6-layer local service architecture
-|   |- SaicCloudManager.java      # iSMART cloud API client
+|   |- VehicleServiceManager.java  # 6-layer local service architecture + TX codes
+|   |- SaicCloudManager.java      # iSMART cloud API (auth, status, stats, keys, POI, geofence)
 |   |- WeatherManager.java        # Weather broadcast + polling
-|   |- BatteryHealthTracker.java   # SOH estimation
+|   |- BatteryHealthTracker.java   # SOH estimation from charge sessions
 |   |- YFVehicleProperty.java     # 943 VHAL property constants
 |- widget/
-    |- ArcGaugeView.java      # Arc gauge (speed, SOC, RPM)
+    |- ArcGaugeView.java      # Arc gauge with animated value + label below
+    |- PowerGaugeView.java    # Center-zero power gauge (consume/regen)
     |- LineChartView.java     # Line chart with auto-scaling
-    |- GMeterView.java        # Circular G-force meter
-    |- TireDiagramView.java   # 4-corner tire pressure diagram
+    |- GMeterView.java        # Circular G-force meter (2G max)
+    |- TireDiagramView.java   # Top-down car silhouette + 4-corner tire pressure
+    |- BatteryView.java       # Dynamic battery fill icon (SOC-based color)
 ```
 
 ---
@@ -268,6 +334,16 @@ See [LICENSE](LICENSE), [LICENSE-GPL3](LICENSE-GPL3), and [LICENSE-COMMONS-CLAUS
 
 ---
 
+## Support the Project
+
+Emegelauncher is a free, open-source project developed in my spare time. If you find it useful and would like to support continued development, donations are greatly appreciated.
+
+**[Donate via PayPal](https://paypal.me/corvusmod)**
+
+Your support helps fund testing hardware, development time, and new features. Thank you!
+
+---
+
 ## Contributing
 
 Contributions are welcome. By submitting a pull request, you agree that your contribution will be licensed under the same GPLv3 + Commons Clause terms.
@@ -277,3 +353,4 @@ Contributions are welcome. By submitting a pull request, you agree that your con
 - Built using knowledge from Huseyin's DriveHub project's reflection-based approach
 - AOSP platform signing key from the Android Open Source Project
 - Cloud API protocol reverse-engineered from the NewMGRemote open-source project
+- UVC camera support via [AndroidUSBCamera](https://github.com/jiangdongguo/AndroidUSBCamera) by jiangdongguo

@@ -72,6 +72,9 @@ public class SettingsActivity extends Activity {
         findViewById(R.id.btn_set_default).setOnClickListener(v -> setAsDefaultLauncher());
         findViewById(R.id.btn_restore_default).setOnClickListener(v -> restoreOriginalLauncher());
 
+        // Donation section
+        addDonationSection();
+
         // Save logs
         findViewById(R.id.row_save_logs).setOnClickListener(v -> showStorageSelectionDialog());
 
@@ -448,6 +451,57 @@ public class SettingsActivity extends Activity {
             if (v != null && !v.equals("N/A")) return (int) Float.parseFloat(v);
         } catch (Exception ignored) {}
         return 0;
+    }
+
+    // ==================== UI Toggles ====================
+
+    private void addDonationSection() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        // Card with QR code and text
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
+        card.setPadding(24, 20, 24, 20);
+        card.setGravity(android.view.Gravity.CENTER);
+        card.setElevation(4f);
+
+        TextView header = new TextView(this);
+        header.setText(getString(R.string.donate_title));
+        header.setTextSize(13);
+        header.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        header.setGravity(android.view.Gravity.CENTER);
+        header.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        card.addView(header);
+
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.donate_text));
+        desc.setTextSize(13);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        desc.setGravity(android.view.Gravity.CENTER);
+        desc.setPadding(0, 8, 0, 12);
+        card.addView(desc);
+
+        // QR code image
+        android.widget.ImageView qr = new android.widget.ImageView(this);
+        qr.setImageResource(R.drawable.qr_donate);
+        qr.setBackgroundColor(0xFFFFFFFF);
+        qr.setPadding(12, 12, 12, 12);
+        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(180, 180);
+        qrLp.gravity = android.view.Gravity.CENTER;
+        card.addView(qr, qrLp);
+
+        TextView scanText = new TextView(this);
+        scanText.setText(getString(R.string.donate_scan));
+        scanText.setTextSize(11);
+        scanText.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        scanText.setGravity(android.view.Gravity.CENTER);
+        scanText.setPadding(0, 10, 0, 0);
+        card.addView(scanText);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 8, 0, 16);
+        parent.addView(card, 0, lp); // Add at position 0 (top of the settings list)
     }
 
     // ==================== UI Toggles ====================

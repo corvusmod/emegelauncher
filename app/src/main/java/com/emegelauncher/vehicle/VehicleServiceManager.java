@@ -874,12 +874,49 @@ public class VehicleServiceManager {
                 f.setAccessible(true);
                 Object val = f.get(bean);
                 if (val != null) {
+                    // Skip static fields (like CREATOR in Parcelable beans)
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
                     if (sb.length() > 0) sb.append("\n");
                     String prefix = depth > 0 ? "  " : "";
                     // Check if val is a primitive/wrapper/string or a nested bean
-                    if (val instanceof String || val instanceof Number || val instanceof Boolean) {
+                    if (val instanceof String || val instanceof Number || val instanceof Boolean || val instanceof Character) {
                         sb.append(prefix).append(f.getName()).append(": ").append(val);
-                    } else if (val.getClass().getName().startsWith("java.") || val.getClass().isArray()) {
+                    } else if (val.getClass().isArray()) {
+                        // Handle arrays (byte[], Byte[], int[], etc.)
+                        sb.append(prefix).append(f.getName()).append(": ");
+                        int len = java.lang.reflect.Array.getLength(val);
+                        sb.append("[");
+                        for (int i = 0; i < len; i++) {
+                            if (i > 0) sb.append(", ");
+                            Object elem = java.lang.reflect.Array.get(val, i);
+                            if (elem instanceof Number || elem instanceof Boolean || elem instanceof String) {
+                                sb.append(elem);
+                            } else if (elem != null) {
+                                sb.append(beanToString(elem, depth + 1));
+                            } else {
+                                sb.append("null");
+                            }
+                            if (i > 50) { sb.append("... (").append(len).append(" total)"); break; }
+                        }
+                        sb.append("]");
+                    } else if (val instanceof java.util.Collection) {
+                        // Handle List, Set, etc.
+                        java.util.Collection<?> col = (java.util.Collection<?>) val;
+                        sb.append(prefix).append(f.getName()).append(": [");
+                        int i = 0;
+                        for (Object elem : col) {
+                            if (i > 0) sb.append(", ");
+                            if (elem instanceof Number || elem instanceof Boolean || elem instanceof String) {
+                                sb.append(elem);
+                            } else if (elem != null) {
+                                sb.append(beanToString(elem, depth + 1));
+                            } else {
+                                sb.append("null");
+                            }
+                            if (i++ > 50) { sb.append("... (").append(col.size()).append(" total)"); break; }
+                        }
+                        sb.append("]");
+                    } else if (val.getClass().getName().startsWith("java.")) {
                         sb.append(prefix).append(f.getName()).append(": ").append(val);
                     } else {
                         // Nested bean object — recurse

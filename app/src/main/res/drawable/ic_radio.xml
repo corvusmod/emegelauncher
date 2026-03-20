@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Antenna base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,10a2,2 0,1 0,0 4a2,2 0,1 0,0 -4z" />
+    <!-- Wave 1 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7.05,7.05C5.73,8.37 5,10.12 5,12s0.73,3.63 2.05,4.95l1.41,-1.41C7.52,14.59 7,13.34 7,12s0.52,-2.59 1.46,-3.54L7.05,7.05z" />
+    <!-- Wave 2 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.95,7.05l-1.41,1.41C16.48,9.41 17,10.66 17,12s-0.52,2.59 -1.46,3.54l1.41,1.41C18.27,15.63 19,13.88 19,12S18.27,8.37 16.95,7.05z" />
+    <!-- Wave 3 outer -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.22,4.22C2.83,5.61 2,7.71 2,12s0.83,6.39 2.22,7.78l1.41,-1.41C4.57,17.31 4,14.93 4,12s0.57,-5.31 1.63,-6.37L4.22,4.22z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M19.78,4.22l-1.41,1.41C19.43,6.69 20,9.07 20,12s-0.57,5.31 -1.63,6.37l1.41,1.41C21.17,18.39 22,16.29 22,12S21.17,5.61 19.78,4.22z" />
+</vector>

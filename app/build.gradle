@@ -8,8 +8,8 @@ android {
         applicationId "com.emegelauncher"
         minSdkVersion 28
         targetSdkVersion 28
-        versionCode 2
-        versionName "1.1"
+        versionCode 11
+        versionName "1.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -42,4 +42,12 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    // UVC Camera (USB webcam support via user-space driver)
+    // UVC Camera - use v2.3.1 which has fewer external deps
+    // UVC Camera - core modules, exclude unavailable Chinese deps
+    implementation('com.github.jiangdongguo.AndroidUSBCamera:libausbc:3.2.3') {
+        exclude group: 'com.gyf.immersionbar'
+        exclude group: 'com.zlc.glide'
+    }
+    implementation 'com.github.jiangdongguo.AndroidUSBCamera:libuvc:3.2.3'
 }

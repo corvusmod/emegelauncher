@@ -246,8 +246,8 @@ DexClassLoader: AIDL stub classes loaded from SAIC APKs on the car at runtime.
 ### Consumption & Regen
 | Property | ID | Type | Unit/Scale | Notes |
 |---|---|---|---|---|
-| ELEC_CSUMP_PERKM | 560002077 | FLOAT | ÷10=kWh/100km | Consumption |
-| CRNT_AVG_ELEC_CSUMP | 560002075 | FLOAT | ÷10=kWh/100km | Avg consumption |
+| ELEC_CSUMP_PERKM | 560002077 | FLOAT | kWh/100km (no scaling) | Instantaneous consumption |
+| CRNT_AVG_ELEC_CSUMP | 560002075 | FLOAT | kWh/100km (no scaling) | Car's trip avg consumption |
 | BAT_ELEC_ENRG_AVG_RATE | 560002081 | FLOAT | | Avg energy rate |
 | TOTAL_CONSUMPTION_AFTER_CHARGE | 559980953 | FLOAT | Wh | Since charge |
 | TOTAL_CONSUMPTION_AFTER_START | 559980954 | FLOAT | Wh | Since ignition |
@@ -412,8 +412,8 @@ Available via VehicleSettingsService or ServiceManager.
 | Raw Value | Conversion | Example |
 |---|---|---|
 | Tire pressure | ÷100 = bar | 264 → 2.64 bar |
-| Consumption (ELEC_CSUMP_PERKM) | ÷100 = kWh/100km | 82.3 → 0.82 (parked) |
-| Avg consumption (CRNT_AVG_ELEC_CSUMP) | ÷100 = kWh/100km | 82.3 → 0.82 (parked) |
+| Consumption (ELEC_CSUMP_PERKM) | Already kWh/100km (no scaling) | 22.9 = 22.9 kWh/100km |
+| Avg consumption (CRNT_AVG_ELEC_CSUMP) | Already kWh/100km (no scaling) | 18.0 = 18.0 kWh/100km |
 | Charge time (CHRGNG_RMNNG_TIME) | 1023 = N/A | |
 | Target SOC (CHRG_TRGT_SOC) | BMS raw scale | 7 ≈ 100% display |
 | Gear (CURRENT_GEAR) | 1=D, 2=N, 3=R, 4=P | |

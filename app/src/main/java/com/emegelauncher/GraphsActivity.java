@@ -46,6 +46,12 @@ public class GraphsActivity extends Activity {
     private final Handler mHandler = new Handler(android.os.Looper.getMainLooper());
     private LinearLayout mContent;
     private int mCurrentTab = 0;
+    private double mEnergyAccumKwh = 0;
+    private double mDistanceAccumKm = 0;
+    private float mPrevSpeedMs = 0;
+    private long mPrevSpeedTimeMs = 0;
+    private float mEcoScoreAvg = 100f;
+    private boolean mEcoScoreInit = false;
 
     // Dashboard widgets
     private ArcGaugeView mSpeedGauge, mSocGauge, mRpmGauge, mEfficiencyGauge;
@@ -195,8 +201,8 @@ public class GraphsActivity extends Activity {
 
         // RPM + Efficiency gauges
         LinearLayout row2 = newRow();
-        mRpmGauge = newGauge(getString(R.string.graph_motor), "RPM", 12000, C_ORANGE);
-        mEfficiencyGauge = newGauge(getString(R.string.graph_efficiency), "", 100, C_TEAL);
+        mRpmGauge = newGauge("kWh/100km", "kWh/100km", 50, C_ORANGE);
+        mEfficiencyGauge = newGauge("Eco", "", 100, C_GREEN);
         row2.addView(mRpmGauge, gaugeLP());
         row2.addView(mEfficiencyGauge, gaugeLP());
         mContent.addView(row2);
@@ -509,40 +515,189 @@ public class GraphsActivity extends Activity {
 
     // ==================== Trip ====================
 
+    private com.emegelauncher.vehicle.TripRecorder mTripRecorder;
+
     private void buildTrip() {
+        mTripRecorder = com.emegelauncher.vehicle.TripRecorder.getInstance(this);
+
+        // Record button
+        TextView recBtn = new TextView(this);
+        recBtn.setTag("trip_rec_btn");
+        recBtn.setText(mTripRecorder.isRecording() ? "\u23F9  STOP RECORDING" : "\u23FA  START RECORDING");
+        recBtn.setTextSize(16);
+        recBtn.setTextColor(mTripRecorder.isRecording() ? cText : ThemeHelper.accentRed(this));
+        recBtn.setBackgroundColor(mTripRecorder.isRecording() ? ThemeHelper.accentRed(this) : cCard);
+        recBtn.setGravity(android.view.Gravity.CENTER);
+        recBtn.setPadding(20, 16, 20, 16);
+        recBtn.setOnClickListener(v -> {
+            if (mTripRecorder.isRecording()) {
+                mTripRecorder.stop();
+            } else {
+                mTripRecorder.start();
+            }
+            switchTab(6); // rebuild
+        });
+        mContent.addView(recBtn, infoLP());
+
+        // Recording status
+        TextView recStatus = newInfoLabel(mTripRecorder.isRecording()
+            ? getString(R.string.recording_points, mTripRecorder.getPointCount())
+            : getString(R.string.not_recording));
+        recStatus.setTag("trip_rec_status");
+        mContent.addView(recStatus, infoLP());
+
+        // Trip summary (live or last trip)
+        TextView summary = newInfoLabel(mTripRecorder.getSummary());
+        summary.setTag("trip_summary");
+        mContent.addView(summary, infoLP());
+
+        addDivider();
+
+        // Live data
         mOdometer = newInfoLabel(getString(R.string.graph_odometer, "--"));
         mContent.addView(mOdometer, infoLP());
 
         mAvgConsumption = newInfoLabel(getString(R.string.graph_avg_consumption, "--"));
         mContent.addView(mAvgConsumption, infoLP());
 
-        mTotalConsumed = newInfoLabel(getString(R.string.graph_total_consumed, "--"));
+        mTotalConsumed = newInfoLabel(getString(R.string.trip_instant, "--"));
         mContent.addView(mTotalConsumed, infoLP());
 
-        mRegenEnergy = newInfoLabel(getString(R.string.graph_regen_energy, "--"));
+        mRegenEnergy = newInfoLabel(getString(R.string.trip_power, "--"));
         mContent.addView(mRegenEnergy, infoLP());
 
-        mRegenRange = newInfoLabel(getString(R.string.graph_regen_range, "--"));
+        mRegenRange = newInfoLabel("SOC: --");
         mContent.addView(mRegenRange, infoLP());
 
-        // Since-charge stats
-        addDivider();
-        TextView header = newInfoLabel(getString(R.string.graph_since_last_charge));
-        header.setTextColor(cTextTert);
-        header.setTextSize(12);
-        mContent.addView(header, infoLP());
+        // Stored trips list
+        java.util.List<com.emegelauncher.vehicle.TripRecorder.TripInfo> storedTrips = mTripRecorder.getStoredTrips();
+        if (!storedTrips.isEmpty()) {
+            addDivider();
+            TextView histHeader = newInfoLabel("STORED TRIPS (" + storedTrips.size() + "/" + 5 + ")");
+            histHeader.setTextColor(cTextTert);
+            histHeader.setTextSize(12);
+            mContent.addView(histHeader, infoLP());
 
-        TextView chargeConsumed = newInfoLabel(getString(R.string.graph_consumed, "--"));
-        chargeConsumed.setTag("trip_charge_consumed");
-        mContent.addView(chargeConsumed, infoLP());
+            for (com.emegelauncher.vehicle.TripRecorder.TripInfo trip : storedTrips) {
+                // Trip summary row
+                TextView tripRow = newInfoLabel(trip.getSummary());
+                tripRow.setTextSize(12);
+                mContent.addView(tripRow, infoLP());
 
-        TextView chargeRegen = newInfoLabel(getString(R.string.graph_regen_energy_val, "--"));
-        chargeRegen.setTag("trip_charge_regen");
-        mContent.addView(chargeRegen, infoLP());
+                // Export buttons for this trip
+                LinearLayout exportRow = new LinearLayout(this);
+                exportRow.setOrientation(LinearLayout.HORIZONTAL);
+                exportRow.setPadding(0, 0, 0, 8);
 
-        TextView chargeRegenRange = newInfoLabel(getString(R.string.graph_regen_range_val, "--"));
-        chargeRegenRange.setTag("trip_charge_regen_range");
-        mContent.addView(chargeRegenRange, infoLP());
+                final String tripName = trip.filename;
+
+                TextView gpxBtn = new TextView(this);
+                gpxBtn.setText("GPX");
+                gpxBtn.setTextSize(13);
+                gpxBtn.setTextColor(ThemeHelper.accentBlue(this));
+                gpxBtn.setPadding(16, 8, 16, 8);
+                gpxBtn.setOnClickListener(v -> exportStoredTrip(tripName, "gpx"));
+                exportRow.addView(gpxBtn);
+
+                TextView jsonBtn = new TextView(this);
+                jsonBtn.setText("JSON");
+                jsonBtn.setTextSize(13);
+                jsonBtn.setTextColor(ThemeHelper.accentTeal(this));
+                jsonBtn.setPadding(16, 8, 16, 8);
+                jsonBtn.setOnClickListener(v -> exportStoredTrip(tripName, "json"));
+                exportRow.addView(jsonBtn);
+
+                mContent.addView(exportRow, infoLP());
+            }
+        }
+    }
+
+    private void exportStoredTrip(String tripName, String format) {
+        java.util.List<StorageVol> volumes = findAllVolumes();
+        if (volumes.isEmpty()) {
+            android.widget.Toast.makeText(this, getString(R.string.no_storage_found), android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[volumes.size()];
+        for (int i = 0; i < volumes.size(); i++) {
+            StorageVol vi = volumes.get(i);
+            long free = vi.path.getFreeSpace() / (1024 * 1024);
+            names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
+        }
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_storage))
+            .setItems(names, (d, idx) -> {
+                java.io.File result = mTripRecorder.exportStoredTrip(tripName, format, volumes.get(idx).path);
+                if (result != null) {
+                    android.widget.Toast.makeText(this, getString(R.string.exported_to, result.getAbsolutePath()), android.widget.Toast.LENGTH_LONG).show();
+                } else {
+                    android.widget.Toast.makeText(this, getString(R.string.export_failed), android.widget.Toast.LENGTH_SHORT).show();
+                }
+            }).show();
+    }
+
+    private static class StorageVol {
+        java.io.File path;
+        String description;
+        StorageVol(java.io.File path, String description) { this.path = path; this.description = description; }
+    }
+
+    private java.util.List<StorageVol> findAllVolumes() {
+        java.util.List<StorageVol> results = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        try {
+            android.os.storage.StorageManager sm =
+                (android.os.storage.StorageManager) getSystemService(STORAGE_SERVICE);
+            java.lang.reflect.Method getVolumes = sm.getClass().getMethod("getVolumeList");
+            Object[] volumes = (Object[]) getVolumes.invoke(sm);
+            if (volumes != null) {
+                for (Object vol : volumes) {
+                    try {
+                        java.io.File path = (java.io.File) vol.getClass().getMethod("getPathFile").invoke(vol);
+                        String desc = (String) vol.getClass().getMethod("getDescription", android.content.Context.class).invoke(vol, this);
+                        boolean removable = false;
+                        try { removable = (boolean) vol.getClass().getMethod("isRemovable").invoke(vol); }
+                        catch (Exception ignored) {}
+                        if (path != null && path.exists()) {
+                            String canon = path.getCanonicalPath();
+                            if (!seen.contains(canon)) {
+                                seen.add(canon);
+                                String label = (desc != null ? desc : path.getName());
+                                if (removable) label += " (USB)";
+                                results.add(new StorageVol(path, label));
+                                if (removable) {
+                                    java.io.File mediaRw = new java.io.File("/mnt/media_rw/" + path.getName());
+                                    if (mediaRw.exists() && mediaRw.isDirectory()) {
+                                        String mrc = mediaRw.getCanonicalPath();
+                                        if (!seen.contains(mrc)) {
+                                            seen.add(mrc);
+                                            results.add(new StorageVol(mediaRw, label + " [media_rw]"));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+        java.io.File mediaRw = new java.io.File("/mnt/media_rw");
+        if (mediaRw.exists()) {
+            java.io.File[] children = mediaRw.listFiles();
+            if (children != null) {
+                for (java.io.File f : children) {
+                    if (!f.isDirectory()) continue;
+                    try {
+                        String canon = f.getCanonicalPath();
+                        if (!seen.contains(canon)) {
+                            seen.add(canon);
+                            results.add(new StorageVol(f, f.getName() + " (media_rw)"));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        return results;
     }
 
     // ==================== Polling ====================
@@ -589,12 +744,70 @@ public class GraphsActivity extends Activity {
         if (soc == 0) soc = readFloat(YFVehicleProperty.BMS_PACK_SOC_DSP);
         mSocGauge.setValue(soc);
 
-        mRpmGauge.setValue(readFloat(YFVehicleProperty.ENGINE_RPM));
-        mEfficiencyGauge.setValue(readFloat(YFVehicleProperty.SENSOR_DRIVE_EFFICIENCY_INDICATION));
-        // Energy flow: V*I/1000 = kW, positive = discharge, negative = regen
+        // Consumption gauge (RPM always 0 on Marvel R)
+        float instantCons = Math.abs(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM));
+        // Calculate our own average from BMS power × time ÷ distance (independent of car's calculation)
+        long now = System.currentTimeMillis();
+        float speedMs = speed / 3.6f;
         float packV = readFloat(YFVehicleProperty.BMS_PACK_VOL);
         float packI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
         float powerKw = packV * packI / 1000f;
+        if (mPrevSpeedTimeMs > 0) {
+            float dt = (now - mPrevSpeedTimeMs) / 1000f;
+            if (dt > 0 && dt < 5f && speed > 5) { // only accumulate when moving
+                mEnergyAccumKwh += powerKw * dt / 3600.0; // regen subtracts
+                mDistanceAccumKm += speed * dt / 3600.0;
+            }
+        }
+        float displayAvg = mDistanceAccumKm > 0.05 ? (float)(mEnergyAccumKwh / mDistanceAccumKm * 100.0) : 0;
+        mRpmGauge.setValue(instantCons);
+        mRpmGauge.setSecondaryValue(displayAvg);
+        mRpmGauge.setSecondaryColor(C_TEAL);
+        mRpmGauge.setLabel(getString(R.string.consumption_label, instantCons, displayAvg));
+
+        // Eco Score — session aggregate with live behavior indicator
+        float ecoInstant = 100f;
+        float consRef = displayAvg > 0.1f ? displayAvg : instantCons;
+        if (consRef > 12) ecoInstant -= (consRef - 12) * 2.5f;
+        if (powerKw > 30) ecoInstant -= (powerKw - 30) * 0.8f;
+        if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
+        if (speed > 110) ecoInstant -= (speed - 110) * 0.5f;
+        ecoInstant = Math.max(0, Math.min(100, ecoInstant));
+        if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
+        else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
+        float ecoD = Math.max(0, Math.min(100, mEcoScoreAvg));
+        mEfficiencyGauge.setValue(ecoD);
+        String indicator;
+        int indicatorColor;
+        if (powerKw > 50) {
+            indicator = getString(R.string.eco_hard_accel);
+            indicatorColor = 0xFFFF3B30;
+        } else if (powerKw > 30) {
+            indicator = getString(R.string.eco_accelerating);
+            indicatorColor = 0xFFFF9500;
+        } else if (powerKw < -10) {
+            indicator = getString(R.string.eco_strong_regen);
+            indicatorColor = 0xFF30D158;
+        } else if (powerKw < -5) {
+            indicator = getString(R.string.eco_regen);
+            indicatorColor = 0xFF26A69A;
+        } else if (speed > 110) {
+            indicator = getString(R.string.eco_high_speed);
+            indicatorColor = 0xFFFF9500;
+        } else if (speed > 3 && Math.abs(powerKw) < 5) {
+            indicator = getString(R.string.eco_coasting);
+            indicatorColor = 0xFF30D158;
+        } else {
+            indicator = getString(R.string.eco_steady);
+            indicatorColor = 0xFF636366;
+        }
+        mEfficiencyGauge.setLabel(indicator);
+        mEfficiencyGauge.setLabelColor(indicatorColor);
+        if (ecoD >= 70) mEfficiencyGauge.setFgColor(0xFF30D158);
+        else if (ecoD >= 40) mEfficiencyGauge.setFgColor(0xFFFF9500);
+        else mEfficiencyGauge.setFgColor(0xFFFF3B30);
+
+        // Energy flow: V*I/1000 = kW, positive = discharge, negative = regen
         mEnergyFlowChart.addPoint(powerKw);
 
         // Gear: SAIC condition → VHAL
@@ -624,11 +837,19 @@ public class GraphsActivity extends Activity {
         }
         mRangeText.setText(rangeLabel);
 
-        // G-force on dashboard
+        // G-force on dashboard (from speed derivative — VHAL sensors have VALID=0)
         if (mDashGChart != null) {
-            float longG = readFloat(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT);
+            float longG = 0;
+            if (mPrevSpeedTimeMs > 0) {
+                float dtG = (now - mPrevSpeedTimeMs) / 1000f;
+                if (dtG > 0.1f && dtG < 5f) {
+                    longG = (speedMs - mPrevSpeedMs) / dtG / 9.81f;
+                }
+            }
             mDashGChart.addPoint(longG);
         }
+        mPrevSpeedMs = speedMs;
+        mPrevSpeedTimeMs = now;
 
         // Drive mode
         int drvMode = (int) readFloat(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE);
@@ -656,7 +877,7 @@ public class GraphsActivity extends Activity {
         mVoltChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_VOL));
         mCurrentChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_CRNT));
         // Raw value is ~82.3 for real ~8.23 kWh/100km → divide by 10
-        mConsumptionChart.addPoint(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM) / 100f);
+        mConsumptionChart.addPoint(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM));
     }
 
     private void updateCharging() {
@@ -898,17 +1119,47 @@ public class GraphsActivity extends Activity {
         if (mOdometer == null) return;
         mOdometer.setText(getString(R.string.graph_odometer, mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TOTAL_MILEAGE)));
 
-        // Avg consumption: raw value is in Wh/km, convert to kWh/100km (/10)
         float avgRaw = readFloat(YFVehicleProperty.CRNT_AVG_ELEC_CSUMP);
-        mAvgConsumption.setText(getString(R.string.graph_avg_consumption, String.format("%.1f", avgRaw / 100f)));
+        mAvgConsumption.setText(getString(R.string.graph_avg_consumption, String.format("%.1f", avgRaw)));
 
-        mTotalConsumed.setText(getString(R.string.graph_total_consumed, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_START)));
-        mRegenEnergy.setText(getString(R.string.graph_regen_energy, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_START)));
-        mRegenRange.setText(getString(R.string.graph_regen_range, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_START)));
+        float instantRaw = readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM);
+        float instantCons = Math.abs(instantRaw);
+        mTotalConsumed.setText(getString(R.string.trip_instant, String.format("%.1f", instantCons)));
 
-        updateTaggedLabel("trip_charge_consumed", getString(R.string.graph_consumed, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_CONSUMPTION_AFTER_CHARGE)));
-        updateTaggedLabel("trip_charge_regen", getString(R.string.graph_regen_energy_val, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_ENRG_AFTER_CHARGE)));
-        updateTaggedLabel("trip_charge_regen_range", getString(R.string.graph_regen_range_val, mVehicle.getPropertyValue(YFVehicleProperty.TOTAL_REGEN_RNG_AFTER_CHARGE)));
+        float pV = readFloat(YFVehicleProperty.BMS_PACK_VOL);
+        float pI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
+        float pKw = pV * pI / 1000f;
+        mRegenEnergy.setText(pKw < 0
+            ? getString(R.string.trip_power_regen, String.format("%.1f", pKw))
+            : getString(R.string.trip_power, String.format("%.1f", pKw)));
+
+        float soc = readFloat(YFVehicleProperty.BMS_PACK_SOC_DSP);
+        mRegenRange.setText("SOC: " + String.format("%.1f%%", soc)
+            + " | Pack: " + String.format("%.0fV %.1fA", pV, pI));
+
+        // Feed trip recorder if recording
+        if (mTripRecorder != null && mTripRecorder.isRecording()) {
+            // Get GPS from SAIC nav service
+            double lat = 0, lon = 0, alt = 0;
+            try {
+                String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+                if (locJson != null && locJson.startsWith("{")) {
+                    org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                    lat = loc.optDouble("lat", 0);
+                    lon = loc.optDouble("lon", 0);
+                }
+            } catch (Exception ignored) {}
+
+            float speed = readSaicFloat("condition", "getCarSpeed");
+            if (speed == 0) speed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
+
+            mTripRecorder.addPoint(lat, lon, alt, speed, pKw, soc, instantCons, 0, 0);
+
+            // Update recording status
+            updateTaggedLabel("trip_rec_status",
+                getString(R.string.recording_pts, mTripRecorder.getPointCount(), mTripRecorder.getSummary()));
+            updateTaggedLabel("trip_summary", mTripRecorder.getSummary());
+        }
     }
 
     // ==================== G-Meter ====================
@@ -919,12 +1170,13 @@ public class GraphsActivity extends Activity {
     private void buildGMeter() {
         // G-Meter circle
         mGMeter = new GMeterView(this);
-        mGMeter.setMaxG(2.0f);
+        mGMeter.setMaxG(1.0f);
         mGMeter.setDotColor(C_BLUE);
         mGMeter.setBgColor(cCard);
         mGMeter.setRingColor(cDivider);
         mGMeter.setTextColor(cText);
         mGMeter.setLabelColor(cTextTert);
+        mGMeter.setAxisLabels(getString(R.string.gmeter_accel), getString(R.string.gmeter_brake));
         mContent.addView(mGMeter, new LinearLayout.LayoutParams(-1, 400));
 
         // Longitudinal G chart (accel/brake over time)
@@ -966,8 +1218,28 @@ public class GraphsActivity extends Activity {
     private void updateGMeter() {
         if (mGMeter == null) return;
 
-        float longG = readFloat(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT);
-        float latG = readFloat(YFVehicleProperty.SENSOR_VEHICLE_LATERAL_ACCELERATION);
+        // Speed derivative for longitudinal G (VHAL acceleration sensors have VALID=0)
+        float speed = readSaicFloat("condition", "getCarSpeed");
+        if (speed == 0) speed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
+        float speedMs = speed / 3.6f;
+        long now = System.currentTimeMillis();
+        float longG = 0, latG = 0;
+        if (mPrevSpeedTimeMs > 0) {
+            float dt = (now - mPrevSpeedTimeMs) / 1000f;
+            if (dt > 0.1f && dt < 5f) {
+                longG = (speedMs - mPrevSpeedMs) / dt / 9.81f;
+                // Lateral G from steering angle: latG = v² × tan(angle/ratio) / (wheelbase × g)
+                float steerAngle = readFloat(YFVehicleProperty.SENSOR_WHEEL_ANGLE);
+                if (Math.abs(steerAngle) > 1f && speed > 3f) {
+                    float wheelbase = 2.8f;
+                    float steerRatio = 14.5f;
+                    float roadAngle = steerAngle / steerRatio;
+                    latG = (float)(speedMs * speedMs * Math.tan(Math.toRadians(roadAngle)) / (wheelbase * 9.81f));
+                }
+            }
+        }
+        mPrevSpeedMs = speedMs;
+        mPrevSpeedTimeMs = now;
         float aggressive = readFloat(YFVehicleProperty.SENSOR_FAST_ACCELERATION_DECELERATION);
 
         mGMeter.setValues(latG, longG);

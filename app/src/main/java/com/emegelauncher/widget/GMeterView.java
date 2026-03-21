@@ -37,6 +37,12 @@ public class GMeterView extends View {
     private float longitudinalG = 0f; // Y: brake(-) / accel(+)
     private float maxG = 1.0f;
 
+    // Peak tracking
+    private float peakAccelG = 0f;   // max positive longitudinal (accel)
+    private float peakBrakeG = 0f;   // max negative longitudinal (brake)
+    private float peakLeftG = 0f;    // max negative lateral (left)
+    private float peakRightG = 0f;   // max positive lateral (right)
+
     // Trail history
     private final float[] trailX = new float[30];
     private final float[] trailY = new float[30];
@@ -45,6 +51,8 @@ public class GMeterView extends View {
 
     private int dotColor = 0xFF2979FF;
     private int bgColor = 0xFF1A1A1E;
+    private String labelAccel = "ACCEL";
+    private String labelBrake = "BRAKE";
 
     public GMeterView(Context context) { super(context); init(); }
     public GMeterView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
@@ -73,11 +81,21 @@ public class GMeterView extends View {
     public void setValues(float lateral, float longitudinal) {
         this.lateralG = lateral;
         this.longitudinalG = longitudinal;
+        // Track peaks
+        if (longitudinal > peakAccelG) peakAccelG = longitudinal;
+        if (longitudinal < peakBrakeG) peakBrakeG = longitudinal;
+        if (lateral < peakLeftG) peakLeftG = lateral;
+        if (lateral > peakRightG) peakRightG = lateral;
         // Add to trail
         trailX[trailIndex] = lateral;
         trailY[trailIndex] = longitudinal;
         trailIndex = (trailIndex + 1) % trailX.length;
         if (trailCount < trailX.length) trailCount++;
+        invalidate();
+    }
+
+    public void resetPeaks() {
+        peakAccelG = 0; peakBrakeG = 0; peakLeftG = 0; peakRightG = 0;
         invalidate();
     }
 
@@ -87,13 +105,15 @@ public class GMeterView extends View {
     public void setRingColor(int c) { ringPaint.setColor(c); }
     public void setTextColor(int c) { textPaint.setColor(c); }
     public void setLabelColor(int c) { labelPaint.setColor(c); }
+    public void setAxisLabels(String accel, String brake) { this.labelAccel = accel; this.labelBrake = brake; }
 
     @Override
     protected void onDraw(Canvas canvas) {
         float w = getWidth(), h = getHeight();
-        float size = Math.min(w, h);
-        float cx = w / 2, cy = h / 2;
-        float radius = size / 2 - 30;
+        float textSpace = 60; // space for current G + peak values below circle
+        float size = Math.min(w, h - textSpace);
+        float cx = w / 2, cy = size / 2 + 10;
+        float radius = size / 2 - 20;
 
         // Background circle
         Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -115,8 +135,8 @@ public class GMeterView extends View {
         // Axis labels
         labelPaint.setTextSize(14f);
         labelPaint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("ACCEL", cx, cy - radius + 16, labelPaint);
-        canvas.drawText("BRAKE", cx, cy + radius - 6, labelPaint);
+        canvas.drawText(labelAccel, cx, cy - radius + 16, labelPaint);
+        canvas.drawText(labelBrake, cx, cy + radius - 6, labelPaint);
         labelPaint.setTextAlign(Paint.Align.LEFT);
         canvas.drawText("L", cx - radius + 6, cy - 4, labelPaint);
         labelPaint.setTextAlign(Paint.Align.RIGHT);
@@ -167,9 +187,28 @@ public class GMeterView extends View {
         dotPaint.setColor(0xFFFFFFFF);
         canvas.drawCircle(dotX, dotY, 3, dotPaint);
 
-        // Current value text
+        // Current value + peak values below the circle
         float totalG = (float) Math.sqrt(lateralG * lateralG + longitudinalG * longitudinalG);
-        textPaint.setTextSize(20f);
-        canvas.drawText(String.format("%.2f G", totalG), cx, h - 8, textPaint);
+        float bottomY = cy + radius + 18;
+
+        // Current G centered
+        textPaint.setTextSize(18f);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText(String.format("%.2f G", totalG), cx, bottomY, textPaint);
+
+        // Peak values below current G
+        labelPaint.setTextSize(13f);
+        float peakY = bottomY + 18;
+        // Longitudinal peaks on the left
+        labelPaint.setTextAlign(Paint.Align.LEFT);
+        labelPaint.setColor(0xFF30D158); // green for accel
+        canvas.drawText(String.format("\u25B2 %.2f G", peakAccelG), cx - radius, peakY, labelPaint);
+        labelPaint.setColor(0xFFFF3B30); // red for brake
+        canvas.drawText(String.format("\u25BC %.2f G", Math.abs(peakBrakeG)), cx - radius, peakY + 16, labelPaint);
+        // Lateral peaks on the right
+        labelPaint.setTextAlign(Paint.Align.RIGHT);
+        labelPaint.setColor(0xFF2979FF); // blue for lateral
+        canvas.drawText(String.format("L %.2f G", Math.abs(peakLeftG)), cx + radius, peakY, labelPaint);
+        canvas.drawText(String.format("R %.2f G", peakRightG), cx + radius, peakY + 16, labelPaint);
     }
 }

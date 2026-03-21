@@ -43,6 +43,10 @@ public class ArcGaugeView extends View {
     private int fgColor = 0xFF2979FF;
     private int fgColorEnd = 0xFF30D158;
     private boolean useGradient = true;
+    // Secondary value (optional second dot on the arc)
+    private float secondaryValue = -1f;
+    private int secondaryColor = 0xFF64D2FF;
+    private final Paint secondaryDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public ArcGaugeView(Context context) { super(context); init(); }
     public ArcGaugeView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
@@ -85,6 +89,9 @@ public class ArcGaugeView extends View {
     public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.15f)); }
     public void setTextColor(int c) { textPaint.setColor(c); }
     public void setLabelColor(int c) { labelPaint.setColor(c); }
+    /** Set a secondary value shown as a second dot on the arc (e.g. average alongside instant) */
+    public void setSecondaryValue(float val) { this.secondaryValue = Math.min(val, maxValue); invalidate(); }
+    public void setSecondaryColor(int c) { this.secondaryColor = c; }
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -155,6 +162,19 @@ public class ArcGaugeView extends View {
             dotPaint.setColor(0xFFFFFFFF);
             dotPaint.setShadowLayer(8, 0, 0, fgColor);
             canvas.drawCircle(dotX, dotY, strokeW * 0.6f, dotPaint);
+        }
+
+        // Secondary dot (e.g. average value)
+        if (secondaryValue >= 0 && maxValue > 0) {
+            float secRatio = secondaryValue / maxValue;
+            float secSweep = sweepTotal * secRatio;
+            float secAngle = (float) Math.toRadians(startAngle + secSweep);
+            float secR = arcSize / 2;
+            float secX = cx + secR * (float) Math.cos(secAngle);
+            float secY = cy + secR * (float) Math.sin(secAngle);
+            secondaryDotPaint.setColor(secondaryColor);
+            secondaryDotPaint.setShadowLayer(6, 0, 0, secondaryColor);
+            canvas.drawCircle(secX, secY, strokeW * 0.5f, secondaryDotPaint);
         }
 
         // Value text

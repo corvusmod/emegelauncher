@@ -416,6 +416,26 @@
     <string name="graph_one_pedal">Modo un pedal: %1$s</string>
     <string name="graph_time_remaining_min">%1$d min</string>
     <string name="graph_tire_title">PRESIÓN Y TEMPERATURA NEUMÁTICOS</string>
+    <!-- Indicadores eco -->
+    <string name="eco_hard_accel">\u25BC\u25BC Aceleración fuerte</string>
+    <string name="eco_accelerating">\u25BC Acelerando</string>
+    <string name="eco_strong_regen">\u25B2\u25B2 Regen fuerte</string>
+    <string name="eco_regen">\u25B2 Regenerando</string>
+    <string name="eco_high_speed">\u25BC Alta velocidad</string>
+    <string name="eco_coasting">\u25C6 Inercia</string>
+    <string name="eco_steady">\u25CF Estable</string>
+    <string name="consumption_label">%1$.1f inst | %2$.1f med</string>
+    <string name="no_storage_found">No se encontró almacenamiento</string>
+    <string name="not_recording">Sin grabar</string>
+    <string name="recording_points">Grabando… %1$d puntos</string>
+    <string name="recording_pts">Grabando… %1$d pts | %2$s</string>
+    <string name="trip_instant">Instantáneo: %1$s kWh/100km</string>
+    <string name="trip_power">Potencia: %1$s kW</string>
+    <string name="trip_power_regen">Potencia: %1$s kW (regen)</string>
+    <string name="exported_to">Exportado: %1$s</string>
+    <string name="export_failed">Error al exportar</string>
+    <string name="gmeter_accel">ACEL</string>
+    <string name="gmeter_brake">FRENO</string>
     <!-- Disclaimer -->
     <string name="disclaimer_title">AVISO LEGAL IMPORTANTE</string>
     <string name="disclaimer_text">Este software se proporciona TAL CUAL, sin garantía de ningún tipo, expresa o implícita. Los autores y colaboradores de Emegelauncher NO asumen ninguna responsabilidad por daños, mal funcionamiento, pérdida de datos o comportamiento no deseado que pueda ocurrir en su vehículo, sus sistemas o cualquier dispositivo conectado como resultado de instalar o usar esta aplicación.\n\nAl usar este software, usted reconoce que:\n\n• Modificar el software de la unidad principal de su vehículo puede anular su garantía\n• Este es un proyecto comunitario independiente, NO afiliado, respaldado ni apoyado por MG, SAIC Motor ni ninguna de sus filiales\n• Usted instala y usa esta aplicación bajo su propia responsabilidad\n• La aplicación accede a sistemas del vehículo, servicios en la nube y datos sensibles con privilegios de sistema\n• Asegúrese siempre de que su vehículo es seguro de operar después de cualquier modificación de software\n\nAl pulsar Aceptar, confirma que ha leído, comprendido y acepta estos términos y desea continuar usando esta aplicación.</string>

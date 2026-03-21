@@ -37,35 +37,36 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 
 ### Main Screen (default)
 - **Weather**: Dynamic weather icon (sunny/cloudy/rain/snow/fog/storm), forecast temp, outside sensor temp, cabin temp from cloud (when available). Tap opens weather app.
-- **Battery**: Dynamic battery fill icon showing SOC level (green >50%, orange 20-50%, red <20%), SOC percentage, range, standby estimate, BMS raw data. Tap opens car's charge management screen.
+- **Battery**: Dynamic battery fill icon (120dp) showing SOC level (green >50%, orange 20-50%, red <20%), SOC percentage, range, standby estimate, BMS raw data, 12V battery voltage from cloud. Tap opens car's charge management screen.
 - **Map / Music / Radio / Phone**: Large touch-friendly buttons to launch respective apps
 - **Drive Mode bar**: Current mode (Eco/Normal/Sport/Winter) + regen level
 - **Auto Theme**: Follows car display (day/night), or manual dark/light override
 
 ### Live Dashboard (swipe left)
-- **4 gauges**: Speed, Battery SOC, RPM, Efficiency — animated arc gauges with labels below
+- **4 gauges**: Speed, Battery SOC, Consumption (dual-dot: instant from VHAL + BMS-calculated session average, energy÷distance), Eco Score — animated with labels below
+- **Eco Score**: Session-aggregate driving efficiency score (exponential moving average, ~30s time constant) with live behavior arrows (red=hard accel, orange=accelerating, green=regen/coasting, gray=steady). Gauge arc color: green >70, orange 40-70, red <40
 - **Power gauge**: Centered zero-point arc (orange=consumption, green=regen), animated transitions
-- **G-Meter**: Round 2D G-force visualization (2G max)
-- **Info bar**: Range, gear, drive mode — all live data updated every 2 seconds
+- **G-Meter**: Round 2D G-force visualization (1G max), longitudinal G from speed derivative, lateral G from steering wheel angle. Peak accel/brake/left/right values displayed below
+- **Info bar**: Range, gear, drive mode — all live data updated every 1 second
 - Tap opens full 8-tab GraphsActivity
 
 ### Vehicle Graphs (8 tabs)
 | Tab | Content |
 |---|---|
-| **Dashboard** | Speed, SOC, RPM, Efficiency gauges + energy flow chart + G-force chart + gear + range + drive mode |
+| **Dashboard** | Speed, SOC, Consumption, Eco Score gauges + energy flow + G-force + gear/range/mode |
 | **Energy** | SOC (display + BMS raw), pack voltage, pack current, consumption (kWh/100km) |
 | **Charging** | Live power/current/voltage charts when charging, stored session data when idle |
 | **Health** | Auto-calculated SOH estimation, capacity tracking, charge session history |
 | **Tires** | Top-down car silhouette with 4-corner pressure + temperature, color-coded (2.5-3.3 bar) |
 | **Climate** | HVAC status, outside temp, air quality sensors |
-| **Trip** | Odometer, avg consumption, total consumed, regen energy/range |
-| **G-Meter** | 2D G-force circle, longitudinal/lateral charts, regen level, one-pedal status |
+| **Trip** | Trip Recorder (start/stop, GPX/JSON export to USB/storage), odometer, live consumption/power, stored trip history (max 5) |
+| **G-Meter** | 2D G-force circle with peak tracking, longitudinal/lateral charts, regen level, one-pedal status |
 
 ### iSMART Cloud Integration
-Connects to MG's cloud API for data not available locally. Auto re-login on token expiry.
+Connects to MG's cloud API for data not available locally. Auto re-login on token expiry. Cloud queries trigger automatically once TBox is online and internet connectivity is confirmed.
 
-**Vehicle status** (fetched on car start):
-- Cabin temperature, 12V battery voltage (÷10 scaling)
+**Vehicle status** (fetched when TBox + internet detected):
+- Cabin temperature, 12V battery voltage (÷10 scaling, with charging/resting/low status notes)
 - All doors/windows/locks/lights/tyres/sunroof status
 - Trip data (mileage today, since charge, current journey, odometer)
 - Power mode, engine status, EV range, seat heating, steering heat
@@ -255,7 +256,7 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`
 | Language | Status |
 |---|---|
 | English | Full support (default) |
-| Spanish (Espa\u00f1ol) | Full support — all UI, settings, graphs, cloud, diagnostics, disclaimer |
+| Spanish (Espa\u00f1ol) | Full support — all UI, settings, graphs, cloud, diagnostics, eco indicators, trip recorder, G-meter, disclaimer |
 
 The app automatically uses the device locale. Additional languages can be added by creating a new `values-XX/strings.xml` resource file.
 
@@ -310,6 +311,7 @@ app/src/main/java/com/emegelauncher/
 |   |- SaicCloudManager.java      # iSMART cloud API (auth, status, stats, keys, POI, geofence)
 |   |- WeatherManager.java        # Weather broadcast + polling
 |   |- BatteryHealthTracker.java   # SOH estimation from charge sessions
+|   |- TripRecorder.java          # GPS track logger with GPX/JSON export (singleton)
 |   |- YFVehicleProperty.java     # 943 VHAL property constants
 |- widget/
     |- ArcGaugeView.java      # Arc gauge with animated value + label below

@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
     private VehicleServiceManager mVehicle;
     private WeatherManager mWeather;
     private SaicCloudManager mCloud;
+    private boolean mCloudQueried = false;
     private final Handler mHandler = new Handler(android.os.Looper.getMainLooper());
     private boolean mLastDarkMode;
     private ViewPager mPager;
@@ -117,7 +118,6 @@ public class MainActivity extends Activity {
             startService(new Intent(this, OverlayService.class));
         }
         autoRestoreProfile();
-        queryCloudOnce();
     }
 
     private void showDisclaimer() {
@@ -247,6 +247,15 @@ public class MainActivity extends Activity {
     // ==================== Page 0: Graphs (live dashboard) ====================
 
     private com.emegelauncher.widget.ArcGaugeView mGpSpeed, mGpSoc, mGpRpm, mGpEcon;
+    // G-meter: calculate G from speed changes
+    private float mPrevSpeedMs = 0;
+    private long mPrevSpeedTimeMs = 0;
+    // Running average consumption: energy-based (power × time / distance)
+    private double mEnergyAccumKwh = 0;  // total kWh consumed
+    private double mDistanceAccumKm = 0; // total km driven
+    // Eco score: session aggregate (exponential moving average)
+    private float mEcoScoreAvg = 100f;
+    private boolean mEcoScoreInit = false;
     private com.emegelauncher.widget.PowerGaugeView mGpPowerGauge;
     private com.emegelauncher.widget.GMeterView mGpGMeter;
     private TextView mGpRangeText;
@@ -272,8 +281,8 @@ public class MainActivity extends Activity {
         LinearLayout gaugeRow2 = new LinearLayout(this);
         gaugeRow2.setBackgroundResource(R.drawable.card_bg_ripple);
         gaugeRow2.setPadding(8, 8, 8, 8);
-        mGpRpm = newGauge(getString(R.string.motor), "RPM", 12000, ThemeHelper.accentOrange(this));
-        mGpEcon = newGauge(getString(R.string.efficiency), "", 100, ThemeHelper.accentTeal(this));
+        mGpRpm = newGauge("kWh/100km", "kWh/100km", 50, ThemeHelper.accentOrange(this));
+        mGpEcon = newGauge("Eco", "", 100, ThemeHelper.accentGreen(this));
         gaugeRow2.addView(mGpRpm, new LinearLayout.LayoutParams(0, 340, 1f));
         gaugeRow2.addView(mGpEcon, new LinearLayout.LayoutParams(0, 340, 1f));
         page.addView(gaugeRow2);
@@ -298,12 +307,13 @@ public class MainActivity extends Activity {
         chartsRow.addView(mGpPowerGauge, powerLp);
 
         mGpGMeter = new com.emegelauncher.widget.GMeterView(this);
-        mGpGMeter.setMaxG(2.0f);
+        mGpGMeter.setMaxG(1.0f);
         mGpGMeter.setDotColor(ThemeHelper.accentRed(this));
         mGpGMeter.setBgColor(cCard);
         mGpGMeter.setRingColor(cDivider);
         mGpGMeter.setTextColor(cText);
         mGpGMeter.setLabelColor(cTextSec);
+        mGpGMeter.setAxisLabels(getString(R.string.gmeter_accel), getString(R.string.gmeter_brake));
         LinearLayout.LayoutParams gmeterLp = new LinearLayout.LayoutParams(0, 340, 1f);
         gmeterLp.setMargins(4, 6, 0, 4);
         chartsRow.addView(mGpGMeter, gmeterLp);
@@ -466,8 +476,8 @@ public class MainActivity extends Activity {
         // Battery icon with dynamic fill (left side)
         mBatteryIcon = new com.emegelauncher.widget.BatteryView(this);
         mBatteryIcon.setOutlineColor(cTextTert);
-        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(70, -1);
-        iconLp.setMargins(4, 12, 16, 12);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(120, -1);
+        iconLp.setMargins(4, 12, 20, 12);
         card.addView(mBatteryIcon, iconLp);
 
         // Text column (right side, centered)
@@ -479,7 +489,7 @@ public class MainActivity extends Activity {
         // SOC% — large and prominent
         mBatteryPct = new TextView(this);
         mBatteryPct.setText("--%");
-        mBatteryPct.setTextSize(34);
+        mBatteryPct.setTextSize(42);
         mBatteryPct.setTextColor(cText);
         mBatteryPct.setGravity(Gravity.CENTER);
         mBatteryPct.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
@@ -488,20 +498,20 @@ public class MainActivity extends Activity {
         // Range — equally prominent
         mBatteryRange = new TextView(this);
         mBatteryRange.setText("-- km");
-        mBatteryRange.setTextSize(20);
+        mBatteryRange.setTextSize(26);
         mBatteryRange.setTextColor(ThemeHelper.accentTeal(this));
         mBatteryRange.setGravity(Gravity.CENTER);
         mBatteryRange.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         textCol.addView(mBatteryRange);
 
         mBatteryEta = new TextView(this);
-        mBatteryEta.setTextSize(12);
+        mBatteryEta.setTextSize(15);
         mBatteryEta.setTextColor(cTextSec);
         mBatteryEta.setGravity(Gravity.CENTER);
         textCol.addView(mBatteryEta);
 
         mBatteryBms = new TextView(this);
-        mBatteryBms.setTextSize(12);
+        mBatteryBms.setTextSize(14);
         mBatteryBms.setTextColor(cTextTert);
         mBatteryBms.setGravity(Gravity.CENTER);
         textCol.addView(mBatteryBms);
@@ -911,6 +921,9 @@ public class MainActivity extends Activity {
             label.setText(apps.get(pos).label);
             label.setTextSize(13);
             label.setTextColor(cText);
+            if (!ThemeHelper.isDarkMode(MainActivity.this)) {
+                label.setShadowLayer(2, 0, 0, 0x40000000);
+            }
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(2);
             cell.addView(label);
@@ -938,13 +951,16 @@ public class MainActivity extends Activity {
         String range = isValid(rangeSaic) ? rangeSaic : (isValid(clstrRange) ? clstrRange : null);
         if (range != null && mBatteryRange != null) mBatteryRange.setText(range + " km");
 
-        // BMS raw
+        // BMS raw + 12V battery from cloud
         String bmsSoc = mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC);
         String bmsRange = mVehicle.getPropertyValue(YFVehicleProperty.BMS_ESTD_ELEC_RNG);
         if (mBatteryBms != null) {
             StringBuilder raw = new StringBuilder("BMS: ");
             if (isValid(bmsSoc)) raw.append(bmsSoc).append("%");
             if (isValid(bmsRange)) raw.append(" | ").append(bmsRange).append(" km");
+            // Add 12V battery from cloud
+            String batt12v = mCloud.getBatteryVoltageStr();
+            if (batt12v != null) raw.append("\n12V: ").append(batt12v).append("V");
             mBatteryBms.setText(raw.toString());
         }
 
@@ -1056,21 +1072,97 @@ public class MainActivity extends Activity {
         if (soc == 0) soc = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
         if (mGpSoc != null) mGpSoc.setValue(soc);
 
-        // RPM
-        if (mGpRpm != null) mGpRpm.setValue(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.ENGINE_RPM)));
-
-        // Efficiency
-        if (mGpEcon != null) mGpEcon.setValue(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_DRIVE_EFFICIENCY_INDICATION)));
-
-        // Power gauge: V*I/1000 = kW (positive = consume, negative = regen)
+        // Power: V*I/1000 = kW
         float packV = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_VOL));
         float packI = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
         float powerKw = packV * packI / 1000f;
         if (mGpPowerGauge != null) mGpPowerGauge.setValue(powerKw);
 
-        // G-meter
-        float longG = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_ACCELERATION_PORTRAIT));
-        float latG = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_VEHICLE_LATERAL_ACCELERATION));
+        // Consumption gauge (replaces RPM — motor RPM always 0 on Marvel R)
+        float consumption = Math.abs(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.ELEC_CSUMP_PERKM)));
+        // Calculate our own average from BMS power × time ÷ distance (independent of car's calculation)
+        long now = System.currentTimeMillis();
+        float speedMs = speed / 3.6f; // km/h to m/s
+        if (mPrevSpeedTimeMs > 0) {
+            float dt = (now - mPrevSpeedTimeMs) / 1000f;
+            if (dt > 0 && dt < 5f && speed > 5) { // only accumulate when moving
+                mEnergyAccumKwh += powerKw * dt / 3600.0; // kW × hours (regen subtracts)
+                mDistanceAccumKm += speed * dt / 3600.0; // km/h × hours
+            }
+        }
+        float displayAvg = mDistanceAccumKm > 0.05 ? (float)(mEnergyAccumKwh / mDistanceAccumKm * 100.0) : 0;
+        if (mGpRpm != null) {
+            mGpRpm.setValue(consumption);
+            mGpRpm.setSecondaryValue(displayAvg);
+            mGpRpm.setSecondaryColor(ThemeHelper.accentTeal(this));
+            mGpRpm.setLabel(getString(R.string.consumption_label, consumption, displayAvg));
+        }
+
+        // Eco Score — session aggregate with live behavior indicator
+        // Instantaneous score based on current driving factors
+        float ecoInstant = 100f;
+        float consRef = displayAvg > 0.1f ? displayAvg : consumption;
+        if (consRef > 12) ecoInstant -= (consRef - 12) * 2.5f;
+        if (powerKw > 30) ecoInstant -= (powerKw - 30) * 0.8f;
+        if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
+        if (speed > 110) ecoInstant -= (speed - 110) * 0.5f;
+        ecoInstant = Math.max(0, Math.min(100, ecoInstant));
+        // Blend into session average (EMA: ~30s time constant at 1Hz polling)
+        if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
+        else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
+        float ecoScore = Math.max(0, Math.min(100, mEcoScoreAvg));
+        if (mGpEcon != null) {
+            mGpEcon.setValue(ecoScore);
+            // Driving behavior indicator: colored arrows (shows live behavior)
+            String indicator;
+            int indicatorColor;
+            if (powerKw > 50) {
+                indicator = getString(R.string.eco_hard_accel);
+                indicatorColor = 0xFFFF3B30;
+            } else if (powerKw > 30) {
+                indicator = getString(R.string.eco_accelerating);
+                indicatorColor = 0xFFFF9500;
+            } else if (powerKw < -10) {
+                indicator = getString(R.string.eco_strong_regen);
+                indicatorColor = 0xFF30D158;
+            } else if (powerKw < -5) {
+                indicator = getString(R.string.eco_regen);
+                indicatorColor = 0xFF26A69A;
+            } else if (speed > 110) {
+                indicator = getString(R.string.eco_high_speed);
+                indicatorColor = 0xFFFF9500;
+            } else if (speed > 3 && Math.abs(powerKw) < 5) {
+                indicator = getString(R.string.eco_coasting);
+                indicatorColor = 0xFF30D158;
+            } else {
+                indicator = getString(R.string.eco_steady);
+                indicatorColor = 0xFF636366;
+            }
+            mGpEcon.setLabel(indicator);
+            mGpEcon.setLabelColor(indicatorColor);
+            if (ecoScore >= 70) mGpEcon.setFgColor(0xFF30D158);
+            else if (ecoScore >= 40) mGpEcon.setFgColor(0xFFFF9500);
+            else mGpEcon.setFgColor(0xFFFF3B30);
+        }
+
+        // G-meter: longitudinal from speed derivative, lateral from steering angle
+        float longG = 0, latG = 0;
+        if (mPrevSpeedTimeMs > 0) {
+            float dt = (now - mPrevSpeedTimeMs) / 1000f;
+            if (dt > 0.1f && dt < 5f) {
+                longG = (speedMs - mPrevSpeedMs) / dt / 9.81f;
+                // Lateral G from steering wheel angle: latG = v² × tan(angle/ratio) / (wheelbase × g)
+                float steerAngle = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_WHEEL_ANGLE));
+                if (Math.abs(steerAngle) > 1f && speed > 3f) {
+                    float wheelbase = 2.8f;   // Marvel R wheelbase in meters
+                    float steerRatio = 14.5f; // steering ratio
+                    float roadAngle = steerAngle / steerRatio;
+                    latG = (float)(speedMs * speedMs * Math.tan(Math.toRadians(roadAngle)) / (wheelbase * 9.81f));
+                }
+            }
+        }
+        mPrevSpeedMs = speedMs;
+        mPrevSpeedTimeMs = now;
         if (mGpGMeter != null) mGpGMeter.setValues(latG, longG);
 
         // Range + Gear + Mode info
@@ -1139,18 +1231,58 @@ public class MainActivity extends Activity {
         mHandler.postDelayed(new Runnable() {
             @Override public void run() {
                 updateUI();
+                feedTripRecorder();
+                checkTboxAndCloud();
                 mWeather.poll(MainActivity.this);
                 if (ThemeHelper.hasCarThemeChanged(MainActivity.this)) recreate();
-                mHandler.postDelayed(this, 2000);
+                mHandler.postDelayed(this, 1000);
             }
-        }, 2000);
+        }, 1000);
+    }
+
+    /** Trigger cloud query once TBox is online and head unit has internet */
+    private void checkTboxAndCloud() {
+        if (mCloudQueried) return;
+        float tboxAvail = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TBOXAVLBLY));
+        if (tboxAvail <= 0) return;
+        // Check Android network connectivity (head unit shares TBox's connection)
+        android.net.ConnectivityManager cm =
+            (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
+        if (ni == null || !ni.isConnected()) return;
+        Log.d(TAG, "TBox online + internet available (network=" + ni.getTypeName() + "), starting cloud query");
+        mCloudQueried = true;
+        queryCloudOnce();
+    }
+
+    /** Feed data to trip recorder if recording (runs on every poll cycle regardless of active screen) */
+    private void feedTripRecorder() {
+        com.emegelauncher.vehicle.TripRecorder rec = com.emegelauncher.vehicle.TripRecorder.getInstance(this);
+        if (!rec.isRecording()) return;
+        try {
+            double lat = 0, lon = 0;
+            String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+            if (locJson != null && locJson.startsWith("{")) {
+                org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                lat = loc.optDouble("lat", 0);
+                lon = loc.optDouble("lon", 0);
+            }
+            float speed = parseFloat(mVehicle.callSaicMethod("condition", "getCarSpeed"));
+            if (speed == 0) speed = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.PERF_VEHICLE_SPEED));
+            float pV = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_VOL));
+            float pI = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
+            float powerKw = pV * pI / 1000f;
+            float soc = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
+            float consumption = Math.abs(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.ELEC_CSUMP_PERKM)));
+            rec.addPoint(lat, lon, 0, speed, powerKw, soc, consumption, 0, 0);
+        } catch (Exception ignored) {}
     }
 
     // ==================== Lifecycle ====================
 
     private void queryCloudOnce() {
         if (!mCloud.isLoggedIn()) return;
-        mHandler.postDelayed(() -> mCloud.queryVehicleStatus((ok, msg) -> {
+        mCloud.queryVehicleStatus((ok, msg) -> {
             Log.d(TAG, "Cloud status: " + msg);
             // Fetch all other cloud data
             mCloud.queryCharging(null);
@@ -1162,7 +1294,7 @@ public class MainActivity extends Activity {
             // Statistics — fetch year view on startup
             String now = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
             mCloud.queryStatistics("3", now, null); // "3" = year
-        }), 8000);
+        });
     }
 
     private void autoRestoreProfile() {

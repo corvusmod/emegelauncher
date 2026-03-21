@@ -416,6 +416,26 @@
     <string name="graph_one_pedal">One Pedal Mode: %1$s</string>
     <string name="graph_time_remaining_min">%1$d min</string>
     <string name="graph_tire_title">TIRE PRESSURE &amp; TEMPERATURE</string>
+    <!-- Eco driving indicators -->
+    <string name="eco_hard_accel">\u25BC\u25BC Hard accel</string>
+    <string name="eco_accelerating">\u25BC Accelerating</string>
+    <string name="eco_strong_regen">\u25B2\u25B2 Strong regen</string>
+    <string name="eco_regen">\u25B2 Regen</string>
+    <string name="eco_high_speed">\u25BC High speed</string>
+    <string name="eco_coasting">\u25C6 Coasting</string>
+    <string name="eco_steady">\u25CF Steady</string>
+    <string name="consumption_label">%1$.1f inst | %2$.1f avg</string>
+    <string name="no_storage_found">No storage found</string>
+    <string name="not_recording">Not recording</string>
+    <string name="recording_points">Recording… %1$d points</string>
+    <string name="recording_pts">Recording… %1$d pts | %2$s</string>
+    <string name="trip_instant">Instant: %1$s kWh/100km</string>
+    <string name="trip_power">Power: %1$s kW</string>
+    <string name="trip_power_regen">Power: %1$s kW (regen)</string>
+    <string name="exported_to">Exported: %1$s</string>
+    <string name="export_failed">Export failed</string>
+    <string name="gmeter_accel">ACCEL</string>
+    <string name="gmeter_brake">BRAKE</string>
     <!-- Disclaimer -->
     <string name="disclaimer_title">IMPORTANT DISCLAIMER</string>
     <string name="disclaimer_text">This software is provided AS-IS, without warranty of any kind, express or implied. The authors and contributors of Emegelauncher assume NO responsibility or liability for any damage, malfunction, loss of data, or unintended behavior that may occur to your vehicle, its systems, or any connected devices as a result of installing or using this application.\n\nBy using this software, you acknowledge that:\n\n• Modifying your vehicle\'s head unit software may void your warranty\n• This is an independent community project, NOT affiliated with, endorsed by, or supported by MG, SAIC Motor, or any of their subsidiaries\n• You install and use this application entirely at your own risk\n• The application accesses vehicle systems, cloud services, and sensitive data with system-level privileges\n• Always ensure your vehicle is safe to operate after any software modification\n\nBy pressing Accept, you confirm that you have read, understood, and agree to these terms and wish to continue using this application.</string>

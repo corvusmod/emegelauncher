@@ -202,7 +202,9 @@ public class CloudActivity extends Activity {
             addRow(getString(R.string.cloud_outside), formatTemp(bvs.optInt("exteriorTemperature", -999)));
 
             addSection(getString(R.string.cloud_battery_power));
-            addRow(getString(R.string.cloud_12v_battery), String.format("%.1fV", bvs.optInt("batteryVoltage", 0) / 10.0));
+            double batt12v = bvs.optInt("batteryVoltage", 0) / 10.0;
+            String battNote = batt12v > 13.5 ? " (charging — normal while running)" : batt12v > 12.2 ? " (resting — healthy)" : " (low — check battery)";
+            addRow(getString(R.string.cloud_12v_battery), String.format("%.1fV", batt12v) + battNote);
             addRow(getString(R.string.cloud_power_mode), decodePowerMode(bvs.optInt("powerMode", -1)));
             addRow(getString(R.string.cloud_engine_status), bvs.optInt("engineStatus", 0) == 1 ? getString(R.string.cloud_running) : getString(R.string.cloud_off));
             addRow(getString(R.string.cloud_ev_range), bvs.optInt("fuelRangeElec", 0) / 10.0 + " km");

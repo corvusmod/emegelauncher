@@ -34,6 +34,18 @@ A custom home screen launcher for the **MG Marvel R** electric vehicle, designed
 
 ---
 
+## Screenshots
+
+| Main Screen | Live Dashboard |
+|---|---|
+| ![Main Screen](example/main_screen.jpg) | ![Live Dashboard](example/live_dashboard.jpg) |
+
+| Cloud Statistics | Trip Recorder |
+|---|---|
+| ![Cloud Statistics](example/cloud_statistics.jpg) | ![Trip Recorder](example/trip_recorder.jpg) |
+
+---
+
 ## Features
 
 ### 4-Screen Swipeable Launcher

@@ -70,6 +70,15 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 | **Trip** | Trip Recorder (start/stop, GPX/JSON export to USB/storage), odometer, live consumption/power, stored trip history (max 5) |
 | **G-Meter** | 2D G-force circle with peak tracking, longitudinal/lateral charts, regen level, one-pedal status |
 
+### Trip Recorder
+Record GPS tracks while driving with full vehicle telemetry. Accessible from the Trip tab in Vehicle Graphs.
+
+- **Start/Stop** recording button — singleton pattern, continues recording across all screens
+- **Live data** per point: timestamp, GPS lat/lon, speed, power (kW), SOC%, consumption (kWh/100km), G-forces
+- **Export**: GPX (Google Earth compatible) + JSON (full telemetry) — storage selection dialog shows all available USB drives and internal storage
+- **Stored trips**: Last 5 trips kept with auto-pruning of oldest. Each trip shows summary (distance, max speed, avg consumption, duration, point count)
+- **Per-trip export buttons**: GPX and JSON buttons for each stored trip
+
 ### iSMART Cloud Integration
 Connects to MG's cloud API for data not available locally. Auto re-login on token expiry. Cloud queries trigger automatically once TBox is online and internet connectivity is confirmed.
 

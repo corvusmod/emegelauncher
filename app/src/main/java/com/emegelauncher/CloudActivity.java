@@ -272,31 +272,62 @@ public class CloudActivity extends Activity {
     private void buildStats() {
         if (!mCloud.isLoggedIn()) { showDisabled("Login required"); return; }
 
-        // Period selector: Day | Month | Year
-        LinearLayout periodRow = new LinearLayout(this);
-        periodRow.setGravity(Gravity.CENTER);
-        periodRow.setPadding(0, 8, 0, 8);
-        String[][] periods = {{"1", "Day"}, {"2", "Month"}, {"3", "Year"}};
-        for (String[] p : periods) {
+        // Segmented control: Day | Month | Year
+        LinearLayout segmentRow = new LinearLayout(this);
+        segmentRow.setOrientation(LinearLayout.HORIZONTAL);
+        segmentRow.setGravity(Gravity.CENTER);
+        segmentRow.setPadding(40, 12, 40, 8);
+
+        android.graphics.drawable.GradientDrawable segmentBg = new android.graphics.drawable.GradientDrawable();
+        segmentBg.setCornerRadius(20);
+        segmentBg.setColor(cCard);
+        segmentBg.setStroke(1, cDivider);
+        segmentRow.setBackground(segmentBg);
+
+        String[][] periods = {
+            {"1", getString(R.string.stats_day)},
+            {"2", getString(R.string.stats_month)},
+            {"3", getString(R.string.stats_year)}
+        };
+        for (int i = 0; i < periods.length; i++) {
+            final String[] p = periods[i];
             TextView btn = new TextView(this);
             btn.setText(p[1]);
-            btn.setTextSize(15);
-            btn.setTextColor(p[0].equals(mStatsRangeType) ? C_BLUE : cTextTert);
-            btn.setPadding(24, 8, 24, 8);
-            btn.setOnClickListener(v -> { mStatsRangeType = p[0]; fetchAndShowStats(); });
-            periodRow.addView(btn);
-        }
-        mContent.addView(periodRow);
+            btn.setTextSize(14);
+            btn.setGravity(Gravity.CENTER);
+            btn.setPadding(0, 12, 0, 12);
+            LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            segLp.setMargins(4, 4, 4, 4);
+            btn.setLayoutParams(segLp);
 
-        // Date navigation: < date >
+            if (p[0].equals(mStatsRangeType)) {
+                // Selected: accent background + white text
+                android.graphics.drawable.GradientDrawable selBg = new android.graphics.drawable.GradientDrawable();
+                selBg.setCornerRadius(16);
+                selBg.setColor(C_BLUE);
+                btn.setBackground(selBg);
+                btn.setTextColor(0xFFFFFFFF);
+                btn.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+            } else {
+                // Unselected: transparent + muted text
+                btn.setTextColor(cTextSec);
+                btn.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL));
+            }
+            btn.setOnClickListener(v -> { mStatsRangeType = p[0]; fetchAndShowStats(); });
+            segmentRow.addView(btn);
+        }
+        mContent.addView(segmentRow);
+
+        // Date navigation: ◀  date  ▶
         LinearLayout navRow = new LinearLayout(this);
         navRow.setGravity(Gravity.CENTER);
-        navRow.setPadding(0, 4, 0, 12);
+        navRow.setPadding(0, 8, 0, 12);
 
         TextView prevBtn = new TextView(this);
         prevBtn.setText("  \u25C0  ");
-        prevBtn.setTextSize(18);
+        prevBtn.setTextSize(20);
         prevBtn.setTextColor(C_BLUE);
+        prevBtn.setPadding(16, 8, 16, 8);
         prevBtn.setOnClickListener(v -> {
             switch (mStatsRangeType) {
                 case "1": mStatsDate.add(java.util.Calendar.DAY_OF_YEAR, -1); break;
@@ -317,13 +348,15 @@ public class CloudActivity extends Activity {
         dateLabel.setText(dateFmt);
         dateLabel.setTextSize(16);
         dateLabel.setTextColor(cText);
-        dateLabel.setPadding(20, 0, 20, 0);
+        dateLabel.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        dateLabel.setPadding(24, 0, 24, 0);
         navRow.addView(dateLabel);
 
         TextView nextBtn = new TextView(this);
         nextBtn.setText("  \u25B6  ");
-        nextBtn.setTextSize(18);
+        nextBtn.setTextSize(20);
         nextBtn.setTextColor(C_BLUE);
+        nextBtn.setPadding(16, 8, 16, 8);
         nextBtn.setOnClickListener(v -> {
             switch (mStatsRangeType) {
                 case "1": mStatsDate.add(java.util.Calendar.DAY_OF_YEAR, 1); break;
@@ -360,60 +393,112 @@ public class CloudActivity extends Activity {
             if (data == null) { showMessage("No statistics data"); return; }
 
             String[][] charts = {
-                {"mileageList", "Mileage", "km"},
-                {"powerConsumptionList", "Consumption", "kWh/100km"},
-                {"co2List", "CO\u2082 Saved", "kg"},
-                {"averageSpeedList", "Avg Speed", "km/h"},
-                {"travelTimeList", "Travel Time", "h"}
+                {"mileageList", getString(R.string.stats_mileage), "km"},
+                {"powerConsumptionList", getString(R.string.stats_consumption), "kWh/100km"},
+                {"co2List", getString(R.string.stats_co2), "kg"},
+                {"averageSpeedList", getString(R.string.stats_avg_speed), "km/h"},
+                {"travelTimeList", getString(R.string.stats_travel_time), "h"}
             };
             int[] colors = {C_BLUE, C_ORANGE, C_GREEN, C_TEAL, C_PURPLE};
 
+            boolean anyData = false;
             for (int c = 0; c < charts.length; c++) {
                 JSONArray items = data.optJSONArray(charts[c][0]);
                 if (items == null || items.length() == 0) continue;
 
-                // Chart
-                LineChartView chart = new LineChartView(this);
-                chart.setLabel(charts[c][1]);
-                chart.setUnit(charts[c][2]);
-                chart.setLineColor(colors[c]);
-                chart.setGridColor(cDivider);
-                chart.setTextColor(cTextSec);
-                chart.setBackgroundColor(cCard);
-
+                // Parse values and date labels
+                java.util.List<Float> values = new java.util.ArrayList<>();
+                java.util.List<String> labels = new java.util.ArrayList<>();
                 double total = 0, max = 0;
                 int nonZero = 0;
+                int todayIdx = -1;
+
                 for (int i = 0; i < items.length(); i++) {
-                    double v = items.getJSONObject(i).optDouble("value", 0);
-                    chart.addPoint((float) v);
+                    JSONObject item = items.getJSONObject(i);
+                    float v = (float) item.optDouble("value", 0);
+                    String timeStr = item.optString("time", "");
+                    values.add(v);
+                    // Format date label based on range type
+                    labels.add(formatDateLabel(timeStr));
                     total += v;
                     if (v > max) max = v;
                     if (v > 0) nonZero++;
+                    // Check if this is today/current period
+                    if (isCurrentPeriod(timeStr)) todayIdx = i;
                 }
 
-                LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(-1, 200);
-                chartLp.setMargins(0, 8, 0, 4);
-                mContent.addView(chart, chartLp);
-
-                // Summary row
+                // Summary text
                 double avg = nonZero > 0 ? total / nonZero : 0;
                 String summary;
                 if (charts[c][0].equals("travelTimeList")) {
                     int totalH = (int) total;
                     int totalM = (int) ((total - totalH) * 60);
-                    summary = String.format("Total: %dh %dm | Avg: %.1fh | Max: %.1fh", totalH, totalM, avg, max);
+                    summary = String.format("%s: %dh %dm | %s: %.1fh | Max: %.1fh",
+                        getString(R.string.stats_total), totalH, totalM, getString(R.string.stats_average), avg, max);
                 } else {
-                    summary = String.format("Total: %.1f | Avg: %.1f | Max: %.1f %s", total, avg, max, charts[c][2]);
+                    summary = String.format("%s: %.1f | %s: %.1f | Max: %.1f %s",
+                        getString(R.string.stats_total), total, getString(R.string.stats_average), avg, max, charts[c][2]);
                 }
-                addRow(charts[c][1], summary);
+
+                // Bar chart
+                com.emegelauncher.widget.BarChartView chart = new com.emegelauncher.widget.BarChartView(this);
+                chart.setTitle(charts[c][1]);
+                chart.setUnit(charts[c][2]);
+                chart.setBarColor(colors[c]);
+                chart.setGridColor(cDivider);
+                chart.setTextColor(cTextSec);
+                chart.setBgColor(cCard);
+                chart.setSummary(summary);
+                chart.setHighlightIndex(todayIdx);
+                chart.setData(values, labels);
+                chart.setBackgroundColor(cCard);
+
+                LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(-1, 280);
+                chartLp.setMargins(0, 12, 0, 4);
+                mContent.addView(chart, chartLp);
+                anyData = true;
             }
 
-            // If no charts were rendered
-            if (data.optJSONArray("mileageList") == null) {
-                showMessage("No data for this period");
+            if (!anyData) {
+                showMessage(getString(R.string.stats_no_data));
             }
         } catch (Exception e) {
             showMessage("Parse error: " + e.getMessage());
+        }
+    }
+
+    /** Format date string for x-axis label based on current range type */
+    private String formatDateLabel(String timeStr) {
+        if (timeStr == null || timeStr.isEmpty()) return "";
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            java.util.Date date = sdf.parse(timeStr);
+            if (date == null) return timeStr;
+            switch (mStatsRangeType) {
+                case "1": // Day view — show hour
+                    return new java.text.SimpleDateFormat("HH", java.util.Locale.getDefault()).format(date);
+                case "2": // Month view — show day number
+                    return new java.text.SimpleDateFormat("d", java.util.Locale.getDefault()).format(date);
+                case "3": // Year view — show month abbreviation
+                    return new java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(date);
+                default:
+                    return timeStr.substring(Math.max(0, timeStr.length() - 5));
+            }
+        } catch (Exception e) {
+            return timeStr.length() > 5 ? timeStr.substring(5) : timeStr;
+        }
+    }
+
+    /** Check if a date string matches the current period (today/this month/this year) */
+    private boolean isCurrentPeriod(String timeStr) {
+        if (timeStr == null || timeStr.isEmpty()) return false;
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(new java.util.Date());
+        switch (mStatsRangeType) {
+            case "1": return timeStr.equals(today);
+            case "2": return timeStr.startsWith(today.substring(0, 7));
+            case "3": return timeStr.startsWith(today.substring(0, 4));
+            default: return false;
         }
     }
 

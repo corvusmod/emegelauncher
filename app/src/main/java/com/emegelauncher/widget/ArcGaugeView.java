@@ -40,6 +40,8 @@ public class ArcGaugeView extends View {
     private float maxValue = 100f;
     private String unit = "%";
     private String label = "";
+    private String label2 = "";
+    private int label2Color = 0xFF636366;
     private int fgColor = 0xFF2979FF;
     private int fgColorEnd = 0xFF30D158;
     private boolean useGradient = true;
@@ -85,6 +87,7 @@ public class ArcGaugeView extends View {
     public void setMaxValue(float max) { this.maxValue = max; }
     public void setUnit(String u) { this.unit = u; }
     public void setLabel(String l) { this.label = l; }
+    public void setLabel2(String l, int color) { this.label2 = l; this.label2Color = color; }
     public void setFgColor(int c) { this.fgColor = c; this.fgColorEnd = lightenColor(c, 0.4f); }
     public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.15f)); }
     public void setTextColor(int c) { textPaint.setColor(c); }
@@ -195,6 +198,13 @@ public class ArcGaugeView extends View {
             float labelY = oy + arcSize + labelPaint.getTextSize() + 6;
             canvas.drawText(label, cx, labelY, labelPaint);
             labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            // Second label line (different color)
+            if (!label2.isEmpty()) {
+                int savedColor = labelPaint.getColor();
+                labelPaint.setColor(label2Color);
+                canvas.drawText(label2, cx, labelY + labelPaint.getTextSize() + 2, labelPaint);
+                labelPaint.setColor(savedColor);
+            }
         }
     }
 

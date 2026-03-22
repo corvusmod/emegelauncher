@@ -29,6 +29,7 @@ import android.view.ViewGroup;
 import android.widget.GridView;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -66,6 +67,16 @@ public class MainActivity extends Activity {
     private TextView mBatteryPct, mBatteryRange, mBatteryEta, mBatteryBms;
     private TextView mDriveMode, mRegenLevel;
     private LinearLayout mDriveModeBar;
+
+    // Dynamic cards
+    private TextView mMusicTitle, mMusicArtist, mMusicTime;
+    private ImageView mMusicArt, mMusicPlayPause;
+    private android.media.session.MediaController mMediaController;
+    private TextView mRadioFreq, mRadioStation, mRadioTypeLabel;
+    private ImageView mRadioPlayStop;
+    private TextView mNavInfo, mNavRoad, mNavRemaining, mNavSpeedLimit;
+    private LinearLayout mNavQuickBtns, mNavActiveInfo;
+    private TextView mPhoneDevice, mPhoneStatus;
 
     // Theme colors
     private int cBg, cCard, cText, cTextSec, cTextTert, cDivider;
@@ -374,29 +385,25 @@ public class MainActivity extends Activity {
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
 
-        // Row 1: Weather | Battery
+        // Row 1: Navigation | Battery
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL);
-        row1.addView(buildWeatherCard(), bigBtnLP(true));
+        row1.addView(buildNavCard(), bigBtnLP(true));
         row1.addView(buildBatteryCard(), bigBtnLP(false));
         grid.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        // Row 2: Map | Music
+        // Row 2: Music | Radio
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.addView(buildBigButton(getString(R.string.map), R.drawable.ic_map, ThemeHelper.accentBlue(this),
-            () -> launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity")), bigBtnLP(true));
-        row2.addView(buildBigButton(getString(R.string.music), R.drawable.ic_music, ThemeHelper.accentPurple(this),
-            () -> launchCarApp("com.saicmotor.hmi.music", "com.saicmotor.hmi.music.ui.activity.MusicActivity")), bigBtnLP(false));
+        row2.addView(buildMusicCard(), bigBtnLP(true));
+        row2.addView(buildRadioCard(), bigBtnLP(false));
         grid.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        // Row 3: Radio | Phone
+        // Row 3: Weather | Phone
         LinearLayout row3 = new LinearLayout(this);
         row3.setOrientation(LinearLayout.HORIZONTAL);
-        row3.addView(buildBigButton(getString(R.string.radio), R.drawable.ic_radio, ThemeHelper.accentOrange(this),
-            () -> launchCarApp("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity")), bigBtnLP(true));
-        row3.addView(buildBigButton(getString(R.string.phone), R.drawable.ic_phone, ThemeHelper.accentGreen(this),
-            () -> launchCarApp("com.saicmotor.hmi.btcall", "com.saicmotor.hmi.btcall.BtCallActivity")), bigBtnLP(false));
+        row3.addView(buildWeatherCard(), bigBtnLP(true));
+        row3.addView(buildPhoneCard(), bigBtnLP(false));
         grid.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         page.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -547,6 +554,448 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    // ==================== Dynamic Cards ====================
+
+    private View buildMusicCard() {
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundResource(R.drawable.card_bg_ripple);
+        frame.setElevation(6f);
+        frame.setOnClickListener(v -> launchCarApp("com.saicmotor.hmi.music", "com.saicmotor.hmi.music.ui.activity.MusicActivity"));
+
+        // Album art as background
+        mMusicArt = new ImageView(this);
+        mMusicArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        mMusicArt.setAlpha(0.3f);
+        mMusicArt.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+        frame.addView(mMusicArt);
+
+        // Content — vertically centered
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(20, 8, 20, 8);
+        card.setGravity(Gravity.CENTER);
+        card.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+
+        // Title
+        mMusicTitle = new TextView(this);
+        mMusicTitle.setText(getString(R.string.music_no_playing));
+        mMusicTitle.setTextSize(18);
+        mMusicTitle.setTextColor(cText);
+        mMusicTitle.setGravity(Gravity.CENTER);
+        mMusicTitle.setSingleLine(true);
+        mMusicTitle.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        mMusicTitle.setMarqueeRepeatLimit(-1);
+        mMusicTitle.setSelected(true);
+        mMusicTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        card.addView(mMusicTitle);
+
+        // Artist
+        mMusicArtist = new TextView(this);
+        mMusicArtist.setTextSize(14);
+        mMusicArtist.setTextColor(cTextSec);
+        mMusicArtist.setGravity(Gravity.CENTER);
+        mMusicArtist.setSingleLine(true);
+        mMusicArtist.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        mMusicArtist.setMarqueeRepeatLimit(-1);
+        mMusicArtist.setSelected(true);
+        card.addView(mMusicArtist);
+
+        // Controls: ◄◄  ▶  ►► with time
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        controls.setPadding(0, 12, 0, 4);
+
+        ImageView prev = new ImageView(this);
+        prev.setImageResource(android.R.drawable.ic_media_previous);
+        prev.setColorFilter(cText);
+        prev.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
+        prev.setPadding(12, 12, 12, 12);
+        prev.setOnClickListener(v -> { if (mMediaController != null) mMediaController.getTransportControls().skipToPrevious(); });
+        controls.addView(prev);
+
+        mMusicPlayPause = new ImageView(this);
+        mMusicPlayPause.setImageResource(android.R.drawable.ic_media_play);
+        mMusicPlayPause.setColorFilter(ThemeHelper.accentPurple(this));
+        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(88, 88);
+        ppLp.setMargins(12, 0, 12, 0);
+        mMusicPlayPause.setLayoutParams(ppLp);
+        mMusicPlayPause.setPadding(12, 12, 12, 12);
+        mMusicPlayPause.setOnClickListener(v -> {
+            if (mMediaController == null) return;
+            android.media.session.PlaybackState state = mMediaController.getPlaybackState();
+            if (state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING) {
+                mMediaController.getTransportControls().pause();
+            } else {
+                mMediaController.getTransportControls().play();
+            }
+        });
+        controls.addView(mMusicPlayPause);
+
+        ImageView next = new ImageView(this);
+        next.setImageResource(android.R.drawable.ic_media_next);
+        next.setColorFilter(cText);
+        next.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
+        next.setPadding(12, 12, 12, 12);
+        next.setOnClickListener(v -> { if (mMediaController != null) mMediaController.getTransportControls().skipToNext(); });
+        controls.addView(next);
+
+        card.addView(controls);
+
+        // Time
+        mMusicTime = new TextView(this);
+        mMusicTime.setTextSize(13);
+        mMusicTime.setTextColor(cTextSec);
+        mMusicTime.setGravity(Gravity.CENTER);
+        card.addView(mMusicTime);
+
+        frame.addView(card);
+        return frame;
+    }
+
+    private View buildRadioCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
+        card.setPadding(20, 8, 20, 8);
+        card.setElevation(6f);
+        card.setGravity(Gravity.CENTER);
+        card.setOnClickListener(v -> launchCarApp("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity"));
+
+        // Station name (big, top)
+        mRadioStation = new TextView(this);
+        mRadioStation.setText(getString(R.string.radio));
+        mRadioStation.setTextSize(18);
+        mRadioStation.setTextColor(cText);
+        mRadioStation.setGravity(Gravity.CENTER);
+        mRadioStation.setSingleLine(true);
+        mRadioStation.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        mRadioStation.setMarqueeRepeatLimit(-1);
+        mRadioStation.setSelected(true);
+        mRadioStation.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        card.addView(mRadioStation);
+
+        // Controls: ◄◄  ▶  ►►
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        controls.setPadding(0, 8, 0, 8);
+
+        ImageView prev = new ImageView(this);
+        prev.setImageResource(android.R.drawable.ic_media_previous);
+        prev.setColorFilter(cText);
+        prev.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
+        prev.setPadding(12, 12, 12, 12);
+        prev.setOnClickListener(v -> mVehicle.callSaicMethod("adaptergeneral", "radioSeekDown"));
+        controls.addView(prev);
+
+        mRadioPlayStop = new ImageView(this);
+        mRadioPlayStop.setImageResource(android.R.drawable.ic_media_play);
+        mRadioPlayStop.setColorFilter(ThemeHelper.accentOrange(this));
+        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(88, 88);
+        ppLp.setMargins(12, 0, 12, 0);
+        mRadioPlayStop.setLayoutParams(ppLp);
+        mRadioPlayStop.setPadding(12, 12, 12, 12);
+        mRadioPlayStop.setOnClickListener(v -> launchCarApp("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity"));
+        controls.addView(mRadioPlayStop);
+
+        ImageView next = new ImageView(this);
+        next.setImageResource(android.R.drawable.ic_media_next);
+        next.setColorFilter(cText);
+        next.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
+        next.setPadding(12, 12, 12, 12);
+        next.setOnClickListener(v -> mVehicle.callSaicMethod("adaptergeneral", "radioSeekUp"));
+        controls.addView(next);
+
+        card.addView(controls);
+
+        // Frequency + type label (below buttons)
+        mRadioTypeLabel = new TextView(this);
+        mRadioTypeLabel.setText("FM");
+        mRadioTypeLabel.setTextSize(12);
+        mRadioTypeLabel.setTextColor(ThemeHelper.accentOrange(this));
+        mRadioTypeLabel.setGravity(Gravity.CENTER);
+        card.addView(mRadioTypeLabel);
+
+        mRadioFreq = new TextView(this);
+        mRadioFreq.setText("--.- MHz");
+        mRadioFreq.setTextSize(14);
+        mRadioFreq.setTextColor(cTextSec);
+        mRadioFreq.setGravity(Gravity.CENTER);
+        card.addView(mRadioFreq);
+
+        return card;
+    }
+
+    private View buildNavCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.card_bg_ripple);
+        card.setPadding(20, 16, 20, 12);
+        card.setElevation(6f);
+        card.setOnClickListener(v -> launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity"));
+
+        // Active navigation info (shown when navigating)
+        mNavActiveInfo = new LinearLayout(this);
+        mNavActiveInfo.setOrientation(LinearLayout.VERTICAL);
+        mNavActiveInfo.setVisibility(View.GONE);
+        mNavActiveInfo.setLayoutParams(new LinearLayout.LayoutParams(-1, -1));
+        mNavActiveInfo.setGravity(Gravity.CENTER);
+
+        // Turn info (↗ Turn right in 200m)
+        mNavInfo = new TextView(this);
+        mNavInfo.setTextSize(17);
+        mNavInfo.setGravity(Gravity.CENTER);
+        mNavInfo.setTextColor(cText);
+        mNavInfo.setSingleLine(true);
+        mNavInfo.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        mNavInfo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        mNavActiveInfo.addView(mNavInfo);
+
+        // Road name
+        mNavRoad = new TextView(this);
+        mNavRoad.setTextSize(15);
+        mNavRoad.setTextColor(cTextSec);
+        mNavRoad.setSingleLine(true);
+        mNavRoad.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        mNavRoad.setMarqueeRepeatLimit(-1);
+        mNavRoad.setSelected(true);
+        mNavRoad.setPadding(0, 4, 0, 0);
+        mNavRoad.setGravity(Gravity.CENTER);
+        mNavActiveInfo.addView(mNavRoad);
+
+        // Spacer
+        View navSpacer = new View(this);
+        navSpacer.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+        mNavActiveInfo.addView(navSpacer);
+
+        // Bottom row: remaining distance/time | speed limit badge
+        LinearLayout navBottom = new LinearLayout(this);
+        navBottom.setOrientation(LinearLayout.HORIZONTAL);
+        navBottom.setGravity(Gravity.CENTER_VERTICAL);
+
+        mNavRemaining = new TextView(this);
+        mNavRemaining.setTextSize(13);
+        mNavRemaining.setTextColor(ThemeHelper.accentBlue(this));
+        mNavRemaining.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        navBottom.addView(mNavRemaining);
+
+        // Speed limit badge (red circle with number)
+        mNavSpeedLimit = new TextView(this);
+        mNavSpeedLimit.setTextSize(16);
+        mNavSpeedLimit.setTextColor(0xFFFF3B30);
+        mNavSpeedLimit.setTypeface(Typeface.DEFAULT_BOLD);
+        mNavSpeedLimit.setGravity(Gravity.CENTER);
+        mNavSpeedLimit.setVisibility(View.GONE);
+        android.graphics.drawable.GradientDrawable limitBg = new android.graphics.drawable.GradientDrawable();
+        limitBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        limitBg.setStroke(3, 0xFFFF3B30);
+        limitBg.setColor(cCard);
+        mNavSpeedLimit.setBackground(limitBg);
+        LinearLayout.LayoutParams limitLp = new LinearLayout.LayoutParams(48, 48);
+        mNavSpeedLimit.setLayoutParams(limitLp);
+        navBottom.addView(mNavSpeedLimit);
+
+        mNavActiveInfo.addView(navBottom);
+        card.addView(mNavActiveInfo);
+
+        // Quick nav buttons (shown when idle)
+        mNavQuickBtns = new LinearLayout(this);
+        mNavQuickBtns.setOrientation(LinearLayout.VERTICAL);
+        mNavQuickBtns.setGravity(Gravity.CENTER);
+        mNavQuickBtns.setLayoutParams(new LinearLayout.LayoutParams(-1, -1));
+
+        // Header
+        LinearLayout idleHeader = new LinearLayout(this);
+        idleHeader.setOrientation(LinearLayout.HORIZONTAL);
+        idleHeader.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView navIco = new ImageView(this);
+        navIco.setImageResource(R.drawable.ic_map);
+        navIco.setColorFilter(ThemeHelper.accentBlue(this));
+        navIco.setLayoutParams(new LinearLayout.LayoutParams(24, 24));
+        idleHeader.addView(navIco);
+        TextView navLbl = new TextView(this);
+        navLbl.setText(getString(R.string.navigation));
+        navLbl.setTextSize(12);
+        navLbl.setTextColor(ThemeHelper.accentBlue(this));
+        navLbl.setPadding(8, 0, 0, 0);
+        idleHeader.addView(navLbl);
+        mNavQuickBtns.addView(idleHeader);
+
+        // Spacer
+        View idleSpacer = new View(this);
+        idleSpacer.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+        mNavQuickBtns.addView(idleSpacer);
+
+        // Home / Office buttons row
+        LinearLayout quickRow = new LinearLayout(this);
+        quickRow.setOrientation(LinearLayout.HORIZONTAL);
+        quickRow.setGravity(Gravity.CENTER);
+        quickRow.setPadding(0, 8, 0, 8);
+
+        TextView homeBtn = new TextView(this);
+        homeBtn.setText("\uD83C\uDFE0 " + getString(R.string.nav_home));
+        homeBtn.setTextSize(18);
+        homeBtn.setTextColor(cText);
+        homeBtn.setPadding(32, 20, 32, 20);
+        homeBtn.setGravity(Gravity.CENTER);
+        homeBtn.setBackgroundResource(R.drawable.card_bg_ripple);
+        homeBtn.setOnClickListener(v -> {
+            try {
+                // Try SAIC adapter service first
+                mVehicle.callSaicMethod("adaptergeneral", "goHome");
+                // Also send broadcast and launch nav app
+                sendBroadcast(new Intent("SAIC_VR_ACTION_GO_HOME"));
+                sendBroadcast(new Intent("com.saicmotor.navigation.GO_HOME"));
+                launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity");
+            } catch (Exception ignored) {}
+        });
+        quickRow.addView(homeBtn);
+
+        View btnSpacer = new View(this);
+        btnSpacer.setLayoutParams(new LinearLayout.LayoutParams(16, 1));
+        quickRow.addView(btnSpacer);
+
+        TextView officeBtn = new TextView(this);
+        officeBtn.setText("\uD83C\uDFE2 " + getString(R.string.nav_office));
+        officeBtn.setTextSize(18);
+        officeBtn.setTextColor(cText);
+        officeBtn.setPadding(32, 20, 32, 20);
+        officeBtn.setGravity(Gravity.CENTER);
+        officeBtn.setBackgroundResource(R.drawable.card_bg_ripple);
+        officeBtn.setOnClickListener(v -> {
+            try {
+                mVehicle.callSaicMethod("adaptergeneral", "goOffice");
+                sendBroadcast(new Intent("SAIC_VR_ACTION_GO_OFFICE"));
+                sendBroadcast(new Intent("com.saicmotor.navigation.GO_OFFICE"));
+                launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity");
+            } catch (Exception ignored) {}
+        });
+        quickRow.addView(officeBtn);
+
+        mNavQuickBtns.addView(quickRow);
+
+        // Idle hint
+        TextView idleHint = new TextView(this);
+        idleHint.setText(getString(R.string.nav_idle));
+        idleHint.setTextSize(11);
+        idleHint.setTextColor(cTextTert);
+        idleHint.setGravity(Gravity.CENTER);
+        mNavQuickBtns.addView(idleHint);
+
+        card.addView(mNavQuickBtns);
+
+        return card;
+    }
+
+    private LinearLayout mPhoneCard;
+
+    private LinearLayout mPhoneCallList;
+
+    private View buildPhoneCard() {
+        mPhoneCard = new LinearLayout(this);
+        mPhoneCard.setOrientation(LinearLayout.VERTICAL);
+        mPhoneCard.setBackgroundResource(R.drawable.card_bg_ripple);
+        mPhoneCard.setPadding(20, 8, 20, 8);
+        mPhoneCard.setElevation(6f);
+        mPhoneCard.setGravity(Gravity.CENTER);
+        mPhoneCard.setOnClickListener(v -> launchCarApp("com.saicmotor.hmi.btcall", "com.saicmotor.hmi.btcall.BtCallActivity"));
+
+        // Device name header
+        mPhoneDevice = new TextView(this);
+        mPhoneDevice.setText(getString(R.string.phone_no_device));
+        mPhoneDevice.setTextSize(14);
+        mPhoneDevice.setTextColor(ThemeHelper.accentGreen(this));
+        mPhoneDevice.setGravity(Gravity.CENTER);
+        mPhoneDevice.setSingleLine(true);
+        mPhoneDevice.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        mPhoneDevice.setMarqueeRepeatLimit(-1);
+        mPhoneDevice.setSelected(true);
+        mPhoneCard.addView(mPhoneDevice);
+
+        // Recent calls list (populated by updatePhoneCard)
+        mPhoneCallList = new LinearLayout(this);
+        mPhoneCallList.setOrientation(LinearLayout.VERTICAL);
+        mPhoneCallList.setGravity(Gravity.CENTER);
+        mPhoneCallList.setPadding(0, 8, 0, 4);
+        LinearLayout.LayoutParams listLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+        mPhoneCallList.setLayoutParams(listLp);
+        mPhoneCard.addView(mPhoneCallList);
+
+        // Status line (call status / charger)
+        mPhoneStatus = new TextView(this);
+        mPhoneStatus.setTextSize(13);
+        mPhoneStatus.setTextColor(cTextSec);
+        mPhoneStatus.setGravity(Gravity.CENTER);
+        mPhoneCard.addView(mPhoneStatus);
+
+        return mPhoneCard;
+    }
+
+    private void loadRecentCalls() {
+        if (mPhoneCallList == null) return;
+        mPhoneCallList.removeAllViews();
+        try {
+            android.database.Cursor cursor = getContentResolver().query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                new String[]{
+                    android.provider.CallLog.Calls.CACHED_NAME,
+                    android.provider.CallLog.Calls.NUMBER,
+                    android.provider.CallLog.Calls.TYPE,
+                    android.provider.CallLog.Calls.DATE
+                },
+                null, null,
+                android.provider.CallLog.Calls.DATE + " DESC"
+            );
+            if (cursor == null) return;
+            int count = 0;
+            while (cursor.moveToNext() && count < 3) {
+                String name = cursor.getString(0);
+                String number = cursor.getString(1);
+                int type = cursor.getInt(2);
+                if (number == null || number.isEmpty()) continue;
+
+                String display = (name != null && !name.isEmpty()) ? name : number;
+                String typeIcon;
+                int typeColor;
+                switch (type) {
+                    case android.provider.CallLog.Calls.INCOMING_TYPE:
+                        typeIcon = "\u2199"; typeColor = ThemeHelper.accentGreen(this); break; // ↙
+                    case android.provider.CallLog.Calls.OUTGOING_TYPE:
+                        typeIcon = "\u2197"; typeColor = ThemeHelper.accentBlue(this); break; // ↗
+                    case android.provider.CallLog.Calls.MISSED_TYPE:
+                        typeIcon = "\u2199"; typeColor = 0xFFFF3B30; break; // ↙ red
+                    default:
+                        typeIcon = "\u2022"; typeColor = cTextSec; break; // •
+                }
+
+                final String callNumber = number;
+                TextView row = new TextView(this);
+                row.setText(typeIcon + " " + display);
+                row.setTextSize(20);
+                row.setTextColor(cText);
+                row.setSingleLine(true);
+                row.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+                row.setMarqueeRepeatLimit(-1);
+                row.setSelected(true);
+                row.setGravity(Gravity.CENTER);
+                row.setPadding(0, 8, 0, 8);
+                row.setCompoundDrawablePadding(4);
+                row.setOnClickListener(v -> {
+                    try {
+                        Intent callIntent = new Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:" + callNumber));
+                        startActivity(callIntent);
+                    } catch (Exception ignored) {}
+                });
+                mPhoneCallList.addView(row);
+                count++;
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.d(TAG, "Call log read: " + e.getMessage());
+        }
+    }
+
     private View buildDriveModeBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -651,12 +1100,6 @@ public class MainActivity extends Activity {
         r1.addView(aaBtn, gridLP());
         r1.addView(appBtn(getString(R.string.video), R.drawable.ic_video, () -> launchCarApp("com.saicmotor.hmi.video", "com.saicmotor.hmi.video.ui.activity.UsbVideoActivity")), gridLP());
         View view360Btn = appBtn(getString(R.string.view_360), R.drawable.ic_360, () -> launchCarApp("com.saicmotor.hmi.aroundview", "com.saicmotor.hmi.aroundview.aroundviewconfig.ui.AroundViewActivity"));
-        // Check AVM_CAL_MD (360 calibration) — 0 means no cameras installed/calibrated
-        String avmCal = mVehicle.getPropertyValue(com.emegelauncher.vehicle.YFVehicleProperty.AVM_CAL_MD);
-        if ("0".equals(avmCal) || "N/A".equals(avmCal) || avmCal == null) {
-            view360Btn.setAlpha(0.3f);
-            view360Btn.setOnClickListener(null);
-        }
         r1.addView(view360Btn, gridLP());
         btnGrid.addView(r1, new LinearLayout.LayoutParams(-1, 0, 1f));
 
@@ -1059,6 +1502,244 @@ public class MainActivity extends Activity {
 
         // Update graphs dashboard gauges and charts
         updateGraphsDashboard();
+        // Update dynamic cards
+        updateDynamicCards();
+    }
+
+    private void updateDynamicCards() {
+        updateMusicCard();
+        updateNavCard();
+        updatePhoneCard();
+        updateRadioCard();
+    }
+
+    private void updateMusicCard() {
+        if (mMusicTitle == null) return;
+        try {
+            android.media.session.MediaSessionManager msm =
+                (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(null);
+            if (controllers != null && !controllers.isEmpty()) {
+                mMediaController = controllers.get(0);
+                android.media.MediaMetadata meta = mMediaController.getMetadata();
+                if (meta != null) {
+                    String title = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+                    String artist = meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+                    android.graphics.Bitmap art = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART);
+                    if (art == null) art = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART);
+                    mMusicTitle.setText(title != null && !title.isEmpty() ? title : getString(R.string.music_unknown_title));
+                    mMusicArtist.setText(artist != null && !artist.isEmpty() ? artist : getString(R.string.music_unknown_artist));
+                    // Album art as dimmed card background
+                    if (art != null) {
+                        mMusicArt.setImageBitmap(android.graphics.Bitmap.createScaledBitmap(art,
+                            Math.max(1, mMusicArt.getWidth()), Math.max(1, mMusicArt.getHeight()), true));
+                        mMusicArt.setAlpha(0.4f);
+                        mMusicArt.setVisibility(View.VISIBLE);
+                    } else {
+                        mMusicArt.setVisibility(View.GONE);
+                    }
+                } else {
+                    mMusicTitle.setText(getString(R.string.music_no_playing));
+                    mMusicArtist.setText("");
+                    mMusicArt.setImageDrawable(null);
+                }
+                // Play/pause icon + elapsed time
+                android.media.session.PlaybackState state = mMediaController.getPlaybackState();
+                boolean playing = state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+                mMusicPlayPause.setImageResource(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
+                if (state != null && state.getPosition() > 0) {
+                    long pos = state.getPosition() / 1000;
+                    mMusicTime.setText(String.format("%d:%02d", pos / 60, pos % 60));
+                } else {
+                    mMusicTime.setText("");
+                }
+            } else {
+                mMediaController = null;
+                mMusicTitle.setText(getString(R.string.music_no_playing));
+                mMusicArtist.setText("");
+                mMusicArt.setImageDrawable(null);
+                mMusicPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                mMusicTime.setText("");
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Music card update: " + e.getMessage());
+        }
+    }
+
+    private void updateRadioCard() {
+        if (mRadioFreq == null) return;
+        try {
+            // Try to get radio info from MediaSession (radio apps often register a session)
+            boolean gotRadio = false;
+            try {
+                android.media.session.MediaSessionManager msm =
+                    (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
+                java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(null);
+                if (controllers != null) {
+                    for (android.media.session.MediaController ctrl : controllers) {
+                        String pkg = ctrl.getPackageName();
+                        if (pkg != null && pkg.contains("radio")) {
+                            android.media.MediaMetadata meta = ctrl.getMetadata();
+                            if (meta != null) {
+                                String title = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+                                String subtitle = meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+                                if (title != null && !title.isEmpty()) {
+                                    mRadioFreq.setText(title);
+                                    gotRadio = true;
+                                }
+                                if (subtitle != null && !subtitle.isEmpty()) {
+                                    mRadioStation.setText(subtitle);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            // Fallback: try to read from SAIC adapter
+            if (!gotRadio) {
+                String radioInfo = mVehicle.callSaicMethod("adaptergeneral", "getRadioFrequency");
+                if (radioInfo != null && !radioInfo.equals("N/A") && !radioInfo.isEmpty()) {
+                    mRadioFreq.setText(radioInfo);
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Radio card update: " + e.getMessage());
+        }
+    }
+
+    private void updateNavCard() {
+        if (mNavActiveInfo == null) return;
+        try {
+            // Try multiple methods to detect navigation
+            String navigating = mVehicle.callSaicMethod("adaptergeneral", "isMapNavigating");
+            String navigating2 = mVehicle.callSaicMethod("adaptervoice", "isMapNavigating");
+            String road = mVehicle.callSaicMethod("adaptergeneral", "getRoadName");
+            boolean isNav = "true".equalsIgnoreCase(navigating) || "1".equals(navigating)
+                || "true".equalsIgnoreCase(navigating2) || "1".equals(navigating2);
+            // Also check if road name is available (some firmwares report road even without isMapNavigating)
+            boolean hasRoad = road != null && !road.equals("N/A") && !road.isEmpty();
+            // Check FICM navi status as fallback
+            if (!isNav) {
+                String ficmNavi = mVehicle.getPropertyValue(YFVehicleProperty.FICM_NAVI_READY_STS);
+                if ("1".equals(ficmNavi) && hasRoad) isNav = true;
+            }
+            if (isNav || hasRoad) {
+                mNavActiveInfo.setVisibility(View.VISIBLE);
+                mNavQuickBtns.setVisibility(View.GONE);
+                String dist = mVehicle.callSaicMethod("adaptergeneral", "getRemainingDistance");
+                String time = mVehicle.callSaicMethod("adaptergeneral", "getRemainingTimes");
+                String speedLimit = mVehicle.callSaicMethod("adaptergeneral", "getSpeedLimitValue");
+                String guideStatus = mVehicle.callSaicMethod("adaptergeneral", "getGuideStatus");
+                // Turn info line
+                if (guideStatus != null && !guideStatus.equals("N/A") && !guideStatus.isEmpty()) {
+                    mNavInfo.setText(guideStatus);
+                } else {
+                    mNavInfo.setText(getString(R.string.navigation));
+                }
+                // Road name
+                if (hasRoad) mNavRoad.setText(road);
+                else mNavRoad.setText("");
+                // Format remaining distance + time
+                String remaining = "";
+                if (dist != null && !dist.equals("N/A") && !dist.equals("0")) {
+                    float distM = parseFloat(dist);
+                    remaining = distM > 1000 ? String.format("%.1f km", distM / 1000f) : String.format("%d m", (int) distM);
+                }
+                if (time != null && !time.equals("N/A") && !time.equals("0")) {
+                    int secs = (int) parseFloat(time);
+                    if (remaining.length() > 0) remaining += " \u2014 ";
+                    if (secs > 3600) remaining += (secs / 3600) + "h " + ((secs % 3600) / 60) + " min";
+                    else if (secs > 60) remaining += (secs / 60) + " min";
+                }
+                mNavRemaining.setText(remaining);
+                // Speed limit badge
+                if (speedLimit != null && !speedLimit.equals("N/A") && !speedLimit.equals("0")) {
+                    mNavSpeedLimit.setText(speedLimit);
+                    mNavSpeedLimit.setVisibility(View.VISIBLE);
+                } else {
+                    mNavSpeedLimit.setVisibility(View.GONE);
+                }
+            } else {
+                mNavActiveInfo.setVisibility(View.GONE);
+                mNavQuickBtns.setVisibility(View.VISIBLE);
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Nav card update: " + e.getMessage());
+        }
+    }
+
+    private boolean mPhoneCallPulse = false;
+    private int mPhoneCallLogTimer = 0;
+
+    private void updatePhoneCard() {
+        if (mPhoneDevice == null) return;
+        try {
+            // Get connected BT device name via Android BluetoothAdapter
+            String deviceName = null;
+            try {
+                android.bluetooth.BluetoothAdapter btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                if (btAdapter != null && btAdapter.isEnabled()) {
+                    for (android.bluetooth.BluetoothDevice dev : btAdapter.getBondedDevices()) {
+                        // Check if device is connected (profile state)
+                        if (dev.getBondState() == android.bluetooth.BluetoothDevice.BOND_BONDED) {
+                            String name = dev.getName();
+                            if (name != null && !name.isEmpty()) {
+                                deviceName = name;
+                                break; // take first bonded device with a name
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            if (deviceName != null) {
+                mPhoneDevice.setText(getString(R.string.phone_connected, deviceName));
+                mPhoneDevice.setTextColor(cText);
+            } else {
+                mPhoneDevice.setText(getString(R.string.phone_no_device));
+                mPhoneDevice.setTextColor(cTextSec);
+            }
+            // Call status
+            String callSts = mVehicle.getPropertyValue(YFVehicleProperty.FICM_CALL_STS);
+            String charger = mVehicle.getPropertyValue(YFVehicleProperty.PHONE_WIRELESS_CHAEGER_WORKING_STATE);
+            StringBuilder status = new StringBuilder();
+            boolean inCall = false;
+            if ("1".equals(callSts)) {
+                status.append(getString(R.string.phone_call_ringing));
+                mPhoneStatus.setTextColor(ThemeHelper.accentGreen(this));
+                inCall = true;
+            } else if ("2".equals(callSts)) {
+                status.append(getString(R.string.phone_call_active));
+                mPhoneStatus.setTextColor(ThemeHelper.accentGreen(this));
+                inCall = true;
+            } else {
+                mPhoneStatus.setTextColor(cTextSec);
+            }
+            if ("1".equals(charger)) {
+                if (status.length() > 0) status.append(" | ");
+                status.append("\u26A1 " + getString(R.string.phone_charger_active));
+            }
+            mPhoneStatus.setText(status.toString());
+            // Pulsing green border on call
+            if (inCall && mPhoneCard != null) {
+                mPhoneCallPulse = !mPhoneCallPulse;
+                android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
+                border.setCornerRadius(12);
+                border.setColor(cCard);
+                border.setStroke(mPhoneCallPulse ? 4 : 2, ThemeHelper.accentGreen(this));
+                mPhoneCard.setBackground(border);
+            } else if (mPhoneCard != null) {
+                mPhoneCard.setBackgroundResource(R.drawable.card_bg_ripple);
+            }
+            // Refresh call log every 30 seconds
+            mPhoneCallLogTimer++;
+            if (mPhoneCallLogTimer >= 30 || mPhoneCallLogTimer == 1) {
+                mPhoneCallLogTimer = 1;
+                loadRecentCalls();
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Phone card update: " + e.getMessage());
+        }
     }
 
     private void updateGraphsDashboard() {
@@ -1079,7 +1760,8 @@ public class MainActivity extends Activity {
         if (mGpPowerGauge != null) mGpPowerGauge.setValue(powerKw);
 
         // Consumption gauge (replaces RPM — motor RPM always 0 on Marvel R)
-        float consumption = Math.abs(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.ELEC_CSUMP_PERKM)));
+        // Instant consumption calculated from power/speed (independent of VHAL)
+        float consumption = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
         // Calculate our own average from BMS power × time ÷ distance (independent of car's calculation)
         long now = System.currentTimeMillis();
         float speedMs = speed / 3.6f; // km/h to m/s
@@ -1095,22 +1777,26 @@ public class MainActivity extends Activity {
             mGpRpm.setValue(consumption);
             mGpRpm.setSecondaryValue(displayAvg);
             mGpRpm.setSecondaryColor(ThemeHelper.accentTeal(this));
-            mGpRpm.setLabel(getString(R.string.consumption_label, consumption, displayAvg));
+            mGpRpm.setLabel(String.format("%.1f inst", consumption));
+            mGpRpm.setLabelColor(ThemeHelper.accentOrange(this));
+            mGpRpm.setLabel2(String.format("%.1f avg", displayAvg), ThemeHelper.accentTeal(this));
         }
 
         // Eco Score — session aggregate with live behavior indicator
-        // Instantaneous score based on current driving factors
-        float ecoInstant = 100f;
-        float consRef = displayAvg > 0.1f ? displayAvg : consumption;
-        if (consRef > 12) ecoInstant -= (consRef - 12) * 2.5f;
-        if (powerKw > 30) ecoInstant -= (powerKw - 30) * 0.8f;
-        if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
-        if (speed > 110) ecoInstant -= (speed - 110) * 0.5f;
-        ecoInstant = Math.max(0, Math.min(100, ecoInstant));
-        // Blend into session average (EMA: ~30s time constant at 1Hz polling)
-        if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
-        else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
-        float ecoScore = Math.max(0, Math.min(100, mEcoScoreAvg));
+        // Only update eco when car is moving — freeze when stopped
+        float ecoScore = mEcoScoreAvg;
+        if (speed > 3) {
+            float ecoInstant = 100f;
+            float consRef = displayAvg > 0.1f ? displayAvg : consumption;
+            if (consRef > 14) ecoInstant -= (consRef - 14) * 2.5f;
+            if (powerKw > 30) ecoInstant -= (powerKw - 30) * 1.0f;
+            if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
+            if (speed > 110) ecoInstant -= (speed - 110) * 1.5f;
+            ecoInstant = Math.max(0, Math.min(100, ecoInstant));
+            if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
+            else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
+            ecoScore = Math.max(0, Math.min(100, mEcoScoreAvg));
+        }
         if (mGpEcon != null) {
             mGpEcon.setValue(ecoScore);
             // Driving behavior indicator: colored arrows (shows live behavior)
@@ -1273,7 +1959,7 @@ public class MainActivity extends Activity {
             float pI = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
             float powerKw = pV * pI / 1000f;
             float soc = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
-            float consumption = Math.abs(parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.ELEC_CSUMP_PERKM)));
+            float consumption = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
             rec.addPoint(lat, lon, 0, speed, powerKw, soc, consumption, 0, 0);
         } catch (Exception ignored) {}
     }

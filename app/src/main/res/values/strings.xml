@@ -9,6 +9,30 @@
     <string name="radio">Radio</string>
     <string name="music">Music</string>
     <string name="phone">Phone</string>
+    <!-- Music card -->
+    <string name="music_no_playing">No music playing</string>
+    <string name="music_unknown_title">Unknown title</string>
+    <string name="music_unknown_artist">Unknown artist</string>
+    <!-- Radio card -->
+    <string name="radio_fm">FM</string>
+    <string name="radio_am">AM</string>
+    <string name="radio_dab">DAB</string>
+    <string name="radio_freq_fm">%1$.1f MHz</string>
+    <string name="radio_freq_am">%1$d kHz</string>
+    <string name="radio_off">Radio off</string>
+    <string name="radio_no_signal">No signal</string>
+    <!-- Navigation card -->
+    <string name="nav_remaining">%1$s | %2$s</string>
+    <string name="nav_speed_limit">%1$d</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_office">Office</string>
+    <string name="nav_idle">Tap to navigate</string>
+    <!-- Phone card -->
+    <string name="phone_connected">Connected: %1$s</string>
+    <string name="phone_no_device">No phone connected</string>
+    <string name="phone_call_ringing">Incoming call</string>
+    <string name="phone_call_active">Call in progress</string>
+    <string name="phone_charger_active">Wireless charging</string>
     <string name="view_360">360 View</string>
     <string name="carplay">CarPlay</string>
     <string name="android_auto">Android Auto</string>
@@ -268,6 +292,18 @@
     <string name="cloud_force_wake">Force TBox Wake + Refresh</string>
     <string name="cloud_refreshing">Refreshing status...</string>
     <string name="cloud_fetching_stats">Fetching statistics...</string>
+    <!-- Statistics charts -->
+    <string name="stats_mileage">Mileage</string>
+    <string name="stats_consumption">Consumption</string>
+    <string name="stats_co2">CO\u2082 Saved</string>
+    <string name="stats_avg_speed">Avg Speed</string>
+    <string name="stats_travel_time">Travel Time</string>
+    <string name="stats_total">Total</string>
+    <string name="stats_average">Avg</string>
+    <string name="stats_no_data">No data for this period</string>
+    <string name="stats_day">Day</string>
+    <string name="stats_month">Month</string>
+    <string name="stats_year">Year</string>
     <string name="cloud_fetching_keys">Fetching keys...</string>
     <string name="cloud_fetching_geofence">Fetching geofence...</string>
     <string name="cloud_fetching_pois">Fetching POIs...</string>

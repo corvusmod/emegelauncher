@@ -745,17 +745,17 @@ public class GraphsActivity extends Activity {
         mSocGauge.setValue(soc);
 
         // Consumption gauge (RPM always 0 on Marvel R)
-        float instantCons = Math.abs(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM));
-        // Calculate our own average from BMS power × time ÷ distance (independent of car's calculation)
         long now = System.currentTimeMillis();
         float speedMs = speed / 3.6f;
         float packV = readFloat(YFVehicleProperty.BMS_PACK_VOL);
         float packI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
         float powerKw = packV * packI / 1000f;
+        // Instant consumption from power/speed (independent of VHAL)
+        float instantCons = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
         if (mPrevSpeedTimeMs > 0) {
             float dt = (now - mPrevSpeedTimeMs) / 1000f;
-            if (dt > 0 && dt < 5f && speed > 5) { // only accumulate when moving
-                mEnergyAccumKwh += powerKw * dt / 3600.0; // regen subtracts
+            if (dt > 0 && dt < 5f && speed > 5) {
+                mEnergyAccumKwh += powerKw * dt / 3600.0;
                 mDistanceAccumKm += speed * dt / 3600.0;
             }
         }
@@ -763,19 +763,24 @@ public class GraphsActivity extends Activity {
         mRpmGauge.setValue(instantCons);
         mRpmGauge.setSecondaryValue(displayAvg);
         mRpmGauge.setSecondaryColor(C_TEAL);
-        mRpmGauge.setLabel(getString(R.string.consumption_label, instantCons, displayAvg));
+        mRpmGauge.setLabel(String.format("%.1f inst", instantCons));
+        mRpmGauge.setLabelColor(C_ORANGE);
+        mRpmGauge.setLabel2(String.format("%.1f avg", displayAvg), C_TEAL);
 
-        // Eco Score — session aggregate with live behavior indicator
-        float ecoInstant = 100f;
-        float consRef = displayAvg > 0.1f ? displayAvg : instantCons;
-        if (consRef > 12) ecoInstant -= (consRef - 12) * 2.5f;
-        if (powerKw > 30) ecoInstant -= (powerKw - 30) * 0.8f;
-        if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
-        if (speed > 110) ecoInstant -= (speed - 110) * 0.5f;
-        ecoInstant = Math.max(0, Math.min(100, ecoInstant));
-        if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
-        else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
-        float ecoD = Math.max(0, Math.min(100, mEcoScoreAvg));
+        // Eco Score — freeze when stopped
+        float ecoD = mEcoScoreAvg;
+        if (speed > 3) {
+            float ecoInstant = 100f;
+            float consRef = displayAvg > 0.1f ? displayAvg : instantCons;
+            if (consRef > 14) ecoInstant -= (consRef - 14) * 2.5f;
+            if (powerKw > 30) ecoInstant -= (powerKw - 30) * 1.0f;
+            if (powerKw < -5) ecoInstant += Math.min(10, Math.abs(powerKw + 5) * 0.5f);
+            if (speed > 110) ecoInstant -= (speed - 110) * 1.5f;
+            ecoInstant = Math.max(0, Math.min(100, ecoInstant));
+            if (!mEcoScoreInit) { mEcoScoreAvg = ecoInstant; mEcoScoreInit = true; }
+            else { mEcoScoreAvg = mEcoScoreAvg * 0.97f + ecoInstant * 0.03f; }
+            ecoD = Math.max(0, Math.min(100, mEcoScoreAvg));
+        }
         mEfficiencyGauge.setValue(ecoD);
         String indicator;
         int indicatorColor;
@@ -876,8 +881,11 @@ public class GraphsActivity extends Activity {
         mSocBmsChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_SOC));
         mVoltChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_VOL));
         mCurrentChart.addPoint(readFloat(YFVehicleProperty.BMS_PACK_CRNT));
-        // Raw value is ~82.3 for real ~8.23 kWh/100km → divide by 10
-        mConsumptionChart.addPoint(readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM));
+        // Consumption from power/speed (same calc as dashboard)
+        float eSpeed = readSaicFloat("condition", "getCarSpeed");
+        if (eSpeed == 0) eSpeed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
+        float ePower = readFloat(YFVehicleProperty.BMS_PACK_VOL) * readFloat(YFVehicleProperty.BMS_PACK_CRNT) / 1000f;
+        mConsumptionChart.addPoint(eSpeed > 1 ? Math.abs(ePower) / eSpeed * 100f : 0);
     }
 
     private void updateCharging() {
@@ -1122,12 +1130,13 @@ public class GraphsActivity extends Activity {
         float avgRaw = readFloat(YFVehicleProperty.CRNT_AVG_ELEC_CSUMP);
         mAvgConsumption.setText(getString(R.string.graph_avg_consumption, String.format("%.1f", avgRaw)));
 
-        float instantRaw = readFloat(YFVehicleProperty.ELEC_CSUMP_PERKM);
-        float instantCons = Math.abs(instantRaw);
-        mTotalConsumed.setText(getString(R.string.trip_instant, String.format("%.1f", instantCons)));
-
         float pV = readFloat(YFVehicleProperty.BMS_PACK_VOL);
         float pI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
+        float tripSpeed = readSaicFloat("condition", "getCarSpeed");
+        if (tripSpeed == 0) tripSpeed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
+        float tripPower = pV * pI / 1000f;
+        float instantCons = tripSpeed > 1 ? Math.abs(tripPower) / tripSpeed * 100f : 0;
+        mTotalConsumed.setText(getString(R.string.trip_instant, String.format("%.1f", instantCons)));
         float pKw = pV * pI / 1000f;
         mRegenEnergy.setText(pKw < 0
             ? getString(R.string.trip_power_regen, String.format("%.1f", pKw))

@@ -28,6 +28,10 @@ A custom home screen launcher for the **MG Marvel R** electric vehicle, designed
 >
 > **Only install this application from the official source repository.** Modified versions obtained from third parties could silently exfiltrate this data to external servers. Before installing any build you did not compile yourself, **review the source code**.
 
+> **BETA SOFTWARE**
+>
+> This application is currently **in active development**. Some features may not work as expected, and new functionality is being added regularly. If you encounter any bugs or unexpected behavior, please [open an issue](../../issues) on this repository. Your feedback helps improve the project for everyone.
+
 ---
 
 ## Features
@@ -38,12 +42,16 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 ### Main Screen (default)
 - **Weather**: Dynamic weather icon (sunny/cloudy/rain/snow/fog/storm), forecast temp, outside sensor temp, cabin temp from cloud (when available). Tap opens weather app.
 - **Battery**: Dynamic battery fill icon (120dp) showing SOC level (green >50%, orange 20-50%, red <20%), SOC percentage, range, standby estimate, BMS raw data, 12V battery voltage from cloud. Tap opens car's charge management screen.
-- **Map / Music / Radio / Phone**: Large touch-friendly buttons to launch respective apps
+- **Navigation card**: Live turn-by-turn info when navigating (road name, distance/time remaining, speed limit badge). Quick Home/Office buttons when idle. Tap opens Telenav
+- **Music card**: Album art background, song title + artist (marquee scroll), play/pause/next/prev controls (88px touch targets), elapsed time. Via Android MediaSessionManager (BT/USB/streaming). Tap opens music app
+- **Radio card**: Station name, seek up/down controls (72px), frequency + FM/AM type below. Tap opens radio app
+- **Phone card**: Connected BT device name, last 3 calls with type icons (↙ incoming/↗ outgoing/↙ missed), tap call to dial. Pulsing green border on incoming call. Wireless charger status. Read-only — tap opens phone app
 - **Drive Mode bar**: Current mode (Eco/Normal/Sport/Winter) + regen level
 - **Auto Theme**: Follows car display (day/night), or manual dark/light override
+- **Layout**: Row 1: Navigation | Battery. Row 2: Music | Radio. Row 3: Weather | Phone
 
 ### Live Dashboard (swipe left)
-- **4 gauges**: Speed, Battery SOC, Consumption (dual-dot: instant from VHAL + BMS-calculated session average, energy÷distance), Eco Score — animated with labels below
+- **4 gauges**: Speed, Battery SOC, Consumption (dual-dot: instant from power÷speed, BMS-calculated session average), Eco Score — animated with color-coded labels (orange instant, teal average)
 - **Eco Score**: Session-aggregate driving efficiency score (exponential moving average, ~30s time constant) with live behavior arrows (red=hard accel, orange=accelerating, green=regen/coasting, gray=steady). Gauge arc color: green >70, orange 40-70, red <40
 - **Power gauge**: Centered zero-point arc (orange=consumption, green=regen), animated transitions
 - **G-Meter**: Round 2D G-force visualization (1G max), longitudinal G from speed derivative, lateral G from steering wheel angle. Peak accel/brake/left/right values displayed below
@@ -72,9 +80,12 @@ Connects to MG's cloud API for data not available locally. Auto re-login on toke
 - Power mode, engine status, EV range, seat heating, steering heat
 
 **Driving statistics** (interactive):
-- Day / Month / Year period selector with date navigation arrows
-- 5 chart types: Mileage, Consumption, CO₂ Saved, Avg Speed, Travel Time
-- Summary row per chart: total, average, max values
+- Segmented control: Day / Month / Year (pill-style toggle with highlighted selection)
+- Date navigation: ◀ date ▶ arrows
+- 5 bar charts with x-axis date labels: Mileage, Consumption, CO₂ Saved, Avg Speed, Travel Time
+- Y-axis grid with value labels, value annotations above bars
+- Current period bar highlighted, summary row (Total / Avg / Max) per chart
+- All labels translated (EN/ES)
 
 **BT Digital Key management**: View keys with status/MAC/validity, activate/deactivate/revoke
 
@@ -317,7 +328,8 @@ app/src/main/java/com/emegelauncher/
     |- ArcGaugeView.java      # Arc gauge with animated value + label below
     |- PowerGaugeView.java    # Center-zero power gauge (consume/regen)
     |- LineChartView.java     # Line chart with auto-scaling
-    |- GMeterView.java        # Circular G-force meter (2G max)
+    |- GMeterView.java        # Circular G-force meter (1G max) with peak tracking
+    |- BarChartView.java      # Bar chart with x-axis date labels (cloud statistics)
     |- TireDiagramView.java   # Top-down car silhouette + 4-corner tire pressure
     |- BatteryView.java       # Dynamic battery fill icon (SOC-based color)
 ```

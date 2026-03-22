@@ -9,6 +9,30 @@
     <string name="radio">Radio</string>
     <string name="music">Música</string>
     <string name="phone">Teléfono</string>
+    <!-- Tarjeta música -->
+    <string name="music_no_playing">Sin música</string>
+    <string name="music_unknown_title">Título desconocido</string>
+    <string name="music_unknown_artist">Artista desconocido</string>
+    <!-- Tarjeta radio -->
+    <string name="radio_fm">FM</string>
+    <string name="radio_am">AM</string>
+    <string name="radio_dab">DAB</string>
+    <string name="radio_freq_fm">%1$.1f MHz</string>
+    <string name="radio_freq_am">%1$d kHz</string>
+    <string name="radio_off">Radio apagada</string>
+    <string name="radio_no_signal">Sin señal</string>
+    <!-- Tarjeta navegación -->
+    <string name="nav_remaining">%1$s | %2$s</string>
+    <string name="nav_speed_limit">%1$d</string>
+    <string name="nav_home">Casa</string>
+    <string name="nav_office">Trabajo</string>
+    <string name="nav_idle">Toca para navegar</string>
+    <!-- Tarjeta teléfono -->
+    <string name="phone_connected">Conectado: %1$s</string>
+    <string name="phone_no_device">Sin teléfono conectado</string>
+    <string name="phone_call_ringing">Llamada entrante</string>
+    <string name="phone_call_active">Llamada en curso</string>
+    <string name="phone_charger_active">Carga inalámbrica</string>
     <string name="view_360">Vista 360</string>
     <string name="carplay">CarPlay</string>
     <string name="android_auto">Android Auto</string>
@@ -268,6 +292,18 @@
     <string name="cloud_force_wake">Despertar TBox + Actualizar</string>
     <string name="cloud_refreshing">Actualizando estado...</string>
     <string name="cloud_fetching_stats">Obteniendo estadísticas...</string>
+    <!-- Gráficos estadísticas -->
+    <string name="stats_mileage">Kilometraje</string>
+    <string name="stats_consumption">Consumo</string>
+    <string name="stats_co2">CO\u2082 Ahorrado</string>
+    <string name="stats_avg_speed">Velocidad Media</string>
+    <string name="stats_travel_time">Tiempo de Viaje</string>
+    <string name="stats_total">Total</string>
+    <string name="stats_average">Media</string>
+    <string name="stats_no_data">Sin datos para este período</string>
+    <string name="stats_day">Día</string>
+    <string name="stats_month">Mes</string>
+    <string name="stats_year">Año</string>
     <string name="cloud_fetching_keys">Obteniendo llaves...</string>
     <string name="cloud_fetching_geofence">Obteniendo geovalla...</string>
     <string name="cloud_fetching_pois">Obteniendo POIs...</string>

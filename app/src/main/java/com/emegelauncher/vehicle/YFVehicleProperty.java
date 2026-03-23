@@ -2,8 +2,7 @@
  * Emegelauncher - Custom Launcher for MG Marvel R
  * Copyright (C) 2026 Emegelauncher Contributors
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License v3.0 with the
+ * Licensed under the Apache License, Version 2.0 with the
  * Commons Clause License Condition v1.0 (see LICENSE files).
  *
  * You may NOT sell this software. Donations are welcome.

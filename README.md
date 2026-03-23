@@ -359,13 +359,13 @@ app/src/main/java/com/emegelauncher/
 
 ## License
 
-This project is licensed under **GNU General Public License v3.0** with the **Commons Clause License Condition v1.0**.
+This project is licensed under the **Apache License, Version 2.0** with the **Commons Clause License Condition v1.0**.
 
 **You may**: use, modify, share, fork, and accept donations.
 
 **You may NOT**: sell this software, offer it as a paid service, or bundle it in commercial products.
 
-See [LICENSE](LICENSE), [LICENSE-GPL3](LICENSE-GPL3), and [LICENSE-COMMONS-CLAUSE](LICENSE-COMMONS-CLAUSE) for full details.
+See [LICENSE](LICENSE), [LICENSE-APACHE2](LICENSE-APACHE2), and [LICENSE-COMMONS-CLAUSE](LICENSE-COMMONS-CLAUSE) for full details.
 
 ---
 
@@ -381,7 +381,7 @@ Your support helps fund testing hardware, development time, and new features. Th
 
 ## Contributing
 
-Contributions are welcome. By submitting a pull request, you agree that your contribution will be licensed under the same GPLv3 + Commons Clause terms.
+Contributions are welcome. By submitting a pull request, you agree that your contribution will be licensed under the same Apache 2.0 + Commons Clause terms.
 
 ## Acknowledgments
 

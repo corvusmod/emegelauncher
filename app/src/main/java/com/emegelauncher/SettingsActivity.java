@@ -83,6 +83,9 @@ public class SettingsActivity extends Activity {
         // Cloud API (iSMART)
         addCloudSection();
 
+        // ABRP integration
+        addAbrpSection();
+
         // Driver profile (drive mode + regen level)
         addDriverProfile();
 
@@ -265,6 +268,126 @@ public class SettingsActivity extends Activity {
         if (mCloud.getMileageOfDay() >= 0) { if (sb.length() > 0) sb.append("\n"); sb.append("Today: ").append(mCloud.getMileageOfDay() / 10.0).append(" km"); }
         if (mCloud.getMileageSinceLastCharge() >= 0) { sb.append("  |  Since charge: ").append(mCloud.getMileageSinceLastCharge() / 10.0).append(" km"); }
         tv.setText(sb.toString());
+    }
+
+    // ==================== ABRP Integration ====================
+
+    private com.emegelauncher.vehicle.AbrpManager mAbrp;
+
+    private void addAbrpSection() {
+        mAbrp = new com.emegelauncher.vehicle.AbrpManager(this);
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        // Section header
+        TextView header = new TextView(this);
+        header.setText(getString(R.string.abrp_section));
+        header.setTextSize(12);
+        header.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        header.setPadding(4, 40, 0, 8);
+        parent.addView(header);
+
+        // Description
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.abrp_desc));
+        desc.setTextSize(13);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        desc.setPadding(4, 0, 4, 12);
+        parent.addView(desc);
+
+        // Enable/disable toggle
+        LinearLayout toggleRow = new LinearLayout(this);
+        toggleRow.setOrientation(LinearLayout.HORIZONTAL);
+        toggleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        toggleRow.setPadding(4, 8, 4, 8);
+
+        TextView toggleLabel = new TextView(this);
+        toggleLabel.setText(getString(R.string.abrp_enable));
+        toggleLabel.setTextSize(15);
+        toggleLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        toggleLabel.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        toggleRow.addView(toggleLabel);
+
+        android.widget.Switch toggleSwitch = new android.widget.Switch(this);
+        toggleSwitch.setChecked(mAbrp.isEnabled() || mAbrp.getUserToken() != null);
+        toggleSwitch.setOnCheckedChangeListener((btn, checked) -> {
+            mAbrp.setEnabled(checked);
+            updateAbrpStatus();
+        });
+        toggleRow.addView(toggleSwitch);
+        parent.addView(toggleRow);
+
+        // User token input
+        LinearLayout tokenRow = new LinearLayout(this);
+        tokenRow.setOrientation(LinearLayout.VERTICAL);
+        tokenRow.setPadding(4, 8, 4, 8);
+
+        TextView tokenLabel = new TextView(this);
+        tokenLabel.setText(getString(R.string.abrp_token_label));
+        tokenLabel.setTextSize(13);
+        tokenLabel.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextSecondary));
+        tokenRow.addView(tokenLabel);
+
+        android.widget.EditText tokenInput = new android.widget.EditText(this);
+        tokenInput.setHint(getString(R.string.abrp_token_hint));
+        tokenInput.setTextSize(14);
+        tokenInput.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        tokenInput.setHintTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        tokenInput.setSingleLine(true);
+        String savedToken = mAbrp.getUserToken();
+        if (savedToken != null) tokenInput.setText(savedToken);
+        tokenRow.addView(tokenInput);
+
+        // Save token button
+        TextView saveBtn = new TextView(this);
+        saveBtn.setText(getString(R.string.abrp_save_token));
+        saveBtn.setTextSize(14);
+        saveBtn.setTextColor(ThemeHelper.accentBlue(this));
+        saveBtn.setPadding(0, 12, 0, 4);
+        saveBtn.setOnClickListener(v -> {
+            String token = tokenInput.getText().toString().trim();
+            if (!token.isEmpty()) {
+                mAbrp.setUserToken(token);
+                mAbrp.setEnabled(true);
+                toggleSwitch.setChecked(true);
+                android.widget.Toast.makeText(this, getString(R.string.abrp_token_saved), android.widget.Toast.LENGTH_SHORT).show();
+            } else {
+                mAbrp.setUserToken(null);
+                mAbrp.setEnabled(false);
+                toggleSwitch.setChecked(false);
+            }
+            updateAbrpStatus();
+        });
+        tokenRow.addView(saveBtn);
+        parent.addView(tokenRow);
+
+        // Status label
+        TextView statusLabel = new TextView(this);
+        statusLabel.setTag("abrp_status");
+        statusLabel.setTextSize(13);
+        statusLabel.setPadding(4, 8, 4, 8);
+        parent.addView(statusLabel);
+
+        updateAbrpStatus();
+    }
+
+    private void updateAbrpStatus() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+        TextView status = parent.findViewWithTag("abrp_status");
+        if (status == null) return;
+
+        if (!mAbrp.hasApiKey()) {
+            status.setText(getString(R.string.abrp_no_api_key));
+            status.setTextColor(ThemeHelper.accentRed(this));
+        } else if (mAbrp.isEnabled()) {
+            status.setText(getString(R.string.abrp_active));
+            status.setTextColor(ThemeHelper.accentGreen(this));
+        } else if (mAbrp.getUserToken() != null && !mAbrp.getUserToken().isEmpty()) {
+            status.setText(getString(R.string.abrp_configured));
+            status.setTextColor(ThemeHelper.accentOrange(this));
+        } else {
+            status.setText(getString(R.string.abrp_not_configured));
+            status.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        }
     }
 
     // ==================== Driver Profile ====================

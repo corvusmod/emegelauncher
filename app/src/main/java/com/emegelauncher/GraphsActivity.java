@@ -606,6 +606,14 @@ public class GraphsActivity extends Activity {
                 jsonBtn.setOnClickListener(v -> exportStoredTrip(tripName, "json"));
                 exportRow.addView(jsonBtn);
 
+                TextView kmlBtn = new TextView(this);
+                kmlBtn.setText("KML");
+                kmlBtn.setTextSize(13);
+                kmlBtn.setTextColor(ThemeHelper.accentOrange(this));
+                kmlBtn.setPadding(16, 8, 16, 8);
+                kmlBtn.setOnClickListener(v -> exportStoredTrip(tripName, "kml"));
+                exportRow.addView(kmlBtn);
+
                 mContent.addView(exportRow, infoLP());
             }
         }

@@ -481,4 +481,33 @@
     <string name="donate_title">SUPPORT THE PROJECT</string>
     <string name="donate_text">Emegelauncher is free and open source.\nIf you find it useful, consider supporting\nits development with a donation.</string>
     <string name="donate_scan">Scan with your phone to donate via PayPal</string>
+    <!-- Charging screen -->
+    <string name="charge_not_charging">Not Charging</string>
+    <string name="charge_charging">Charging</string>
+    <string name="charge_power">Power</string>
+    <string name="charge_time_remaining">Time remaining: %1$s</string>
+    <string name="charge_energy">Session energy: %1$s kWh</string>
+    <string name="charge_range_gained">Range gained: %1$s km</string>
+    <string name="charge_pack_info">Pack: %1$s V | %2$s A</string>
+    <string name="charge_ac_input">AC input: %1$s V | %2$s A</string>
+    <string name="charge_efficiency">Charger efficiency: %1$s</string>
+    <string name="charge_plug_status">Plug: %1$s</string>
+    <string name="charge_connected">connected</string>
+    <string name="charge_stored_sessions">STORED CHARGE SESSIONS</string>
+    <string name="charge_no_sessions">No stored sessions</string>
+    <string name="charge_view_graph">View graph</string>
+    <string name="charge_target_soc">Target SOC: %1$s</string>
+    <string name="charge_peak_power">Peak power: %1$s</string>
+    <!-- ABRP Integration -->
+    <string name="abrp_section">ABRP INTEGRATION</string>
+    <string name="abrp_desc">Send live telemetry to A Better Route Planner for real-time trip planning. Get your user token from the ABRP app: Settings → Car → Live Data → Generic.</string>
+    <string name="abrp_enable">Enable ABRP telemetry</string>
+    <string name="abrp_token_label">User Token</string>
+    <string name="abrp_token_hint">Paste your ABRP user token here</string>
+    <string name="abrp_save_token">Save token</string>
+    <string name="abrp_token_saved">ABRP token saved</string>
+    <string name="abrp_active">ABRP: Active — sending telemetry</string>
+    <string name="abrp_configured">ABRP: Configured — toggle to enable</string>
+    <string name="abrp_not_configured">ABRP: Not configured — enter token above</string>
+    <string name="abrp_no_api_key">ABRP: Waiting for API key — feature coming soon</string>
 </resources>

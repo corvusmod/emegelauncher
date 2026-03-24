@@ -481,4 +481,33 @@
     <string name="donate_title">APOYA EL PROYECTO</string>
     <string name="donate_text">Emegelauncher es gratuito y de código abierto.\nSi te resulta útil, considera apoyar\nsu desarrollo con una donación.</string>
     <string name="donate_scan">Escanea con tu móvil para donar vía PayPal</string>
+    <!-- Pantalla de carga -->
+    <string name="charge_not_charging">Sin cargar</string>
+    <string name="charge_charging">Cargando</string>
+    <string name="charge_power">Potencia</string>
+    <string name="charge_time_remaining">Tiempo restante: %1$s</string>
+    <string name="charge_energy">Energía sesión: %1$s kWh</string>
+    <string name="charge_range_gained">Autonomía ganada: %1$s km</string>
+    <string name="charge_pack_info">Pack: %1$s V | %2$s A</string>
+    <string name="charge_ac_input">Entrada AC: %1$s V | %2$s A</string>
+    <string name="charge_efficiency">Eficiencia cargador: %1$s</string>
+    <string name="charge_plug_status">Conector: %1$s</string>
+    <string name="charge_connected">conectado</string>
+    <string name="charge_stored_sessions">SESIONES DE CARGA ALMACENADAS</string>
+    <string name="charge_no_sessions">Sin sesiones almacenadas</string>
+    <string name="charge_view_graph">Ver gráfico</string>
+    <string name="charge_target_soc">SOC objetivo: %1$s</string>
+    <string name="charge_peak_power">Potencia pico: %1$s</string>
+    <!-- Integración ABRP -->
+    <string name="abrp_section">INTEGRACIÓN ABRP</string>
+    <string name="abrp_desc">Envía telemetría en tiempo real a A Better Route Planner para planificación de rutas. Obtén tu token en la app ABRP: Ajustes → Coche → Datos en vivo → Genérico.</string>
+    <string name="abrp_enable">Activar telemetría ABRP</string>
+    <string name="abrp_token_label">Token de usuario</string>
+    <string name="abrp_token_hint">Pega tu token de ABRP aquí</string>
+    <string name="abrp_save_token">Guardar token</string>
+    <string name="abrp_token_saved">Token ABRP guardado</string>
+    <string name="abrp_active">ABRP: Activo — enviando telemetría</string>
+    <string name="abrp_configured">ABRP: Configurado — activa para enviar</string>
+    <string name="abrp_not_configured">ABRP: No configurado — introduce token</string>
+    <string name="abrp_no_api_key">ABRP: Esperando clave API — próximamente</string>
 </resources>

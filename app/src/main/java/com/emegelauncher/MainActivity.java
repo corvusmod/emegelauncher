@@ -50,11 +50,12 @@ import java.util.Set;
 
 public class MainActivity extends Activity {
     private static final String TAG = "MainActivity";
-    private static final int PAGE_GRAPHS = 0, PAGE_MAIN = 1, PAGE_APPS = 2, PAGE_OTHER = 3;
+    private static final int PAGE_CHARGING = 0, PAGE_GRAPHS = 1, PAGE_MAIN = 2, PAGE_APPS = 3, PAGE_OTHER = 4;
 
     private VehicleServiceManager mVehicle;
     private WeatherManager mWeather;
     private SaicCloudManager mCloud;
+    private com.emegelauncher.vehicle.AbrpManager mAbrp;
     private boolean mCloudQueried = false;
     private final Handler mHandler = new Handler(android.os.Looper.getMainLooper());
     private boolean mLastDarkMode;
@@ -100,6 +101,7 @@ public class MainActivity extends Activity {
         mVehicle = VehicleServiceManager.getInstance(this);
         mVehicle.bindService();
         mCloud = new SaicCloudManager(this);
+        mAbrp = new com.emegelauncher.vehicle.AbrpManager(this);
         mWeather = new WeatherManager();
         mWeather.register(this, (weather, temp) -> {
             if (mWeatherDesc != null) mWeatherDesc.setText(weather);
@@ -114,7 +116,7 @@ public class MainActivity extends Activity {
         mPager = new ViewPager(this);
         mPager.setAdapter(new HomePagerAdapter());
         mPager.setCurrentItem(PAGE_MAIN);
-        mPager.setOffscreenPageLimit(3);
+        mPager.setOffscreenPageLimit(4);
         root.addView(mPager, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Page indicator dots
@@ -196,13 +198,14 @@ public class MainActivity extends Activity {
     // ==================== ViewPager Adapter ====================
 
     private class HomePagerAdapter extends PagerAdapter {
-        @Override public int getCount() { return 4; }
+        @Override public int getCount() { return 5; }
         @Override public boolean isViewFromObject(View v, Object o) { return v == o; }
 
         @Override
         public Object instantiateItem(ViewGroup container, int position) {
             View page;
             switch (position) {
+                case PAGE_CHARGING: page = buildChargingPage(); break;
                 case PAGE_GRAPHS: page = buildGraphsPage(); break;
                 case PAGE_MAIN:   page = buildMainPage(); break;
                 case PAGE_APPS:   page = buildAppsPage(); break;
@@ -228,7 +231,7 @@ public class MainActivity extends Activity {
         bar.setPadding(0, 4, 0, 6);
 
         int accent = ThemeHelper.accentBlue(this);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             TextView dot = new TextView(this);
             dot.setTag("dot_" + i);
             dot.setText("\u2022");
@@ -242,7 +245,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageSelected(int pos) {
                 int accentColor = ThemeHelper.accentBlue(MainActivity.this);
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 5; i++) {
                     TextView d = bar.findViewWithTag("dot_" + i);
                     if (d != null) {
                         d.setTextColor(i == pos ? accentColor : cTextTert);
@@ -1373,6 +1376,327 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ==================== Page: Charging ====================
+
+    private com.emegelauncher.widget.ChargingChartView mChargingChart;
+    private com.emegelauncher.widget.ArcGaugeView mChargeSocGauge, mChargePowerGauge;
+    private TextView mChargeStatus, mChargeTimeRemaining, mChargeEnergy, mChargeRangeGained;
+    private TextView mChargePackInfo, mChargeAcInfo, mChargeEfficiency, mChargePlugInfo;
+    private TextView mChargeTargetSoc, mChargePeakPower;
+    private boolean mChargeWasCharging = false;
+    private LinearLayout mChargeSessionList;
+
+    private View buildChargingPage() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundResource(ThemeHelper.isDarkMode(this) ? R.drawable.bg_gradient_dark : R.drawable.bg_gradient_light);
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(16, 8, 16, 8);
+
+        // Status header
+        mChargeStatus = new TextView(this);
+        mChargeStatus.setText(getString(R.string.charge_not_charging));
+        mChargeStatus.setTextSize(20);
+        mChargeStatus.setTextColor(cText);
+        mChargeStatus.setGravity(Gravity.CENTER);
+        mChargeStatus.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        mChargeStatus.setPadding(0, 8, 0, 8);
+        page.addView(mChargeStatus);
+
+        // SOC + Power gauges side by side
+        LinearLayout gaugeRow = new LinearLayout(this);
+        gaugeRow.setOrientation(LinearLayout.HORIZONTAL);
+        mChargeSocGauge = newGauge("SOC", "%", 100, ThemeHelper.accentGreen(this));
+        mChargePowerGauge = newGauge(getString(R.string.charge_power), "kW", 100, ThemeHelper.accentBlue(this));
+        LinearLayout.LayoutParams gaugeLp = new LinearLayout.LayoutParams(0, 240, 1f);
+        gaugeLp.setMargins(4, 4, 4, 4);
+        gaugeRow.addView(mChargeSocGauge, gaugeLp);
+        gaugeRow.addView(mChargePowerGauge, new LinearLayout.LayoutParams(gaugeLp));
+        page.addView(gaugeRow);
+
+        // Multi-series chart
+        mChargingChart = new com.emegelauncher.widget.ChargingChartView(this);
+        mChargingChart.setTextColor(cTextSec);
+        mChargingChart.setGridColor(cDivider);
+        mChargingChart.setBgColor(cCard);
+        mChargingChart.setBackgroundColor(cCard);
+        LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(-1, 350);
+        chartLp.setMargins(0, 8, 0, 8);
+        page.addView(mChargingChart, chartLp);
+
+        // Info cards
+        mChargeTimeRemaining = newInfoTv(getString(R.string.charge_time_remaining, "--"));
+        page.addView(mChargeTimeRemaining);
+        mChargeEnergy = newInfoTv(getString(R.string.charge_energy, "0.0"));
+        page.addView(mChargeEnergy);
+        mChargeRangeGained = newInfoTv(getString(R.string.charge_range_gained, "0"));
+        page.addView(mChargeRangeGained);
+        mChargePackInfo = newInfoTv(getString(R.string.charge_pack_info, "--", "--"));
+        page.addView(mChargePackInfo);
+        mChargeAcInfo = newInfoTv(getString(R.string.charge_ac_input, "--", "--"));
+        page.addView(mChargeAcInfo);
+        mChargeEfficiency = newInfoTv(getString(R.string.charge_efficiency, "--"));
+        page.addView(mChargeEfficiency);
+        mChargePlugInfo = newInfoTv(getString(R.string.charge_plug_status, "--"));
+        page.addView(mChargePlugInfo);
+        mChargeTargetSoc = newInfoTv(getString(R.string.charge_target_soc, "--"));
+        page.addView(mChargeTargetSoc);
+        mChargePeakPower = newInfoTv(getString(R.string.charge_peak_power, "--"));
+        page.addView(mChargePeakPower);
+
+        // Stored sessions header
+        TextView sessHeader = new TextView(this);
+        sessHeader.setText(getString(R.string.charge_stored_sessions));
+        sessHeader.setTextSize(14);
+        sessHeader.setTextColor(cTextSec);
+        sessHeader.setPadding(4, 24, 0, 8);
+        page.addView(sessHeader);
+
+        mChargeSessionList = new LinearLayout(this);
+        mChargeSessionList.setOrientation(LinearLayout.VERTICAL);
+        page.addView(mChargeSessionList);
+
+        // Load stored sessions
+        loadStoredChargeSessions();
+
+        scroll.addView(page);
+        return scroll;
+    }
+
+    private TextView newInfoTv(String text) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(14);
+        tv.setTextColor(cText);
+        tv.setPadding(8, 6, 8, 6);
+        tv.setBackgroundColor(cCard);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        tv.setLayoutParams(lp);
+        return tv;
+    }
+
+    private void loadStoredChargeSessions() {
+        if (mChargeSessionList == null) return;
+        mChargeSessionList.removeAllViews();
+        com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
+        List<com.emegelauncher.vehicle.ChargingSessionManager.SessionInfo> sessions = mgr.getStoredSessions();
+        if (sessions.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(getString(R.string.charge_no_sessions));
+            empty.setTextSize(13);
+            empty.setTextColor(cTextTert);
+            empty.setPadding(8, 8, 8, 8);
+            mChargeSessionList.addView(empty);
+            return;
+        }
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault());
+        for (com.emegelauncher.vehicle.ChargingSessionManager.SessionInfo si : sessions) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setBackgroundColor(cCard);
+            row.setPadding(12, 10, 12, 10);
+            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
+            rowLp.setMargins(0, 4, 0, 4);
+            row.setLayoutParams(rowLp);
+
+            String type = si.chargeType == 2 ? "DC" : "AC";
+            String date = sdf.format(new java.util.Date(si.startTime));
+            int durMin = (int) (si.durationMs / 60000);
+            String summary = String.format("%s | %s | %.0f→%.0f%% | %.1f kWh | %d min | Peak %.0f kW",
+                date, type, si.startSoc, si.endSoc, si.totalEnergyKwh, durMin, si.peakPowerKw);
+
+            TextView summaryTv = new TextView(this);
+            summaryTv.setText(summary);
+            summaryTv.setTextSize(13);
+            summaryTv.setTextColor(cText);
+            summaryTv.setSingleLine(true);
+            summaryTv.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+            summaryTv.setMarqueeRepeatLimit(-1);
+            summaryTv.setSelected(true);
+            row.addView(summaryTv);
+
+            // View graph + export buttons
+            LinearLayout btns = new LinearLayout(this);
+            btns.setOrientation(LinearLayout.HORIZONTAL);
+            btns.setPadding(0, 6, 0, 0);
+
+            final String fname = si.filename;
+            TextView viewBtn = new TextView(this);
+            viewBtn.setText(getString(R.string.charge_view_graph));
+            viewBtn.setTextSize(13);
+            viewBtn.setTextColor(ThemeHelper.accentBlue(this));
+            viewBtn.setPadding(0, 4, 16, 4);
+            viewBtn.setOnClickListener(v -> {
+                List<com.emegelauncher.vehicle.ChargingSessionManager.DataPoint> pts = mgr.loadSession(fname);
+                if (!pts.isEmpty() && mChargingChart != null) mChargingChart.setData(pts);
+            });
+            btns.addView(viewBtn);
+
+            TextView exportBtn = new TextView(this);
+            exportBtn.setText("JSON");
+            exportBtn.setTextSize(13);
+            exportBtn.setTextColor(ThemeHelper.accentTeal(this));
+            exportBtn.setPadding(16, 4, 0, 4);
+            exportBtn.setOnClickListener(v -> exportChargeSession(fname));
+            btns.addView(exportBtn);
+
+            row.addView(btns);
+            mChargeSessionList.addView(row);
+        }
+    }
+
+    private void exportChargeSession(String filename) {
+        java.util.List<StorageVol> volumes = findAllVolumes();
+        if (volumes.isEmpty()) {
+            Toast.makeText(this, getString(R.string.no_storage_found), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[volumes.size()];
+        for (int i = 0; i < volumes.size(); i++) {
+            StorageVol vi = volumes.get(i);
+            long free = vi.path.getFreeSpace() / (1024 * 1024);
+            names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
+        }
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_storage))
+            .setItems(names, (d, idx) -> {
+                com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
+                java.io.File result = mgr.exportSession(filename, volumes.get(idx).path);
+                if (result != null) Toast.makeText(this, getString(R.string.exported_to, result.getAbsolutePath()), Toast.LENGTH_LONG).show();
+                else Toast.makeText(this, getString(R.string.export_failed), Toast.LENGTH_SHORT).show();
+            }).show();
+    }
+
+    // Storage picker reuse (same as GraphsActivity)
+    private static class StorageVol {
+        java.io.File path; String description;
+        StorageVol(java.io.File p, String d) { path = p; description = d; }
+    }
+
+    private java.util.List<StorageVol> findAllVolumes() {
+        java.util.List<StorageVol> results = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        try {
+            android.os.storage.StorageManager sm = (android.os.storage.StorageManager) getSystemService(STORAGE_SERVICE);
+            java.lang.reflect.Method getVols = sm.getClass().getMethod("getVolumeList");
+            Object[] vols = (Object[]) getVols.invoke(sm);
+            if (vols != null) for (Object vol : vols) {
+                try {
+                    java.io.File path = (java.io.File) vol.getClass().getMethod("getPathFile").invoke(vol);
+                    String desc = (String) vol.getClass().getMethod("getDescription", android.content.Context.class).invoke(vol, this);
+                    boolean removable = false;
+                    try { removable = (boolean) vol.getClass().getMethod("isRemovable").invoke(vol); } catch (Exception ignored) {}
+                    if (path != null && path.exists()) {
+                        String canon = path.getCanonicalPath();
+                        if (!seen.contains(canon)) {
+                            seen.add(canon);
+                            String label = desc != null ? desc : path.getName();
+                            if (removable) label += " (USB)";
+                            results.add(new StorageVol(path, label));
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+        return results;
+    }
+
+    private void updateChargingPage() {
+        if (mChargeStatus == null) return;
+        com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
+        boolean isCharging = mgr.isCharging();
+
+        // Refresh session list when charging just stopped
+        if (mChargeWasCharging && !isCharging) {
+            loadStoredChargeSessions();
+        }
+        mChargeWasCharging = isCharging;
+
+        if (isCharging) {
+            String type = mgr.getChargeType() == 2 ? "DC" : "AC";
+            mChargeStatus.setText("\u26A1 " + type + " " + getString(R.string.charge_charging));
+            mChargeStatus.setTextColor(ThemeHelper.accentGreen(this));
+
+            List<com.emegelauncher.vehicle.ChargingSessionManager.DataPoint> pts = mgr.getCurrentPoints();
+            if (!pts.isEmpty()) {
+                com.emegelauncher.vehicle.ChargingSessionManager.DataPoint last = pts.get(pts.size() - 1);
+
+                // Gauges
+                if (mChargeSocGauge != null) mChargeSocGauge.setValue(last.socDisplay);
+                if (mChargePowerGauge != null) {
+                    mChargePowerGauge.setValue(Math.abs(last.powerKw));
+                    mChargePowerGauge.setMaxValue(Math.max(50, mgr.getPeakPowerKw() * 1.2f));
+                }
+
+                // Live chart
+                if (mChargingChart != null) mChargingChart.setData(pts);
+
+                // Time remaining
+                if (last.timeRemaining > 0) {
+                    int h = (int) (last.timeRemaining / 60);
+                    int m = (int) (last.timeRemaining % 60);
+                    mChargeTimeRemaining.setText(getString(R.string.charge_time_remaining,
+                        h > 0 ? h + "h " + m + " min" : m + " min"));
+                } else {
+                    mChargeTimeRemaining.setText(getString(R.string.charge_time_remaining, "--"));
+                }
+
+                // Session energy
+                mChargeEnergy.setText(getString(R.string.charge_energy, String.format("%.1f", mgr.getEnergyAccKwh())));
+
+                // Range gained (from start of session)
+                float startRange = mgr.getStartRange();
+                float rangeGained = startRange > 0 && last.rangeKm > 0 ? last.rangeKm - startRange : 0;
+                mChargeRangeGained.setText(getString(R.string.charge_range_gained, String.format("+%.0f", rangeGained)));
+
+                // Pack voltage / current
+                mChargePackInfo.setText(getString(R.string.charge_pack_info,
+                    String.format("%.0f", last.voltage), String.format("%.1f", last.current)));
+
+                // AC input + efficiency
+                if (last.acVoltage > 0) {
+                    mChargeAcInfo.setText(getString(R.string.charge_ac_input,
+                        String.format("%.0f", last.acVoltage), String.format("%.1f", last.acCurrent)));
+                    mChargeEfficiency.setText(getString(R.string.charge_efficiency,
+                        String.format("%.0f%%", last.efficiency)));
+                } else {
+                    mChargeAcInfo.setText(getString(R.string.charge_ac_input, "N/A", "N/A"));
+                    mChargeEfficiency.setText(getString(R.string.charge_efficiency, "N/A (DC)"));
+                }
+
+                // Plug status
+                String plug = mgr.getChargeType() == 2 ? "DC" : "AC";
+                mChargePlugInfo.setText(getString(R.string.charge_plug_status, plug + " " + getString(R.string.charge_connected)));
+
+                // Target SOC
+                String targetRaw = mVehicle.getPropertyValue(YFVehicleProperty.CHRG_TRGT_SOC);
+                String targetStr = "--";
+                if (targetRaw != null && !targetRaw.equals("N/A")) {
+                    try {
+                        int raw = (int) Float.parseFloat(targetRaw);
+                        targetStr = ((raw + 3) * 10) + "%"; // 5=80%, 6=90%, 7=100%
+                    } catch (Exception ignored) {}
+                }
+                mChargeTargetSoc.setText(getString(R.string.charge_target_soc, targetStr));
+
+                // Peak power
+                mChargePeakPower.setText(getString(R.string.charge_peak_power, String.format("%.1f kW", mgr.getPeakPowerKw())));
+
+                // Duration in status
+                long durMs = mgr.getSessionDuration();
+                int durMin = (int) (durMs / 60000);
+                if (durMin > 0) {
+                    String durStr = durMin > 60 ? (durMin / 60) + "h " + (durMin % 60) + "min" : durMin + " min";
+                    mChargeStatus.setText("\u26A1 " + type + " " + getString(R.string.charge_charging) + " | " + durStr);
+                }
+            }
+        } else {
+            mChargeStatus.setText(getString(R.string.charge_not_charging));
+            mChargeStatus.setTextColor(cTextSec);
+        }
+    }
+
     // ==================== Polling & Updates ====================
 
     private void updateUI() {
@@ -1917,6 +2241,10 @@ public class MainActivity extends Activity {
             @Override public void run() {
                 updateUI();
                 feedTripRecorder();
+                feedAbrp();
+                // Charging session manager updates on its own 5s interval
+                com.emegelauncher.vehicle.ChargingSessionManager.getInstance(MainActivity.this).update(mVehicle);
+                updateChargingPage();
                 checkTboxAndCloud();
                 mWeather.poll(MainActivity.this);
                 if (ThemeHelper.hasCarThemeChanged(MainActivity.this)) recreate();
@@ -1961,6 +2289,77 @@ public class MainActivity extends Activity {
             float consumption = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
             rec.addPoint(lat, lon, 0, speed, powerKw, soc, consumption, 0, 0);
         } catch (Exception ignored) {}
+    }
+
+    /** Feed telemetry to ABRP if enabled */
+    private void feedAbrp() {
+        if (mAbrp == null || !mAbrp.isEnabled()) return;
+        try {
+            // GPS from SAIC nav service
+            double lat = 0, lon = 0;
+            float elevation = 0, heading = 0;
+            String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+            if (locJson != null && locJson.startsWith("{")) {
+                org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                lat = loc.optDouble("lat", 0);
+                lon = loc.optDouble("lon", 0);
+            }
+            // Altitude + heading from TBox GNSS bean
+            String gnssBean = mVehicle.callSaicMethod("enghardware", "getGNSSInfoBean");
+            if (gnssBean != null) {
+                try {
+                    // Bean fields: mAltitude:XXX or altitude:XXX
+                    String[] fields = gnssBean.split("\n");
+                    for (String field : fields) {
+                        String f = field.trim().toLowerCase();
+                        if (f.startsWith("maltitude:") || f.startsWith("altitude:")) {
+                            elevation = Float.parseFloat(f.substring(f.indexOf(':') + 1).trim());
+                        } else if (f.startsWith("mheading:") || f.startsWith("heading:")) {
+                            heading = Float.parseFloat(f.substring(f.indexOf(':') + 1).trim());
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+            // Speed
+            float speed = parseFloat(mVehicle.callSaicMethod("condition", "getCarSpeed"));
+            if (speed == 0) speed = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.PERF_VEHICLE_SPEED));
+            // Battery
+            float pV = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_VOL));
+            float pI = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
+            float powerKw = pV * pI / 1000f;
+            // Use display SOC (same as driver sees) — SAIC first, then VHAL display fallback
+            float soc = parseFloat(mVehicle.callSaicMethod("charging", "getCurrentElectricQuantity"));
+            if (soc == 0) soc = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
+            // Temps
+            float extTemp = parseFloat(mVehicle.getOutsideTemp());
+            float battTemp = 0; // BMS temp not exposed via VHAL on Marvel R
+            String cabinTempStr = mCloud.getInteriorTempStr();
+            float cabinTemp = cabinTempStr != null ? parseFloat(cabinTempStr) : 0;
+            // Range + odometer
+            float estRange = parseFloat(mVehicle.callSaicMethod("charging", "getCurrentEnduranceMileage"));
+            if (estRange == 0) estRange = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.CLSTR_ELEC_RNG));
+            float odometer = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TOTAL_MILEAGE));
+            // SOH (from BatteryHealthTracker or 0 if unavailable)
+            float soh = 0;
+            // Charging / parked
+            int gearVal = (int) parseFloat(mVehicle.callSaicMethod("condition", "getCarGear"));
+            boolean isParked = gearVal == 1; // 1=P
+            String chrgSts = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_STS);
+            boolean isCharging = "1".equals(chrgSts) || "2".equals(chrgSts); // 1=AC, 2=DC
+            boolean isDcfc = "2".equals(chrgSts); // DC fast charging
+            // Tire pressures (raw values are in kPa, ABRP expects kPa)
+            float tpFl = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TIRE_PRESURE_FL));
+            float tpFr = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TIRE_PRESURE_FR));
+            float tpRl = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TIRE_PRESURE_RL));
+            float tpRr = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TIRE_PRESURE_RR));
+
+            mAbrp.updateTelemetry(lat, lon, speed, soc, powerKw, pV, pI,
+                extTemp, battTemp, cabinTemp, elevation, heading, odometer,
+                estRange, soh, isCharging, isDcfc, isParked, tpFl, tpFr, tpRl, tpRr);
+            mAbrp.trySend();
+        } catch (Exception e) {
+            Log.d(TAG, "ABRP feed: " + e.getMessage());
+        }
     }
 
     // ==================== Lifecycle ====================

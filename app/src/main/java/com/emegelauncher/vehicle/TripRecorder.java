@@ -112,9 +112,11 @@ public class TripRecorder {
             File jsonFile = new File(tripDir, "trip_" + ts + ".json");
             exportJsonToFile(jsonFile);
 
-            // Also save GPX
+            // Also save GPX + KML
             File gpxFile = new File(tripDir, "trip_" + ts + ".gpx");
             exportGpxToFile(gpxFile);
+            File kmlFile = new File(tripDir, "trip_" + ts + ".kml");
+            exportKmlToFile(kmlFile);
 
             // Prune: keep only latest MAX_STORED_TRIPS
             pruneOldTrips(tripDir);
@@ -138,7 +140,7 @@ public class TripRecorder {
         java.util.TreeSet<String> tripNames = new java.util.TreeSet<>();
         for (File f : files) {
             String name = f.getName();
-            if (name.startsWith("trip_") && (name.endsWith(".json") || name.endsWith(".gpx"))) {
+            if (name.startsWith("trip_") && (name.endsWith(".json") || name.endsWith(".gpx") || name.endsWith(".kml"))) {
                 tripNames.add(name.replaceAll("\\.(json|gpx)$", ""));
             }
         }
@@ -148,6 +150,7 @@ public class TripRecorder {
             tripNames.remove(oldest);
             new File(tripDir, oldest + ".json").delete();
             new File(tripDir, oldest + ".gpx").delete();
+            new File(tripDir, oldest + ".kml").delete();
             Log.d(TAG, "Pruned old trip: " + oldest);
         }
     }
@@ -371,5 +374,62 @@ public class TripRecorder {
         long hr = min / 60;
         if (hr > 0) return String.format("%dh %dm", hr, min % 60);
         return String.format("%dm %ds", min, sec % 60);
+    }
+
+    /** Export to KML file (Google Earth / Google Maps format) */
+    private boolean exportKmlToFile(File kmlFile) {
+        if (mPoints.isEmpty()) return false;
+        try {
+            SimpleDateFormat isoFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
+            isoFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+            try (PrintWriter pw = new PrintWriter(new FileOutputStream(kmlFile))) {
+                pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+                pw.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
+                pw.println("  <Document>");
+                pw.println("    <name>MG Marvel R Trip</name>");
+                pw.println("    <description>Distance: " + String.format("%.1f km", getTotalDistanceKm())
+                    + " | Max: " + String.format("%.0f km/h", mMaxSpeed)
+                    + " | Avg: " + String.format("%.1f kWh/100km", getAvgConsumption()) + "</description>");
+                pw.println("    <Style id=\"tripLine\">");
+                pw.println("      <LineStyle><color>ff2979ff</color><width>4</width></LineStyle>");
+                pw.println("    </Style>");
+                pw.println("    <Placemark>");
+                pw.println("      <name>Trip " + isoFmt.format(new Date(mStartTime)) + "</name>");
+                pw.println("      <styleUrl>#tripLine</styleUrl>");
+                pw.println("      <LineString>");
+                pw.println("        <altitudeMode>clampToGround</altitudeMode>");
+                pw.println("        <coordinates>");
+                for (DataPoint p : mPoints) {
+                    if (p.lat == 0 && p.lon == 0) continue;
+                    pw.println("          " + p.lon + "," + p.lat + "," + p.alt);
+                }
+                pw.println("        </coordinates>");
+                pw.println("      </LineString>");
+                pw.println("    </Placemark>");
+                // Start/end markers
+                DataPoint first = null, last = null;
+                for (DataPoint p : mPoints) {
+                    if (p.lat != 0 || p.lon != 0) { if (first == null) first = p; last = p; }
+                }
+                if (first != null) {
+                    pw.println("    <Placemark><name>Start</name>");
+                    pw.println("      <Point><coordinates>" + first.lon + "," + first.lat + "</coordinates></Point>");
+                    pw.println("    </Placemark>");
+                }
+                if (last != null && last != first) {
+                    pw.println("    <Placemark><name>End</name>");
+                    pw.println("      <Point><coordinates>" + last.lon + "," + last.lat + "</coordinates></Point>");
+                    pw.println("    </Placemark>");
+                }
+                pw.println("  </Document>");
+                pw.println("</kml>");
+            }
+            Log.i(TAG, "KML saved: " + kmlFile.getAbsolutePath());
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "KML export failed", e);
+            return false;
+        }
     }
 }

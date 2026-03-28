@@ -67,19 +67,20 @@ public class FileLogger {
         write("E", tag, msg);
     }
 
-    private synchronized void write(String level, String tag, String msg) {
-        try {
-            // Rotate if too large
-            if (mLogFile.exists() && mLogFile.length() > MAX_SIZE_BYTES) {
-                rotate();
+    private void write(String level, String tag, String msg) {
+        final String line = mDateFmt.format(new Date()) + " " + level + "/" + tag + ": " + msg;
+        // Write on background thread to avoid blocking main thread
+        new Thread(() -> {
+            synchronized (mLogFile) {
+                try {
+                    if (mLogFile.exists() && mLogFile.length() > MAX_SIZE_BYTES) rotate();
+                    PrintWriter pw = new PrintWriter(new FileOutputStream(mLogFile, true));
+                    pw.println(line);
+                    pw.flush();
+                    pw.close();
+                } catch (Exception ignored) {}
             }
-            PrintWriter pw = new PrintWriter(new FileOutputStream(mLogFile, true));
-            pw.println(mDateFmt.format(new Date()) + " " + level + "/" + tag + ": " + msg);
-            pw.flush();
-            pw.close();
-        } catch (Exception e) {
-            Log.e(TAG, "Write failed: " + e.getMessage());
-        }
+        }).start();
     }
 
     private void rotate() {

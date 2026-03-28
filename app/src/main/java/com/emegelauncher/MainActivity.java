@@ -1753,10 +1753,6 @@ public class MainActivity extends Activity {
             mRegenLevel.setText(String.format(getString(R.string.regen_label), rg + 1));
         }
 
-        // Update graphs dashboard gauges and charts
-        updateGraphsDashboard();
-        // Update dynamic cards
-        updateDynamicCards();
     }
 
     private void updateDynamicCards() {
@@ -1953,22 +1949,6 @@ public class MainActivity extends Activity {
                 mNavActiveInfo.setVisibility(View.VISIBLE);
                 mNavQuickBtns.setVisibility(View.GONE);
 
-                // Log all nav data sources during active navigation (for debugging)
-                String dbgRoad = mVehicle.callSaicMethod("adaptergeneral", "getRoadName");
-                String dbgDist = mVehicle.callSaicMethod("adaptergeneral", "getRemainingDistance");
-                String dbgTime = mVehicle.callSaicMethod("adaptergeneral", "getRemainingTimes");
-                String dbgGuide = mVehicle.callSaicMethod("adaptergeneral", "getGuideStatus");
-                String dbgSpeedLim = mVehicle.callSaicMethod("adaptergeneral", "getSpeedLimitValue");
-                String dbgNavMap = mVehicle.callSaicMethod("adaptermap", "isMapNavigating");
-                String dbgRoadMap = mVehicle.callSaicMethod("adaptermap", "getRoadName");
-                float dbgNavSpdVhal = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_SPEED_LIMIT_VALUE));
-                float dbgRoadSpdVhal = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_ROAD_SPD));
-                Log.d(TAG, "NAV DEBUG: road=" + dbgRoad + " dist=" + dbgDist + " time=" + dbgTime
-                    + " guide=" + dbgGuide + " speedLim=" + dbgSpeedLim
-                    + " mapNav=" + dbgNavMap + " mapRoad=" + dbgRoadMap
-                    + " vhalSpd=" + dbgNavSpdVhal + " vhalRoad=" + dbgRoadSpdVhal
-                    + " bcastDir=" + mNavBroadcastDirection + " bcastDist=" + mNavBroadcastDistance
-                    + " bcastRoad=" + mNavBroadcastRoad + " bcastSpd=" + mNavBroadcastSpeedLimit);
 
                 // Turn direction from broadcast
                 if (mNavBroadcastDirection != null && !mNavBroadcastDirection.isEmpty()) {
@@ -2102,7 +2082,7 @@ public class MainActivity extends Activity {
             }
             // Refresh call log every 30 seconds
             mPhoneCallLogTimer++;
-            if (mPhoneCallLogTimer >= 30 || mPhoneCallLogTimer == 1) {
+            if (mPhoneCallLogTimer >= 60 || mPhoneCallLogTimer == 1) {
                 mPhoneCallLogTimer = 1;
                 loadRecentCalls();
             }
@@ -2285,18 +2265,32 @@ public class MainActivity extends Activity {
         return val != null && !val.equals("N/A") && !val.equals("Connecting...") && !val.equals("0.00") && !val.equals("0");
     }
 
+    private int mPollTick = 0;
+
     private void startPolling() {
         mHandler.postDelayed(new Runnable() {
             @Override public void run() {
+                mPollTick++;
+                // Every 1s: core UI + graphs dashboard
                 updateUI();
-                feedTripRecorder();
-                feedAbrp();
-                // Charging session manager updates on its own 5s interval
-                com.emegelauncher.vehicle.ChargingSessionManager.getInstance(MainActivity.this).update(mVehicle);
-                updateChargingPage();
-                checkTboxAndCloud();
-                mWeather.poll(MainActivity.this);
-                if (ThemeHelper.hasCarThemeChanged(MainActivity.this)) recreate();
+                updateGraphsDashboard();
+                // Every 2s: dynamic cards (music/radio/nav/phone)
+                if (mPollTick % 2 == 0) updateDynamicCards();
+                // Every 5s: ABRP, trip recorder, charging
+                if (mPollTick % 5 == 0) {
+                    feedTripRecorder();
+                    feedAbrp();
+                    com.emegelauncher.vehicle.ChargingSessionManager.getInstance(MainActivity.this).update(mVehicle);
+                    updateChargingPage();
+                }
+                // Every 10s: cloud check
+                if (mPollTick % 10 == 0) checkTboxAndCloud();
+                // Every 30s: theme check
+                if (mPollTick % 30 == 0) {
+                    if (ThemeHelper.hasCarThemeChanged(MainActivity.this)) recreate();
+                }
+                // Every 120s: weather
+                if (mPollTick % 120 == 0) mWeather.poll(MainActivity.this);
                 mHandler.postDelayed(this, 1000);
             }
         }, 1000);

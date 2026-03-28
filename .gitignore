@@ -36,6 +36,9 @@ Thumbs.db
 # Old reference APKs
 DriveHub_Dort_*.apk
 
+#Other stuff
+/tools
+
 # Previous approach artifacts
 *.cdex-error.zip
 

@@ -135,6 +135,12 @@
     <string name="tab_climate">Clima</string>
     <string name="tab_trip">Viaje</string>
     <string name="tab_gmeter">G-Meter</string>
+    <string name="tab_charge_history">Cargas</string>
+    <string name="charge_history_while_charging">Historial no disponible durante la carga. Consulta después de la sesión.</string>
+    <string name="charge_history_refresh">Actualizar desde la nube</string>
+    <string name="charge_history_refreshing">Obteniendo datos…</string>
+    <string name="charge_history_export">Exportar sesiones (JSON)</string>
+    <string name="charge_history_empty">Sin sesiones almacenadas. Pulsa Actualizar para obtener de la nube.</string>
     <!-- Controles -->
     <string name="quick_controls">Controles Rápidos</string>
     <string name="doors_windows">PUERTAS Y VENTANAS</string>
@@ -153,6 +159,10 @@
     <string name="overlay_label">Overlay (Atrás + Recientes)</string>
     <string name="overlay_desc">Botones flotantes en el borde izquierdo</string>
     <string name="adb_debugging">Depuración ADB</string>
+    <string name="aa_stock_app">Android Auto original</string>
+    <string name="aa_stock_desc">Desactiva para usar una app AA alternativa</string>
+    <string name="aa_stock_enabled">Android Auto original activado</string>
+    <string name="aa_stock_disabled">Android Auto original desactivado</string>
     <string name="key_capture">Captura de teclas</string>
     <string name="key_capture_desc">Monitorizar HW_KEY_INPUT para identificar botones del volante</string>
     <string name="start">INICIAR</string>
@@ -498,6 +508,35 @@
     <string name="charge_view_graph">Ver gráfico</string>
     <string name="charge_target_soc">SOC objetivo: %1$s</string>
     <string name="charge_peak_power">Potencia pico: %1$s</string>
+    <string name="charge_cable_status">Cable: %1$s</string>
+    <string name="charge_cable_ac">Conector AC conectado</string>
+    <string name="charge_cable_dc">Conector DC conectado</string>
+    <string name="charge_cable_none">No conectado</string>
+    <string name="charge_cable_connected">Cable conectado</string>
+    <string name="charge_charging_by">Cargando por %1$s</string>
+    <string name="charge_bms_opt_current">Límite corriente BMS: %1$s</string>
+    <string name="charge_stop_reason">Razón parada: %1$s</string>
+    <string name="charge_schedule_off">Carga programada: Desactivada</string>
+    <string name="charge_schedule_active">Carga programada: %1$s</string>
+    <!-- Historial de carga (nube) -->
+    <string name="charge_hist_cloud_ok">Nube OK — %1$d sesiones almacenadas</string>
+    <string name="charge_hist_soh">SOH estimado: %1$.1f%% (%2$.1f kWh / 70 kWh)</string>
+    <string name="charge_hist_soc">SOC: %1$s%%</string>
+    <string name="charge_hist_target">Objetivo: %1$d%%</string>
+    <string name="charge_hist_duration">Duración: %1$s</string>
+    <string name="charge_hist_range_added">Autonomía añadida: +%1$d km</string>
+    <string name="charge_hist_range">Autonomía: %1$d km</string>
+    <string name="charge_hist_pack">Pack: %1$s</string>
+    <string name="charge_hist_power">Potencia: %1$s</string>
+    <string name="charge_hist_energy_since">Energía desde carga: %1$s</string>
+    <string name="charge_hist_energy_today">Energía hoy: %1$s</string>
+    <string name="charge_hist_capacity">Capacidad batería: %1$s</string>
+    <string name="charge_hist_stop_reason">Razón parada: %1$s</string>
+    <!-- Estado TBox -->
+    <string name="tbox_online">En línea</string>
+    <string name="tbox_offline">Desconectado</string>
+    <string name="tbox_sleep">Durmiendo</string>
+    <string name="tbox_unknown">Desconocido</string>
     <!-- Integración ABRP -->
     <string name="abrp_section">INTEGRACIÓN ABRP</string>
     <string name="abrp_desc">Envía telemetría en tiempo real a A Better Route Planner para planificación de rutas. Obtén tu token en la app ABRP: Ajustes → Coche → Datos en vivo → Genérico.</string>

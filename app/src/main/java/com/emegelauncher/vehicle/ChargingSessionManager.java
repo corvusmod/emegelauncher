@@ -13,29 +13,19 @@ package com.emegelauncher.vehicle;
 import android.content.Context;
 import android.util.Log;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
- * Singleton that records charging sessions with full telemetry.
- * Persists across screen changes. Stores last 5 sessions as JSON.
+ * Live-only charging session monitor. Records data points while charging
+ * for real-time display. No persistent storage — cloud history is used instead.
  */
 public class ChargingSessionManager {
     private static final String TAG = "ChargingSession";
-    private static final int MAX_SESSIONS = 5;
     private static volatile ChargingSessionManager sInstance;
 
-    private final Context mContext;
     private final List<DataPoint> mCurrentPoints = new ArrayList<>();
     private boolean mWasCharging = false;
     private long mSessionStartTime = 0;
@@ -49,36 +39,18 @@ public class ChargingSessionManager {
     /** A single telemetry data point during charging */
     public static class DataPoint {
         public long timestamp;
-        public float socDisplay;    // display SOC %
-        public float socRaw;        // BMS raw SOC %
-        public float voltage;       // pack voltage V
-        public float current;       // pack current A
-        public float powerKw;       // charge power kW
-        public float acVoltage;     // AC input voltage V (AC only)
-        public float acCurrent;     // AC input current A (AC only)
-        public float efficiency;    // charger efficiency % (AC only)
-        public float timeRemaining; // minutes, 1023=N/A
-        public float rangeKm;       // estimated range
-        public float energyAccKwh;  // accumulated energy since start
-        public float extTemp;       // outside temperature
-        public int chargeType;      // 1=AC, 2=DC
-
-        public JSONObject toJson() throws Exception {
-            JSONObject j = new JSONObject();
-            j.put("t", timestamp);
-            j.put("sD", socDisplay);
-            j.put("sR", socRaw);
-            j.put("v", voltage);
-            j.put("i", current);
-            j.put("p", powerKw);
-            j.put("aV", acVoltage);
-            j.put("aC", acCurrent);
-            j.put("eff", efficiency);
-            j.put("tr", timeRemaining);
-            j.put("r", rangeKm);
-            j.put("e", energyAccKwh);
-            return j;
-        }
+        public float socDisplay;
+        public float socRaw;
+        public float voltage;
+        public float current;
+        public float powerKw;
+        public float acVoltage;
+        public float acCurrent;
+        public float efficiency;
+        public float timeRemaining;
+        public float rangeKm;
+        public float energyAccKwh;
+        public int chargeType;
 
         public static DataPoint fromJson(JSONObject j) {
             DataPoint dp = new DataPoint();
@@ -98,29 +70,16 @@ public class ChargingSessionManager {
         }
     }
 
-    /** Summary info for a stored session */
-    public static class SessionInfo {
-        public String filename;
-        public long startTime;
-        public long durationMs;
-        public float startSoc, endSoc;
-        public float totalEnergyKwh;
-        public float peakPowerKw;
-        public int chargeType;
-        public int pointCount;
-        public float startRange, endRange;
-    }
-
     public static ChargingSessionManager getInstance(Context ctx) {
         if (sInstance == null) {
             synchronized (ChargingSessionManager.class) {
-                if (sInstance == null) sInstance = new ChargingSessionManager(ctx.getApplicationContext());
+                if (sInstance == null) sInstance = new ChargingSessionManager();
             }
         }
         return sInstance;
     }
 
-    private ChargingSessionManager(Context ctx) { mContext = ctx; }
+    private ChargingSessionManager() {}
 
     public boolean isCharging() { return mWasCharging; }
     public int getChargeType() { return mChargeType; }
@@ -146,6 +105,13 @@ public class ChargingSessionManager {
             int chrgSts = 0;
             try { chrgSts = (int) Float.parseFloat(chrgStsStr); } catch (Exception ignored) {}
             boolean isCharging = (chrgSts == 1 || chrgSts == 2);
+            // Fallback: SAIC service
+            if (!isCharging) {
+                int saicSts = 0;
+                try { saicSts = (int) Float.parseFloat(vehicle.callSaicMethod("charging", "getChargingStatus")); } catch (Exception ignored) {}
+                if (saicSts == 1 || saicSts == 2) { isCharging = true; if (chrgSts == 0) chrgSts = saicSts; }
+            }
+            Log.d(TAG, "Charge detect: BMS_STS=" + chrgStsStr + " isCharging=" + isCharging + " type=" + chrgSts);
 
             // Session start
             if (isCharging && !mWasCharging) {
@@ -154,31 +120,29 @@ public class ChargingSessionManager {
                 mEnergyAccKwh = 0;
                 mPeakPowerKw = 0;
                 mChargeType = chrgSts;
-                // Read start values
                 mStartSoc = readDisplaySoc(vehicle);
                 mStartRange = readRange(vehicle);
-                Log.d(TAG, "Charge session started: type=" + chrgSts);
+                Log.d(TAG, "Charge session started: type=" + chrgSts + " soc=" + mStartSoc);
             }
 
             // Record data point
             if (isCharging) {
                 DataPoint dp = readDataPoint(vehicle, now);
-                // Accumulate energy (power × time)
                 if (!mCurrentPoints.isEmpty()) {
                     DataPoint prev = mCurrentPoints.get(mCurrentPoints.size() - 1);
                     float dtH = (now - prev.timestamp) / 3600000f;
-                    mEnergyAccKwh += Math.abs(dp.powerKw) * dtH;
+                    mEnergyAccKwh += dp.powerKw * dtH;
                 }
                 dp.energyAccKwh = mEnergyAccKwh;
                 if (dp.powerKw > mPeakPowerKw) mPeakPowerKw = dp.powerKw;
                 mCurrentPoints.add(dp);
             }
 
-            // Session end
-            if (!isCharging && mWasCharging && !mCurrentPoints.isEmpty()) {
+            // Session end — just clear live data
+            if (!isCharging && mWasCharging) {
                 Log.d(TAG, "Charge session ended: " + mCurrentPoints.size() + " points, " +
                     String.format("%.1f kWh", mEnergyAccKwh));
-                saveSession();
+                // Don't clear points yet — let the UI show the last session until next one starts
             }
 
             mWasCharging = isCharging;
@@ -194,17 +158,14 @@ public class ChargingSessionManager {
         dp.socRaw = readFloat(v, YFVehicleProperty.BMS_PACK_SOC);
         dp.voltage = readFloat(v, YFVehicleProperty.BMS_PACK_VOL);
         dp.current = readFloat(v, YFVehicleProperty.BMS_PACK_CRNT);
-        dp.powerKw = dp.voltage * dp.current / 1000f;
+        dp.powerKw = Math.abs(dp.voltage * dp.current / 1000f);
         dp.acVoltage = readFloat(v, YFVehicleProperty.ONBD_CHRG_ALT_CRNT_LNPT_VOL);
         dp.acCurrent = readFloat(v, YFVehicleProperty.ONBD_CHRG_ALT_CRNT_LNPT_CRNT);
         dp.chargeType = mChargeType;
-        // Efficiency: DC pack power / AC input power × 100
-        float acPower = dp.acVoltage * dp.acCurrent / 1000f;
-        dp.efficiency = (acPower > 0.5f) ? (dp.powerKw / acPower * 100f) : 0;
+        dp.efficiency = 0; // AC input properties don't work on Marvel R
         dp.timeRemaining = readFloat(v, YFVehicleProperty.CHRGNG_RMNNG_TIME);
-        if (dp.timeRemaining >= 1023) dp.timeRemaining = -1; // sentinel
+        if (dp.timeRemaining >= 1023) dp.timeRemaining = -1;
         dp.rangeKm = readRange(v);
-        dp.extTemp = readFloatSaic(v, "getOutCarTemp");
         return dp;
     }
 
@@ -234,138 +195,5 @@ public class ChargingSessionManager {
             if (val == null || val.equals("N/A")) return 0;
             return Float.parseFloat(val);
         } catch (Exception e) { return 0; }
-    }
-
-    // ==================== Storage ====================
-
-    private File getSessionDir() {
-        File dir = new File(mContext.getFilesDir(), "charge_sessions");
-        if (!dir.exists()) dir.mkdirs();
-        return dir;
-    }
-
-    private void saveSession() {
-        try {
-            if (mCurrentPoints.isEmpty()) return;
-            DataPoint first = mCurrentPoints.get(0);
-            DataPoint last = mCurrentPoints.get(mCurrentPoints.size() - 1);
-
-            JSONObject session = new JSONObject();
-            session.put("startTime", mSessionStartTime);
-            session.put("endTime", System.currentTimeMillis());
-            session.put("durationMs", System.currentTimeMillis() - mSessionStartTime);
-            session.put("startSoc", mStartSoc);
-            session.put("endSoc", last.socDisplay);
-            session.put("totalEnergyKwh", mEnergyAccKwh);
-            session.put("peakPowerKw", mPeakPowerKw);
-            session.put("chargeType", mChargeType);
-            session.put("startRange", mStartRange);
-            session.put("endRange", last.rangeKm);
-            session.put("pointCount", mCurrentPoints.size());
-
-            JSONArray points = new JSONArray();
-            for (DataPoint dp : mCurrentPoints) points.put(dp.toJson());
-            session.put("points", points);
-
-            String filename = "charge_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",
-                java.util.Locale.US).format(new java.util.Date(mSessionStartTime)) + ".json";
-            File file = new File(getSessionDir(), filename);
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(session.toString().getBytes("UTF-8"));
-            fos.close();
-            Log.d(TAG, "Saved session: " + filename);
-            pruneOldSessions();
-        } catch (Exception e) {
-            Log.e(TAG, "Save session failed", e);
-        }
-    }
-
-    private void pruneOldSessions() {
-        File dir = getSessionDir();
-        File[] files = dir.listFiles();
-        if (files == null || files.length <= MAX_SESSIONS) return;
-        TreeSet<String> sorted = new TreeSet<>();
-        for (File f : files) sorted.add(f.getName());
-        while (sorted.size() > MAX_SESSIONS) {
-            String oldest = sorted.first();
-            new File(dir, oldest).delete();
-            sorted.remove(oldest);
-        }
-    }
-
-    /** Get list of stored sessions (newest first) */
-    public List<SessionInfo> getStoredSessions() {
-        List<SessionInfo> result = new ArrayList<>();
-        File dir = getSessionDir();
-        File[] files = dir.listFiles();
-        if (files == null) return result;
-        Arrays.sort(files, (a, b) -> b.getName().compareTo(a.getName()));
-        for (File f : files) {
-            try {
-                InputStream is = new FileInputStream(f);
-                byte[] buf = new byte[(int) f.length()];
-                is.read(buf);
-                is.close();
-                JSONObject json = new JSONObject(new String(buf, "UTF-8"));
-                SessionInfo si = new SessionInfo();
-                si.filename = f.getName();
-                si.startTime = json.optLong("startTime", 0);
-                si.durationMs = json.optLong("durationMs", 0);
-                si.startSoc = (float) json.optDouble("startSoc", 0);
-                si.endSoc = (float) json.optDouble("endSoc", 0);
-                si.totalEnergyKwh = (float) json.optDouble("totalEnergyKwh", 0);
-                si.peakPowerKw = (float) json.optDouble("peakPowerKw", 0);
-                si.chargeType = json.optInt("chargeType", 0);
-                si.pointCount = json.optInt("pointCount", 0);
-                si.startRange = (float) json.optDouble("startRange", 0);
-                si.endRange = (float) json.optDouble("endRange", 0);
-                result.add(si);
-            } catch (Exception e) {
-                Log.d(TAG, "Read session failed: " + f.getName());
-            }
-        }
-        return result;
-    }
-
-    /** Load full data points from a stored session */
-    public List<DataPoint> loadSession(String filename) {
-        List<DataPoint> points = new ArrayList<>();
-        try {
-            File f = new File(getSessionDir(), filename);
-            InputStream is = new FileInputStream(f);
-            byte[] buf = new byte[(int) f.length()];
-            is.read(buf);
-            is.close();
-            JSONObject json = new JSONObject(new String(buf, "UTF-8"));
-            JSONArray arr = json.optJSONArray("points");
-            if (arr != null) {
-                for (int i = 0; i < arr.length(); i++) {
-                    points.add(DataPoint.fromJson(arr.getJSONObject(i)));
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Load session failed: " + filename, e);
-        }
-        return points;
-    }
-
-    /** Export a stored session JSON to a destination directory */
-    public File exportSession(String filename, File destination) {
-        try {
-            File source = new File(getSessionDir(), filename);
-            if (!source.exists()) return null;
-            File dest = new File(destination, filename);
-            InputStream is = new FileInputStream(source);
-            OutputStream os = new FileOutputStream(dest);
-            byte[] buf = new byte[4096];
-            int len;
-            while ((len = is.read(buf)) > 0) os.write(buf, 0, len);
-            is.close();
-            os.close();
-            return dest;
-        } catch (Exception e) {
-            Log.e(TAG, "Export session failed", e);
-            return null;
-        }
     }
 }

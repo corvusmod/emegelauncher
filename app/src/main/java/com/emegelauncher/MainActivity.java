@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
     private WeatherManager mWeather;
     private SaicCloudManager mCloud;
     private com.emegelauncher.vehicle.AbrpManager mAbrp;
+    private com.emegelauncher.vehicle.FileLogger mLog;
     private boolean mCloudQueried = false;
     private final Handler mHandler = new Handler(android.os.Looper.getMainLooper());
     private boolean mLastDarkMode;
@@ -75,6 +76,12 @@ public class MainActivity extends Activity {
     private TextView mRadioFreq, mRadioStation, mRadioTypeLabel;
     private ImageView mRadioPlayStop;
     private TextView mNavInfo, mNavRoad, mNavRemaining, mNavSpeedLimit;
+    // Navigation state from broadcast callbacks
+    private volatile boolean mNavIsNavigating = false;
+    private volatile String mNavBroadcastRoad = null;
+    private volatile String mNavBroadcastDirection = null;
+    private volatile int mNavBroadcastDistance = 0;
+    private volatile int mNavBroadcastSpeedLimit = 0;
     private LinearLayout mNavQuickBtns, mNavActiveInfo;
     private TextView mPhoneDevice, mPhoneStatus;
 
@@ -101,7 +108,9 @@ public class MainActivity extends Activity {
         mVehicle = VehicleServiceManager.getInstance(this);
         mVehicle.bindService();
         mCloud = new SaicCloudManager(this);
-        mAbrp = new com.emegelauncher.vehicle.AbrpManager(this);
+        mAbrp = com.emegelauncher.vehicle.AbrpManager.getInstance(this);
+        mLog = com.emegelauncher.vehicle.FileLogger.getInstance(this);
+        mLog.i(TAG, "=== Launcher started v1.17 ===");
         mWeather = new WeatherManager();
         mWeather.register(this, (weather, temp) -> {
             if (mWeatherDesc != null) mWeatherDesc.setText(weather);
@@ -125,6 +134,7 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         startPolling();
+        registerNavBroadcastReceiver();
 
         if (getSharedPreferences("emegelauncher", MODE_PRIVATE).getBoolean("overlay_enabled", true)) {
             startService(new Intent(this, OverlayService.class));
@@ -429,13 +439,13 @@ public class MainActivity extends Activity {
         mWeatherIcon = new ImageView(this);
         mWeatherIcon.setImageResource(R.drawable.ic_weather_partly_cloudy);
         mWeatherIcon.setColorFilter(ThemeHelper.accentOrange(this));
-        mWeatherIcon.setLayoutParams(new LinearLayout.LayoutParams(80, 80));
+        mWeatherIcon.setLayoutParams(new LinearLayout.LayoutParams(100, 100));
         card.addView(mWeatherIcon);
 
         // Weather description (from weather app broadcast)
         mWeatherDesc = new TextView(this);
         mWeatherDesc.setText(getString(R.string.weather));
-        mWeatherDesc.setTextSize(15);
+        mWeatherDesc.setTextSize(30);
         mWeatherDesc.setTextColor(cText);
         mWeatherDesc.setGravity(Gravity.CENTER);
         mWeatherDesc.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -444,7 +454,7 @@ public class MainActivity extends Activity {
         // Forecast temperature (from weather app)
         mWeatherForecastTemp = new TextView(this);
         mWeatherForecastTemp.setText("--\u00B0C");
-        mWeatherForecastTemp.setTextSize(32);
+        mWeatherForecastTemp.setTextSize(48);
         mWeatherForecastTemp.setTextColor(ThemeHelper.accentOrange(this));
         mWeatherForecastTemp.setGravity(Gravity.CENTER);
         mWeatherForecastTemp.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
@@ -453,14 +463,14 @@ public class MainActivity extends Activity {
         // Outside sensor temperature (from SAIC AirCondition / VHAL)
         mWeatherSensorTemp = new TextView(this);
         mWeatherSensorTemp.setText(getString(R.string.outside) + ": --\u00B0C");
-        mWeatherSensorTemp.setTextSize(13);
+        mWeatherSensorTemp.setTextSize(24);
         mWeatherSensorTemp.setTextColor(cTextSec);
         mWeatherSensorTemp.setGravity(Gravity.CENTER);
         card.addView(mWeatherSensorTemp);
 
         // Cabin temperature (from cloud, hidden if unavailable)
         mWeatherCabinTemp = new TextView(this);
-        mWeatherCabinTemp.setTextSize(13);
+        mWeatherCabinTemp.setTextSize(24);
         mWeatherCabinTemp.setTextColor(cTextSec);
         mWeatherCabinTemp.setGravity(Gravity.CENTER);
         mWeatherCabinTemp.setVisibility(View.GONE);
@@ -581,7 +591,7 @@ public class MainActivity extends Activity {
         // Title
         mMusicTitle = new TextView(this);
         mMusicTitle.setText(getString(R.string.music_no_playing));
-        mMusicTitle.setTextSize(18);
+        mMusicTitle.setTextSize(36);
         mMusicTitle.setTextColor(cText);
         mMusicTitle.setGravity(Gravity.CENTER);
         mMusicTitle.setSingleLine(true);
@@ -593,7 +603,7 @@ public class MainActivity extends Activity {
 
         // Artist
         mMusicArtist = new TextView(this);
-        mMusicArtist.setTextSize(14);
+        mMusicArtist.setTextSize(28);
         mMusicArtist.setTextColor(cTextSec);
         mMusicArtist.setGravity(Gravity.CENTER);
         mMusicArtist.setSingleLine(true);
@@ -611,18 +621,18 @@ public class MainActivity extends Activity {
         ImageView prev = new ImageView(this);
         prev.setImageResource(android.R.drawable.ic_media_previous);
         prev.setColorFilter(cText);
-        prev.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
-        prev.setPadding(12, 12, 12, 12);
+        prev.setLayoutParams(new LinearLayout.LayoutParams(110, 110));
+        prev.setPadding(16, 16, 16, 16);
         prev.setOnClickListener(v -> { if (mMediaController != null) mMediaController.getTransportControls().skipToPrevious(); });
         controls.addView(prev);
 
         mMusicPlayPause = new ImageView(this);
         mMusicPlayPause.setImageResource(android.R.drawable.ic_media_play);
         mMusicPlayPause.setColorFilter(ThemeHelper.accentPurple(this));
-        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(88, 88);
-        ppLp.setMargins(12, 0, 12, 0);
+        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(130, 130);
+        ppLp.setMargins(16, 0, 16, 0);
         mMusicPlayPause.setLayoutParams(ppLp);
-        mMusicPlayPause.setPadding(12, 12, 12, 12);
+        mMusicPlayPause.setPadding(16, 16, 16, 16);
         mMusicPlayPause.setOnClickListener(v -> {
             if (mMediaController == null) return;
             android.media.session.PlaybackState state = mMediaController.getPlaybackState();
@@ -637,8 +647,8 @@ public class MainActivity extends Activity {
         ImageView next = new ImageView(this);
         next.setImageResource(android.R.drawable.ic_media_next);
         next.setColorFilter(cText);
-        next.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
-        next.setPadding(12, 12, 12, 12);
+        next.setLayoutParams(new LinearLayout.LayoutParams(110, 110));
+        next.setPadding(16, 16, 16, 16);
         next.setOnClickListener(v -> { if (mMediaController != null) mMediaController.getTransportControls().skipToNext(); });
         controls.addView(next);
 
@@ -646,7 +656,7 @@ public class MainActivity extends Activity {
 
         // Time
         mMusicTime = new TextView(this);
-        mMusicTime.setTextSize(13);
+        mMusicTime.setTextSize(26);
         mMusicTime.setTextColor(cTextSec);
         mMusicTime.setGravity(Gravity.CENTER);
         card.addView(mMusicTime);
@@ -667,7 +677,7 @@ public class MainActivity extends Activity {
         // Station name (big, top)
         mRadioStation = new TextView(this);
         mRadioStation.setText(getString(R.string.radio));
-        mRadioStation.setTextSize(18);
+        mRadioStation.setTextSize(36);
         mRadioStation.setTextColor(cText);
         mRadioStation.setGravity(Gravity.CENTER);
         mRadioStation.setSingleLine(true);
@@ -686,27 +696,27 @@ public class MainActivity extends Activity {
         ImageView prev = new ImageView(this);
         prev.setImageResource(android.R.drawable.ic_media_previous);
         prev.setColorFilter(cText);
-        prev.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
-        prev.setPadding(12, 12, 12, 12);
-        prev.setOnClickListener(v -> mVehicle.callSaicMethod("adaptergeneral", "radioSeekDown"));
+        prev.setLayoutParams(new LinearLayout.LayoutParams(110, 110));
+        prev.setPadding(16, 16, 16, 16);
+        prev.setOnClickListener(v -> mVehicle.radioPrevious(2)); // 2=FM (default)
         controls.addView(prev);
 
         mRadioPlayStop = new ImageView(this);
         mRadioPlayStop.setImageResource(android.R.drawable.ic_media_play);
         mRadioPlayStop.setColorFilter(ThemeHelper.accentOrange(this));
-        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(88, 88);
-        ppLp.setMargins(12, 0, 12, 0);
+        LinearLayout.LayoutParams ppLp = new LinearLayout.LayoutParams(130, 130);
+        ppLp.setMargins(16, 0, 16, 0);
         mRadioPlayStop.setLayoutParams(ppLp);
-        mRadioPlayStop.setPadding(12, 12, 12, 12);
-        mRadioPlayStop.setOnClickListener(v -> launchCarApp("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity"));
+        mRadioPlayStop.setPadding(16, 16, 16, 16);
+        mRadioPlayStop.setOnClickListener(v -> mVehicle.radioPlay());
         controls.addView(mRadioPlayStop);
 
         ImageView next = new ImageView(this);
         next.setImageResource(android.R.drawable.ic_media_next);
         next.setColorFilter(cText);
-        next.setLayoutParams(new LinearLayout.LayoutParams(72, 72));
-        next.setPadding(12, 12, 12, 12);
-        next.setOnClickListener(v -> mVehicle.callSaicMethod("adaptergeneral", "radioSeekUp"));
+        next.setLayoutParams(new LinearLayout.LayoutParams(110, 110));
+        next.setPadding(16, 16, 16, 16);
+        next.setOnClickListener(v -> mVehicle.radioNext(2)); // 2=FM (default)
         controls.addView(next);
 
         card.addView(controls);
@@ -714,14 +724,14 @@ public class MainActivity extends Activity {
         // Frequency + type label (below buttons)
         mRadioTypeLabel = new TextView(this);
         mRadioTypeLabel.setText("FM");
-        mRadioTypeLabel.setTextSize(12);
+        mRadioTypeLabel.setTextSize(26);
         mRadioTypeLabel.setTextColor(ThemeHelper.accentOrange(this));
         mRadioTypeLabel.setGravity(Gravity.CENTER);
         card.addView(mRadioTypeLabel);
 
         mRadioFreq = new TextView(this);
         mRadioFreq.setText("--.- MHz");
-        mRadioFreq.setTextSize(14);
+        mRadioFreq.setTextSize(28);
         mRadioFreq.setTextColor(cTextSec);
         mRadioFreq.setGravity(Gravity.CENTER);
         card.addView(mRadioFreq);
@@ -746,7 +756,7 @@ public class MainActivity extends Activity {
 
         // Turn info (↗ Turn right in 200m)
         mNavInfo = new TextView(this);
-        mNavInfo.setTextSize(17);
+        mNavInfo.setTextSize(34);
         mNavInfo.setGravity(Gravity.CENTER);
         mNavInfo.setTextColor(cText);
         mNavInfo.setSingleLine(true);
@@ -756,7 +766,7 @@ public class MainActivity extends Activity {
 
         // Road name
         mNavRoad = new TextView(this);
-        mNavRoad.setTextSize(15);
+        mNavRoad.setTextSize(28);
         mNavRoad.setTextColor(cTextSec);
         mNavRoad.setSingleLine(true);
         mNavRoad.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
@@ -777,14 +787,14 @@ public class MainActivity extends Activity {
         navBottom.setGravity(Gravity.CENTER_VERTICAL);
 
         mNavRemaining = new TextView(this);
-        mNavRemaining.setTextSize(13);
+        mNavRemaining.setTextSize(26);
         mNavRemaining.setTextColor(ThemeHelper.accentBlue(this));
         mNavRemaining.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         navBottom.addView(mNavRemaining);
 
         // Speed limit badge (red circle with number)
         mNavSpeedLimit = new TextView(this);
-        mNavSpeedLimit.setTextSize(16);
+        mNavSpeedLimit.setTextSize(28);
         mNavSpeedLimit.setTextColor(0xFFFF3B30);
         mNavSpeedLimit.setTypeface(Typeface.DEFAULT_BOLD);
         mNavSpeedLimit.setGravity(Gravity.CENTER);
@@ -794,7 +804,7 @@ public class MainActivity extends Activity {
         limitBg.setStroke(3, 0xFFFF3B30);
         limitBg.setColor(cCard);
         mNavSpeedLimit.setBackground(limitBg);
-        LinearLayout.LayoutParams limitLp = new LinearLayout.LayoutParams(48, 48);
+        LinearLayout.LayoutParams limitLp = new LinearLayout.LayoutParams(80, 80);
         mNavSpeedLimit.setLayoutParams(limitLp);
         navBottom.addView(mNavSpeedLimit);
 
@@ -818,7 +828,7 @@ public class MainActivity extends Activity {
         idleHeader.addView(navIco);
         TextView navLbl = new TextView(this);
         navLbl.setText(getString(R.string.navigation));
-        navLbl.setTextSize(12);
+        navLbl.setTextSize(28);
         navLbl.setTextColor(ThemeHelper.accentBlue(this));
         navLbl.setPadding(8, 0, 0, 0);
         idleHeader.addView(navLbl);
@@ -837,20 +847,17 @@ public class MainActivity extends Activity {
 
         TextView homeBtn = new TextView(this);
         homeBtn.setText("\uD83C\uDFE0 " + getString(R.string.nav_home));
-        homeBtn.setTextSize(18);
+        homeBtn.setTextSize(34);
         homeBtn.setTextColor(cText);
         homeBtn.setPadding(32, 20, 32, 20);
         homeBtn.setGravity(Gravity.CENTER);
         homeBtn.setBackgroundResource(R.drawable.card_bg_ripple);
         homeBtn.setOnClickListener(v -> {
             try {
-                // Try SAIC adapter service first
-                mVehicle.callSaicMethod("adaptergeneral", "goHome");
-                // Also send broadcast and launch nav app
-                sendBroadcast(new Intent("SAIC_VR_ACTION_GO_HOME"));
-                sendBroadcast(new Intent("com.saicmotor.navigation.GO_HOME"));
-                launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity");
-            } catch (Exception ignored) {}
+                // IGeneralService.goHome() via AIDL — same as original launcher
+                String result = mVehicle.callSaicMethod("adaptergeneral", "goHome");
+                Log.d(TAG, "Nav goHome result: " + result);
+            } catch (Exception e) { Log.d(TAG, "Nav goHome failed: " + e.getMessage()); }
         });
         quickRow.addView(homeBtn);
 
@@ -860,18 +867,17 @@ public class MainActivity extends Activity {
 
         TextView officeBtn = new TextView(this);
         officeBtn.setText("\uD83C\uDFE2 " + getString(R.string.nav_office));
-        officeBtn.setTextSize(18);
+        officeBtn.setTextSize(34);
         officeBtn.setTextColor(cText);
         officeBtn.setPadding(32, 20, 32, 20);
         officeBtn.setGravity(Gravity.CENTER);
         officeBtn.setBackgroundResource(R.drawable.card_bg_ripple);
         officeBtn.setOnClickListener(v -> {
             try {
-                mVehicle.callSaicMethod("adaptergeneral", "goOffice");
-                sendBroadcast(new Intent("SAIC_VR_ACTION_GO_OFFICE"));
-                sendBroadcast(new Intent("com.saicmotor.navigation.GO_OFFICE"));
-                launchCarApp("com.telenav.app.arp", "com.telenav.arp.module.map.MainActivity");
-            } catch (Exception ignored) {}
+                // IGeneralService.goOffice() via AIDL — same as original launcher
+                String result = mVehicle.callSaicMethod("adaptergeneral", "goOffice");
+                Log.d(TAG, "Nav goOffice result: " + result);
+            } catch (Exception e) { Log.d(TAG, "Nav goOffice failed: " + e.getMessage()); }
         });
         quickRow.addView(officeBtn);
 
@@ -880,7 +886,7 @@ public class MainActivity extends Activity {
         // Idle hint
         TextView idleHint = new TextView(this);
         idleHint.setText(getString(R.string.nav_idle));
-        idleHint.setTextSize(11);
+        idleHint.setTextSize(22);
         idleHint.setTextColor(cTextTert);
         idleHint.setGravity(Gravity.CENTER);
         mNavQuickBtns.addView(idleHint);
@@ -906,7 +912,7 @@ public class MainActivity extends Activity {
         // Device name header
         mPhoneDevice = new TextView(this);
         mPhoneDevice.setText(getString(R.string.phone_no_device));
-        mPhoneDevice.setTextSize(14);
+        mPhoneDevice.setTextSize(30);
         mPhoneDevice.setTextColor(ThemeHelper.accentGreen(this));
         mPhoneDevice.setGravity(Gravity.CENTER);
         mPhoneDevice.setSingleLine(true);
@@ -926,7 +932,7 @@ public class MainActivity extends Activity {
 
         // Status line (call status / charger)
         mPhoneStatus = new TextView(this);
-        mPhoneStatus.setTextSize(13);
+        mPhoneStatus.setTextSize(24);
         mPhoneStatus.setTextColor(cTextSec);
         mPhoneStatus.setGravity(Gravity.CENTER);
         mPhoneCard.addView(mPhoneStatus);
@@ -974,7 +980,7 @@ public class MainActivity extends Activity {
                 final String callNumber = number;
                 TextView row = new TextView(this);
                 row.setText(typeIcon + " " + display);
-                row.setTextSize(20);
+                row.setTextSize(30);
                 row.setTextColor(cText);
                 row.setSingleLine(true);
                 row.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
@@ -1017,7 +1023,7 @@ public class MainActivity extends Activity {
 
         mDriveMode = new TextView(this);
         mDriveMode.setText(String.format(getString(R.string.mode_label), "--"));
-        mDriveMode.setTextSize(14);
+        mDriveMode.setTextSize(26);
         mDriveMode.setTextColor(cText);
         mDriveMode.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         mDriveMode.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
@@ -1025,7 +1031,7 @@ public class MainActivity extends Activity {
 
         mRegenLevel = new TextView(this);
         mRegenLevel.setText(String.format(getString(R.string.regen_label), 0));
-        mRegenLevel.setTextSize(14);
+        mRegenLevel.setTextSize(26);
         mRegenLevel.setTextColor(ThemeHelper.accentTeal(this));
         mRegenLevel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         mRegenLevel.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
@@ -1085,20 +1091,31 @@ public class MainActivity extends Activity {
         btnGrid.setOrientation(LinearLayout.VERTICAL);
         btnGrid.setPadding(0, 4, 0, 0);
 
-        // Row 1: 4 buttons (CarPlay/360 greyed out if unavailable)
+        // Row 1: 4 buttons
         LinearLayout r1 = new LinearLayout(this);
-        View cpBtn = appBtn(getString(R.string.carplay), R.drawable.ic_carplay, () -> launchCarApp("com.allgo.carplay.service", "com.allgo.carplay.service.CarPlayActivity"));
-        String cpStatus = mVehicle.callSaicMethod("sysbt", "getCarPlayConnected");
-        if (!"true".equalsIgnoreCase(cpStatus) && !"1".equals(cpStatus)) {
-            cpBtn.setAlpha(0.3f); cpBtn.setOnClickListener(null);
-        }
+        View cpBtn = appBtn(getString(R.string.carplay), R.drawable.ic_carplay, () -> {
+            // Try cluster projection first (the actual display app), then Allgo service
+            try {
+                Intent cpIntent = new Intent(Intent.ACTION_MAIN);
+                cpIntent.setClassName("com.saicmotor.hmi.clusterprojection", "com.saicmotor.hmi.clusterprojection.ProjectionActivity");
+                cpIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(cpIntent);
+            } catch (Exception e) {
+                launchCarApp("com.allgo.carplay.service", "com.allgo.carplay.service.CarPlayActivity");
+            }
+        });
         r1.addView(cpBtn, gridLP());
 
-        View aaBtn = appBtn(getString(R.string.android_auto), R.drawable.ic_carplay, () -> launchCarApp("com.allgo.app.androidauto", "com.allgo.app.androidauto.ProjectionActivity"));
-        // Android Auto uses same BT service — check if connected
-        if (!"true".equalsIgnoreCase(cpStatus) && !"1".equals(cpStatus)) {
-            aaBtn.setAlpha(0.3f); aaBtn.setOnClickListener(null);
-        }
+        View aaBtn = appBtn(getString(R.string.android_auto), R.drawable.ic_carplay, () -> {
+            try {
+                Intent aaIntent = new Intent(Intent.ACTION_MAIN);
+                aaIntent.setClassName("com.saicmotor.hmi.clusterprojection", "com.saicmotor.hmi.clusterprojection.ProjectionActivity");
+                aaIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(aaIntent);
+            } catch (Exception e) {
+                launchCarApp("com.allgo.app.androidauto", "com.allgo.app.androidauto.ProjectionActivity");
+            }
+        });
         r1.addView(aaBtn, gridLP());
         r1.addView(appBtn(getString(R.string.video), R.drawable.ic_video, () -> launchCarApp("com.saicmotor.hmi.video", "com.saicmotor.hmi.video.ui.activity.UsbVideoActivity")), gridLP());
         View view360Btn = appBtn(getString(R.string.view_360), R.drawable.ic_360, () -> launchCarApp("com.saicmotor.hmi.aroundview", "com.saicmotor.hmi.aroundview.aroundviewconfig.ui.AroundViewActivity"));
@@ -1202,7 +1219,7 @@ public class MainActivity extends Activity {
                 org.json.JSONObject td = tj.optJSONObject("data");
                 if (td != null) {
                     int st = td.optInt("status", -1);
-                    String stStr = st == 0 ? "Online" : st == 1 ? "Offline" : st == 2 ? "Sleep" : "Unknown";
+                    String stStr = st == 0 ? getString(R.string.tbox_online) : st == 1 ? getString(R.string.tbox_offline) : st == 2 ? getString(R.string.tbox_sleep) : getString(R.string.tbox_unknown);
                     addInfoRow(page, "tbox_status", getString(R.string.tbox) + ": " + stStr);
                 }
             } catch (Exception ignored) {}
@@ -1383,8 +1400,8 @@ public class MainActivity extends Activity {
     private TextView mChargeStatus, mChargeTimeRemaining, mChargeEnergy, mChargeRangeGained;
     private TextView mChargePackInfo, mChargeAcInfo, mChargeEfficiency, mChargePlugInfo;
     private TextView mChargeTargetSoc, mChargePeakPower;
+    private TextView mChargeConnected, mChargeOptCurrent, mChargeStopReason, mChargeSchedule;
     private boolean mChargeWasCharging = false;
-    private LinearLayout mChargeSessionList;
 
     private View buildChargingPage() {
         ScrollView scroll = new ScrollView(this);
@@ -1443,21 +1460,14 @@ public class MainActivity extends Activity {
         page.addView(mChargeTargetSoc);
         mChargePeakPower = newInfoTv(getString(R.string.charge_peak_power, "--"));
         page.addView(mChargePeakPower);
-
-        // Stored sessions header
-        TextView sessHeader = new TextView(this);
-        sessHeader.setText(getString(R.string.charge_stored_sessions));
-        sessHeader.setTextSize(14);
-        sessHeader.setTextColor(cTextSec);
-        sessHeader.setPadding(4, 24, 0, 8);
-        page.addView(sessHeader);
-
-        mChargeSessionList = new LinearLayout(this);
-        mChargeSessionList.setOrientation(LinearLayout.VERTICAL);
-        page.addView(mChargeSessionList);
-
-        // Load stored sessions
-        loadStoredChargeSessions();
+        mChargeConnected = newInfoTv(getString(R.string.charge_cable_status, "--"));
+        page.addView(mChargeConnected);
+        mChargeOptCurrent = newInfoTv(getString(R.string.charge_bms_opt_current, "--"));
+        page.addView(mChargeOptCurrent);
+        mChargeStopReason = newInfoTv(getString(R.string.charge_stop_reason, "--"));
+        page.addView(mChargeStopReason);
+        mChargeSchedule = newInfoTv(getString(R.string.charge_schedule_off));
+        page.addView(mChargeSchedule);
 
         scroll.addView(page);
         return scroll;
@@ -1476,141 +1486,11 @@ public class MainActivity extends Activity {
         return tv;
     }
 
-    private void loadStoredChargeSessions() {
-        if (mChargeSessionList == null) return;
-        mChargeSessionList.removeAllViews();
-        com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
-        List<com.emegelauncher.vehicle.ChargingSessionManager.SessionInfo> sessions = mgr.getStoredSessions();
-        if (sessions.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText(getString(R.string.charge_no_sessions));
-            empty.setTextSize(13);
-            empty.setTextColor(cTextTert);
-            empty.setPadding(8, 8, 8, 8);
-            mChargeSessionList.addView(empty);
-            return;
-        }
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault());
-        for (com.emegelauncher.vehicle.ChargingSessionManager.SessionInfo si : sessions) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setBackgroundColor(cCard);
-            row.setPadding(12, 10, 12, 10);
-            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
-            rowLp.setMargins(0, 4, 0, 4);
-            row.setLayoutParams(rowLp);
-
-            String type = si.chargeType == 2 ? "DC" : "AC";
-            String date = sdf.format(new java.util.Date(si.startTime));
-            int durMin = (int) (si.durationMs / 60000);
-            String summary = String.format("%s | %s | %.0f→%.0f%% | %.1f kWh | %d min | Peak %.0f kW",
-                date, type, si.startSoc, si.endSoc, si.totalEnergyKwh, durMin, si.peakPowerKw);
-
-            TextView summaryTv = new TextView(this);
-            summaryTv.setText(summary);
-            summaryTv.setTextSize(13);
-            summaryTv.setTextColor(cText);
-            summaryTv.setSingleLine(true);
-            summaryTv.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
-            summaryTv.setMarqueeRepeatLimit(-1);
-            summaryTv.setSelected(true);
-            row.addView(summaryTv);
-
-            // View graph + export buttons
-            LinearLayout btns = new LinearLayout(this);
-            btns.setOrientation(LinearLayout.HORIZONTAL);
-            btns.setPadding(0, 6, 0, 0);
-
-            final String fname = si.filename;
-            TextView viewBtn = new TextView(this);
-            viewBtn.setText(getString(R.string.charge_view_graph));
-            viewBtn.setTextSize(13);
-            viewBtn.setTextColor(ThemeHelper.accentBlue(this));
-            viewBtn.setPadding(0, 4, 16, 4);
-            viewBtn.setOnClickListener(v -> {
-                List<com.emegelauncher.vehicle.ChargingSessionManager.DataPoint> pts = mgr.loadSession(fname);
-                if (!pts.isEmpty() && mChargingChart != null) mChargingChart.setData(pts);
-            });
-            btns.addView(viewBtn);
-
-            TextView exportBtn = new TextView(this);
-            exportBtn.setText("JSON");
-            exportBtn.setTextSize(13);
-            exportBtn.setTextColor(ThemeHelper.accentTeal(this));
-            exportBtn.setPadding(16, 4, 0, 4);
-            exportBtn.setOnClickListener(v -> exportChargeSession(fname));
-            btns.addView(exportBtn);
-
-            row.addView(btns);
-            mChargeSessionList.addView(row);
-        }
-    }
-
-    private void exportChargeSession(String filename) {
-        java.util.List<StorageVol> volumes = findAllVolumes();
-        if (volumes.isEmpty()) {
-            Toast.makeText(this, getString(R.string.no_storage_found), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String[] names = new String[volumes.size()];
-        for (int i = 0; i < volumes.size(); i++) {
-            StorageVol vi = volumes.get(i);
-            long free = vi.path.getFreeSpace() / (1024 * 1024);
-            names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
-        }
-        new android.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.select_storage))
-            .setItems(names, (d, idx) -> {
-                com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
-                java.io.File result = mgr.exportSession(filename, volumes.get(idx).path);
-                if (result != null) Toast.makeText(this, getString(R.string.exported_to, result.getAbsolutePath()), Toast.LENGTH_LONG).show();
-                else Toast.makeText(this, getString(R.string.export_failed), Toast.LENGTH_SHORT).show();
-            }).show();
-    }
-
-    // Storage picker reuse (same as GraphsActivity)
-    private static class StorageVol {
-        java.io.File path; String description;
-        StorageVol(java.io.File p, String d) { path = p; description = d; }
-    }
-
-    private java.util.List<StorageVol> findAllVolumes() {
-        java.util.List<StorageVol> results = new java.util.ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        try {
-            android.os.storage.StorageManager sm = (android.os.storage.StorageManager) getSystemService(STORAGE_SERVICE);
-            java.lang.reflect.Method getVols = sm.getClass().getMethod("getVolumeList");
-            Object[] vols = (Object[]) getVols.invoke(sm);
-            if (vols != null) for (Object vol : vols) {
-                try {
-                    java.io.File path = (java.io.File) vol.getClass().getMethod("getPathFile").invoke(vol);
-                    String desc = (String) vol.getClass().getMethod("getDescription", android.content.Context.class).invoke(vol, this);
-                    boolean removable = false;
-                    try { removable = (boolean) vol.getClass().getMethod("isRemovable").invoke(vol); } catch (Exception ignored) {}
-                    if (path != null && path.exists()) {
-                        String canon = path.getCanonicalPath();
-                        if (!seen.contains(canon)) {
-                            seen.add(canon);
-                            String label = desc != null ? desc : path.getName();
-                            if (removable) label += " (USB)";
-                            results.add(new StorageVol(path, label));
-                        }
-                    }
-                } catch (Exception ignored) {}
-            }
-        } catch (Exception ignored) {}
-        return results;
-    }
-
     private void updateChargingPage() {
         if (mChargeStatus == null) return;
         com.emegelauncher.vehicle.ChargingSessionManager mgr = com.emegelauncher.vehicle.ChargingSessionManager.getInstance(this);
         boolean isCharging = mgr.isCharging();
 
-        // Refresh session list when charging just stopped
-        if (mChargeWasCharging && !isCharging) {
-            loadStoredChargeSessions();
-        }
         mChargeWasCharging = isCharging;
 
         if (isCharging) {
@@ -1654,20 +1534,20 @@ public class MainActivity extends Activity {
                 mChargePackInfo.setText(getString(R.string.charge_pack_info,
                     String.format("%.0f", last.voltage), String.format("%.1f", last.current)));
 
-                // AC input + efficiency
+                // AC input (properties don't report on Marvel R — hide if 0)
                 if (last.acVoltage > 0) {
                     mChargeAcInfo.setText(getString(R.string.charge_ac_input,
                         String.format("%.0f", last.acVoltage), String.format("%.1f", last.acCurrent)));
-                    mChargeEfficiency.setText(getString(R.string.charge_efficiency,
-                        String.format("%.0f%%", last.efficiency)));
+                    mChargeAcInfo.setVisibility(View.VISIBLE);
                 } else {
-                    mChargeAcInfo.setText(getString(R.string.charge_ac_input, "N/A", "N/A"));
-                    mChargeEfficiency.setText(getString(R.string.charge_efficiency, "N/A (DC)"));
+                    mChargeAcInfo.setVisibility(View.GONE);
                 }
+                // Efficiency not available on Marvel R (AC input sensors don't report)
+                mChargeEfficiency.setVisibility(View.GONE);
 
-                // Plug status
-                String plug = mgr.getChargeType() == 2 ? "DC" : "AC";
-                mChargePlugInfo.setText(getString(R.string.charge_plug_status, plug + " " + getString(R.string.charge_connected)));
+                // Plug info — show charge type
+                mChargePlugInfo.setText(getString(R.string.charge_plug_status,
+                    (mgr.getChargeType() == 2 ? "DC" : "AC") + " " + getString(R.string.charge_connected)));
 
                 // Target SOC
                 String targetRaw = mVehicle.getPropertyValue(YFVehicleProperty.CHRG_TRGT_SOC);
@@ -1683,6 +1563,22 @@ public class MainActivity extends Activity {
                 // Peak power
                 mChargePeakPower.setText(getString(R.string.charge_peak_power, String.format("%.1f kW", mgr.getPeakPowerKw())));
 
+                // BMS optimal current limit
+                String optCrnt = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_OPT_CRNT);
+                if (optCrnt != null && !optCrnt.equals("N/A") && !optCrnt.equals("0")) {
+                    mChargeOptCurrent.setText(getString(R.string.charge_bms_opt_current, optCrnt + " A"));
+                } else {
+                    mChargeOptCurrent.setText(getString(R.string.charge_bms_opt_current, "--"));
+                }
+
+                // Charge stop reason (useful even mid-session to see last reason)
+                String stopReason = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN);
+                if (stopReason != null && !stopReason.equals("N/A") && !stopReason.equals("0")) {
+                    mChargeStopReason.setText(getString(R.string.charge_stop_reason, stopReason));
+                } else {
+                    mChargeStopReason.setText(getString(R.string.charge_stop_reason, "--"));
+                }
+
                 // Duration in status
                 long durMs = mgr.getSessionDuration();
                 int durMin = (int) (durMs / 60000);
@@ -1694,7 +1590,41 @@ public class MainActivity extends Activity {
         } else {
             mChargeStatus.setText(getString(R.string.charge_not_charging));
             mChargeStatus.setTextColor(cTextSec);
+
+            // Show stop reason when not charging
+            String stopReason = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_SP_RSN);
+            if (stopReason != null && !stopReason.equals("N/A") && !stopReason.equals("0")) {
+                mChargeStopReason.setText(getString(R.string.charge_stop_reason, stopReason));
+            }
         }
+
+        // Cable connection + charging type
+        boolean plugConnected = false;
+        try { plugConnected = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_PLUG_CNCTNIO)) > 0; } catch (Exception ignored) {}
+        String cableStr;
+        if (plugConnected && isCharging) {
+            cableStr = getString(R.string.charge_charging_by, mgr.getChargeType() == 2 ? "DC" : "AC");
+        } else if (plugConnected) {
+            cableStr = getString(R.string.charge_cable_connected);
+        } else {
+            cableStr = getString(R.string.charge_cable_none);
+        }
+        mChargeConnected.setText(getString(R.string.charge_cable_status, cableStr));
+
+        // Scheduled charging (always show)
+        try {
+            int reserCtrl = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.RESER_CTRL));
+            if (reserCtrl == 1) { // 1=ON, 2=OFF
+                int stH = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.RESER_ST_HOUR));
+                int stM = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.RESER_ST_MIN));
+                int spH = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.RESER_SP_HOUR));
+                int spM = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.RESER_SP_MIN));
+                mChargeSchedule.setText(getString(R.string.charge_schedule_active,
+                    String.format("%02d:%02d \u2192 %02d:%02d", stH, stM, spH, spM)));
+            } else {
+                mChargeSchedule.setText(getString(R.string.charge_schedule_off));
+            }
+        } catch (Exception ignored) {}
     }
 
     // ==================== Polling & Updates ====================
@@ -1786,10 +1716,10 @@ public class MainActivity extends Activity {
             try { dm = (int) Float.parseFloat(drvRaw); } catch (Exception ignored) {}
             String modeName;
             switch (dm) {
-                case 0: modeName = "Eco"; break;
-                case 2: modeName = "Sport"; break;
-                case 6: modeName = "Winter"; break;
-                default: modeName = "Normal";
+                case 0: modeName = getString(R.string.graph_drive_eco); break;
+                case 2: modeName = getString(R.string.graph_drive_sport); break;
+                case 6: modeName = getString(R.string.graph_drive_winter); break;
+                default: modeName = getString(R.string.graph_drive_normal);
             }
             mDriveMode.setText(String.format(getString(R.string.mode_label), modeName));
 
@@ -1892,8 +1822,20 @@ public class MainActivity extends Activity {
     private void updateRadioCard() {
         if (mRadioFreq == null) return;
         try {
-            // Try to get radio info from MediaSession (radio apps often register a session)
-            boolean gotRadio = false;
+            // Primary: Android native RadioManager tuner frequency
+            int freqKhz = mVehicle.radioGetFrequency();
+            if (freqKhz > 0) {
+                if (freqKhz > 50000) {
+                    // FM: kHz to MHz
+                    mRadioFreq.setText(String.format("%.1f MHz", freqKhz / 1000f));
+                    mRadioTypeLabel.setText(getString(R.string.radio_fm));
+                } else {
+                    // AM: kHz
+                    mRadioFreq.setText(String.format("%d kHz", freqKhz));
+                    mRadioTypeLabel.setText(getString(R.string.radio_am));
+                }
+            }
+            // Try MediaSession for station name (radio app metadata)
             try {
                 android.media.session.MediaSessionManager msm =
                     (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
@@ -1904,14 +1846,9 @@ public class MainActivity extends Activity {
                         if (pkg != null && pkg.contains("radio")) {
                             android.media.MediaMetadata meta = ctrl.getMetadata();
                             if (meta != null) {
-                                String title = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
-                                String subtitle = meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
-                                if (title != null && !title.isEmpty()) {
-                                    mRadioFreq.setText(title);
-                                    gotRadio = true;
-                                }
-                                if (subtitle != null && !subtitle.isEmpty()) {
-                                    mRadioStation.setText(subtitle);
+                                String name = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+                                if (name != null && !name.isEmpty()) {
+                                    mRadioStation.setText(name);
                                 }
                             }
                             break;
@@ -1919,51 +1856,142 @@ public class MainActivity extends Activity {
                     }
                 }
             } catch (Exception ignored) {}
-            // Fallback: try to read from SAIC adapter
-            if (!gotRadio) {
-                String radioInfo = mVehicle.callSaicMethod("adaptergeneral", "getRadioFrequency");
-                if (radioInfo != null && !radioInfo.equals("N/A") && !radioInfo.isEmpty()) {
-                    mRadioFreq.setText(radioInfo);
-                }
+            // Signal strength (0-200 range from HAL)
+            int signal = mVehicle.radioGetSignalStrength();
+            if (signal > 0) {
+                int bars = signal > 150 ? 5 : signal > 120 ? 4 : signal > 90 ? 3 : signal > 60 ? 2 : 1;
+                String barStr = "";
+                for (int i = 0; i < bars; i++) barStr += "\u2581"; // ▁ (growing bars)
+                for (int i = bars; i < 5; i++) barStr += "\u2581";
+                mRadioTypeLabel.setText(mRadioTypeLabel.getText() + "  " + barStr.substring(0, bars));
             }
         } catch (Exception e) {
             Log.d(TAG, "Radio card update: " + e.getMessage());
         }
     }
 
+    private android.content.BroadcastReceiver mNavReceiver;
+
+    private void registerNavBroadcastReceiver() {
+        mNavReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                try {
+                    String action = intent.getAction();
+                    if (action == null) return;
+                    Log.d(TAG, "Nav broadcast: " + action);
+                    com.emegelauncher.vehicle.FileLogger.getInstance(context).d(TAG, "Nav broadcast: " + action);
+
+                    if ("com.telenav.arp.broadcast.ACTION_CLUSTER_UPDATE_BROADCAST".equals(action)) {
+                        // IMPORTANT: Do NOT iterate extras.keySet() — Telenav sends custom
+                        // Parcelable objects (GenericAlert) that cause BadParcelableException.
+                        // Only access known safe String/int keys.
+                        try {
+                            String type = intent.getStringExtra("type");
+                            Log.d(TAG, "Telenav cluster type=" + type);
+                            if (type != null) mNavIsNavigating = true;
+                            // Try known safe keys
+                            String road = intent.getStringExtra("roadName");
+                            if (road == null) road = intent.getStringExtra("road_name");
+                            if (road == null) road = intent.getStringExtra("streetName");
+                            if (road != null && !road.isEmpty()) mNavBroadcastRoad = road;
+                            String dir = intent.getStringExtra("direction");
+                            if (dir == null) dir = intent.getStringExtra("turnDirection");
+                            if (dir != null && !dir.isEmpty()) mNavBroadcastDirection = dir;
+                            int dist = intent.getIntExtra("distance", -1);
+                            if (dist < 0) dist = intent.getIntExtra("distanceToTurn", -1);
+                            if (dist >= 0) mNavBroadcastDistance = dist;
+                            int sl = intent.getIntExtra("speedLimit", -1);
+                            if (sl >= 0) mNavBroadcastSpeedLimit = sl;
+                        } catch (Exception e) {
+                            Log.d(TAG, "Telenav safe parse: " + e.getMessage());
+                        }
+                    } else if ("com.saicmotor.navigation.GUIDE_INFO".equals(action)) {
+                        mNavBroadcastDistance = intent.getIntExtra("DISTANCE", 0);
+                        mNavBroadcastDirection = intent.getStringExtra("DIRECTION");
+                        mNavIsNavigating = true;
+                    } else if ("com.saicmotor.navigation.GUIDE_STATUS".equals(action)) {
+                        int status = intent.getIntExtra("STATUS", 0);
+                        mNavIsNavigating = status != 0;
+                    } else if ("com.saicmotor.navigation.ROAD_INFO".equals(action)) {
+                        String road = intent.getStringExtra("ROAD_NAME");
+                        if (road != null && !road.isEmpty()) mNavBroadcastRoad = road;
+                    }
+                } catch (Exception e) {
+                    // Catch ALL exceptions to prevent app crash from broadcast
+                    Log.e(TAG, "Nav broadcast error: " + e.getMessage());
+                }
+            }
+        };
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction("com.telenav.arp.broadcast.ACTION_CLUSTER_UPDATE_BROADCAST");
+        filter.addAction("com.saicmotor.navigation.GUIDE_INFO");
+        filter.addAction("com.saicmotor.navigation.GUIDE_STATUS");
+        filter.addAction("com.saicmotor.navigation.ROAD_INFO");
+        registerReceiver(mNavReceiver, filter);
+        Log.d(TAG, "Nav broadcast receiver registered");
+    }
+
     private void updateNavCard() {
         if (mNavActiveInfo == null) return;
         try {
-            // Try multiple methods to detect navigation
-            String navigating = mVehicle.callSaicMethod("adaptergeneral", "isMapNavigating");
-            String navigating2 = mVehicle.callSaicMethod("adaptervoice", "isMapNavigating");
-            String road = mVehicle.callSaicMethod("adaptergeneral", "getRoadName");
-            boolean isNav = "true".equalsIgnoreCase(navigating) || "1".equals(navigating)
-                || "true".equalsIgnoreCase(navigating2) || "1".equals(navigating2);
-            // Also check if road name is available (some firmwares report road even without isMapNavigating)
-            boolean hasRoad = road != null && !road.equals("N/A") && !road.isEmpty();
-            // Check FICM navi status as fallback
+            // Use broadcast data (push) as primary, AIDL polling as fallback
+            boolean isNav = mNavIsNavigating;
+            String road = mNavBroadcastRoad;
+
+            // Fallback: try AIDL polling if no broadcast received
             if (!isNav) {
-                String ficmNavi = mVehicle.getPropertyValue(YFVehicleProperty.FICM_NAVI_READY_STS);
-                if ("1".equals(ficmNavi) && hasRoad) isNav = true;
+                String navigating = mVehicle.callSaicMethod("adaptergeneral", "isMapNavigating");
+                isNav = "true".equalsIgnoreCase(navigating) || "1".equals(navigating);
             }
+            if (road == null || road.isEmpty()) {
+                road = mVehicle.callSaicMethod("adaptergeneral", "getRoadName");
+            }
+            boolean hasRoad = road != null && !road.equals("N/A") && !road.isEmpty();
+
             if (isNav || hasRoad) {
                 mNavActiveInfo.setVisibility(View.VISIBLE);
                 mNavQuickBtns.setVisibility(View.GONE);
-                String dist = mVehicle.callSaicMethod("adaptergeneral", "getRemainingDistance");
-                String time = mVehicle.callSaicMethod("adaptergeneral", "getRemainingTimes");
-                String speedLimit = mVehicle.callSaicMethod("adaptergeneral", "getSpeedLimitValue");
-                String guideStatus = mVehicle.callSaicMethod("adaptergeneral", "getGuideStatus");
-                // Turn info line
-                if (guideStatus != null && !guideStatus.equals("N/A") && !guideStatus.isEmpty()) {
-                    mNavInfo.setText(guideStatus);
+
+                // Log all nav data sources during active navigation (for debugging)
+                String dbgRoad = mVehicle.callSaicMethod("adaptergeneral", "getRoadName");
+                String dbgDist = mVehicle.callSaicMethod("adaptergeneral", "getRemainingDistance");
+                String dbgTime = mVehicle.callSaicMethod("adaptergeneral", "getRemainingTimes");
+                String dbgGuide = mVehicle.callSaicMethod("adaptergeneral", "getGuideStatus");
+                String dbgSpeedLim = mVehicle.callSaicMethod("adaptergeneral", "getSpeedLimitValue");
+                String dbgNavMap = mVehicle.callSaicMethod("adaptermap", "isMapNavigating");
+                String dbgRoadMap = mVehicle.callSaicMethod("adaptermap", "getRoadName");
+                float dbgNavSpdVhal = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_SPEED_LIMIT_VALUE));
+                float dbgRoadSpdVhal = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_ROAD_SPD));
+                Log.d(TAG, "NAV DEBUG: road=" + dbgRoad + " dist=" + dbgDist + " time=" + dbgTime
+                    + " guide=" + dbgGuide + " speedLim=" + dbgSpeedLim
+                    + " mapNav=" + dbgNavMap + " mapRoad=" + dbgRoadMap
+                    + " vhalSpd=" + dbgNavSpdVhal + " vhalRoad=" + dbgRoadSpdVhal
+                    + " bcastDir=" + mNavBroadcastDirection + " bcastDist=" + mNavBroadcastDistance
+                    + " bcastRoad=" + mNavBroadcastRoad + " bcastSpd=" + mNavBroadcastSpeedLimit);
+
+                // Turn direction from broadcast
+                if (mNavBroadcastDirection != null && !mNavBroadcastDirection.isEmpty()) {
+                    String distStr = "";
+                    if (mNavBroadcastDistance > 0) {
+                        distStr = mNavBroadcastDistance > 1000
+                            ? String.format(" %.1f km", mNavBroadcastDistance / 1000f)
+                            : " " + mNavBroadcastDistance + " m";
+                    }
+                    mNavInfo.setText(mNavBroadcastDirection + distStr);
                 } else {
-                    mNavInfo.setText(getString(R.string.navigation));
+                    // Fallback to AIDL
+                    String guideStatus = mVehicle.callSaicMethod("adaptergeneral", "getGuideStatus");
+                    mNavInfo.setText(guideStatus != null && !guideStatus.equals("N/A") ? guideStatus : getString(R.string.navigation));
                 }
+
                 // Road name
                 if (hasRoad) mNavRoad.setText(road);
                 else mNavRoad.setText("");
-                // Format remaining distance + time
+
+                // Remaining distance + time from AIDL (broadcast doesn't have total remaining)
+                String dist = mVehicle.callSaicMethod("adaptergeneral", "getRemainingDistance");
+                String time = mVehicle.callSaicMethod("adaptergeneral", "getRemainingTimes");
                 String remaining = "";
                 if (dist != null && !dist.equals("N/A") && !dist.equals("0")) {
                     float distM = parseFloat(dist);
@@ -1976,9 +2004,27 @@ public class MainActivity extends Activity {
                     else if (secs > 60) remaining += (secs / 60) + " min";
                 }
                 mNavRemaining.setText(remaining);
-                // Speed limit badge
-                if (speedLimit != null && !speedLimit.equals("N/A") && !speedLimit.equals("0")) {
-                    mNavSpeedLimit.setText(speedLimit);
+
+                // Speed limit from broadcast or AIDL
+                int speedLimitVal = mNavBroadcastSpeedLimit;
+                // Try VHAL speed limit from Telenav ADAS
+                if (speedLimitVal == 0) {
+                    float navSpd = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_SPEED_LIMIT_VALUE));
+                    if (navSpd > 0) speedLimitVal = (int) navSpd;
+                }
+                if (speedLimitVal == 0) {
+                    float roadSpd = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.NAVIGATION_ROAD_SPD));
+                    if (roadSpd > 0) speedLimitVal = (int) roadSpd;
+                }
+                // Fallback to SAIC adapter
+                if (speedLimitVal == 0) {
+                    String sl = mVehicle.callSaicMethod("adaptergeneral", "getSpeedLimitValue");
+                    if (sl != null && !sl.equals("N/A") && !sl.equals("0")) {
+                        try { speedLimitVal = (int) Float.parseFloat(sl); } catch (Exception ignored) {}
+                    }
+                }
+                if (speedLimitVal > 0) {
+                    mNavSpeedLimit.setText(String.valueOf(speedLimitVal));
                     mNavSpeedLimit.setVisibility(View.VISIBLE);
                 } else {
                     mNavSpeedLimit.setVisibility(View.GONE);
@@ -2084,7 +2130,7 @@ public class MainActivity extends Activity {
 
         // Consumption gauge (replaces RPM — motor RPM always 0 on Marvel R)
         // Instant consumption calculated from power/speed (independent of VHAL)
-        float consumption = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
+        float consumption = speed > 1 ? powerKw / speed * 100f : 0;
         // Calculate our own average from BMS power × time ÷ distance (independent of car's calculation)
         long now = System.currentTimeMillis();
         float speedMs = speed / 3.6f; // km/h to m/s
@@ -2125,7 +2171,10 @@ public class MainActivity extends Activity {
             // Driving behavior indicator: colored arrows (shows live behavior)
             String indicator;
             int indicatorColor;
-            if (powerKw > 50) {
+            if (speed <= 3) {
+                indicator = getString(R.string.eco_steady);
+                indicatorColor = 0xFF636366;
+            } else if (powerKw > 50) {
                 indicator = getString(R.string.eco_hard_accel);
                 indicatorColor = 0xFFFF3B30;
             } else if (powerKw > 30) {
@@ -2189,7 +2238,7 @@ public class MainActivity extends Activity {
             switch (gearVal) { case 1: gear = "P"; break; case 2: gear = "R"; break; case 3: gear = "N"; break; case 4: gear = "D"; break; default: gear = String.valueOf(gearVal); }
             int dm = (int) parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_ELECTRIC_DRIVER_MODE));
             String mode;
-            switch (dm) { case 0: mode = "Eco"; break; case 2: mode = "Sport"; break; case 6: mode = "Winter"; break; default: mode = "Normal"; }
+            switch (dm) { case 0: mode = getString(R.string.graph_drive_eco); break; case 2: mode = getString(R.string.graph_drive_sport); break; case 6: mode = getString(R.string.graph_drive_winter); break; default: mode = getString(R.string.graph_drive_normal); }
             mGpRangeText.setText(String.format(getString(R.string.range_gear_mode), displayRange, gear, mode));
         }
     }
@@ -2253,19 +2302,40 @@ public class MainActivity extends Activity {
         }, 1000);
     }
 
-    /** Trigger cloud query once TBox is online and head unit has internet */
+    private volatile boolean mInternetCheckRunning = false;
+
+    /** Trigger cloud query once TBox is online and internet is confirmed */
     private void checkTboxAndCloud() {
-        if (mCloudQueried) return;
+        if (mCloudQueried || mInternetCheckRunning) return;
         float tboxAvail = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.SENSOR_TBOXAVLBLY));
         if (tboxAvail <= 0) return;
-        // Check Android network connectivity (head unit shares TBox's connection)
-        android.net.ConnectivityManager cm =
-            (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
-        if (ni == null || !ni.isConnected()) return;
-        Log.d(TAG, "TBox online + internet available (network=" + ni.getTypeName() + "), starting cloud query");
-        mCloudQueried = true;
-        queryCloudOnce();
+        // TBox available — verify actual internet connectivity on a background thread
+        mInternetCheckRunning = true;
+        new Thread(() -> {
+            boolean online = false;
+            try {
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
+                    new java.net.URL("https://clients3.google.com/generate_204").openConnection();
+                conn.setRequestMethod("HEAD");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setUseCaches(false);
+                int code = conn.getResponseCode();
+                conn.disconnect();
+                online = (code == 204 || code == 200);
+            } catch (Exception ignored) {}
+            final com.emegelauncher.vehicle.FileLogger fl = com.emegelauncher.vehicle.FileLogger.getInstance(MainActivity.this);
+            if (online) {
+                fl.i(TAG, "Internet check OK, starting cloud query");
+                mHandler.post(() -> {
+                    mCloudQueried = true;
+                    queryCloudOnce();
+                });
+            } else {
+                fl.d(TAG, "Internet check FAILED (generate_204)");
+            }
+            mInternetCheckRunning = false;
+        }).start();
     }
 
     /** Feed data to trip recorder if recording (runs on every poll cycle regardless of active screen) */
@@ -2273,12 +2343,32 @@ public class MainActivity extends Activity {
         com.emegelauncher.vehicle.TripRecorder rec = com.emegelauncher.vehicle.TripRecorder.getInstance(this);
         if (!rec.isRecording()) return;
         try {
+            // Primary: GNSS bean from TBox (has altitude)
             double lat = 0, lon = 0;
-            String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
-            if (locJson != null && locJson.startsWith("{")) {
-                org.json.JSONObject loc = new org.json.JSONObject(locJson);
-                lat = loc.optDouble("lat", 0);
-                lon = loc.optDouble("lon", 0);
+            float alt = 0;
+            String gnssBean = mVehicle.callSaicMethod("enghardware", "getGNSSInfoBean");
+            if (gnssBean != null && !gnssBean.equals("N/A")) {
+                try {
+                    for (String line : gnssBean.split("\n")) {
+                        String l = line.trim();
+                        int ci = l.indexOf(':');
+                        if (ci < 0) continue;
+                        String name = l.substring(0, ci).trim();
+                        String val = l.substring(ci + 1).trim();
+                        if ("mLatitude".equals(name)) lat = Double.parseDouble(val);
+                        else if ("mLongitude".equals(name)) lon = Double.parseDouble(val);
+                        else if ("mAltitude".equals(name)) alt = Float.parseFloat(val);
+                    }
+                } catch (Exception ignored) {}
+            }
+            // Fallback: SAIC nav service
+            if (lat == 0 && lon == 0) {
+                String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+                if (locJson != null && locJson.startsWith("{")) {
+                    org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                    lat = loc.optDouble("lat", 0);
+                    lon = loc.optDouble("lon", 0);
+                }
             }
             float speed = parseFloat(mVehicle.callSaicMethod("condition", "getCarSpeed"));
             if (speed == 0) speed = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.PERF_VEHICLE_SPEED));
@@ -2286,39 +2376,46 @@ public class MainActivity extends Activity {
             float pI = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_CRNT));
             float powerKw = pV * pI / 1000f;
             float soc = parseFloat(mVehicle.getPropertyValue(YFVehicleProperty.BMS_PACK_SOC_DSP));
-            float consumption = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
-            rec.addPoint(lat, lon, 0, speed, powerKw, soc, consumption, 0, 0);
+            float consumption = speed > 1 ? powerKw / speed * 100f : 0;
+            rec.addPoint(lat, lon, alt, speed, powerKw, soc, consumption, 0, 0);
         } catch (Exception ignored) {}
     }
 
     /** Feed telemetry to ABRP if enabled */
     private void feedAbrp() {
-        if (mAbrp == null || !mAbrp.isEnabled()) return;
+        if (mAbrp == null) return;
+        if (!mAbrp.isEnabled()) {
+            // Log once when first checked
+            return;
+        }
         try {
-            // GPS from SAIC nav service
+            // GPS: primary from GNSS bean (has lat/lon/alt/heading)
             double lat = 0, lon = 0;
             float elevation = 0, heading = 0;
-            String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
-            if (locJson != null && locJson.startsWith("{")) {
-                org.json.JSONObject loc = new org.json.JSONObject(locJson);
-                lat = loc.optDouble("lat", 0);
-                lon = loc.optDouble("lon", 0);
-            }
-            // Altitude + heading from TBox GNSS bean
             String gnssBean = mVehicle.callSaicMethod("enghardware", "getGNSSInfoBean");
-            if (gnssBean != null) {
+            if (gnssBean != null && !gnssBean.equals("N/A")) {
                 try {
-                    // Bean fields: mAltitude:XXX or altitude:XXX
-                    String[] fields = gnssBean.split("\n");
-                    for (String field : fields) {
-                        String f = field.trim().toLowerCase();
-                        if (f.startsWith("maltitude:") || f.startsWith("altitude:")) {
-                            elevation = Float.parseFloat(f.substring(f.indexOf(':') + 1).trim());
-                        } else if (f.startsWith("mheading:") || f.startsWith("heading:")) {
-                            heading = Float.parseFloat(f.substring(f.indexOf(':') + 1).trim());
-                        }
+                    for (String line : gnssBean.split("\n")) {
+                        String l = line.trim();
+                        int ci = l.indexOf(':');
+                        if (ci < 0) continue;
+                        String name = l.substring(0, ci).trim();
+                        String val = l.substring(ci + 1).trim();
+                        if ("mLatitude".equals(name)) lat = Double.parseDouble(val);
+                        else if ("mLongitude".equals(name)) lon = Double.parseDouble(val);
+                        else if ("mAltitude".equals(name)) elevation = Float.parseFloat(val);
+                        else if ("mHeading".equals(name)) heading = Float.parseFloat(val);
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) { Log.d(TAG, "GNSS bean parse: " + e.getMessage()); }
+            }
+            // Fallback to SAIC nav service for lat/lon
+            if (lat == 0 && lon == 0) {
+                String locJson = mVehicle.callSaicMethod("adaptervoice", "getCurLocationDesc");
+                if (locJson != null && locJson.startsWith("{")) {
+                    org.json.JSONObject loc = new org.json.JSONObject(locJson);
+                    lat = loc.optDouble("lat", 0);
+                    lon = loc.optDouble("lon", 0);
+                }
             }
             // Speed
             float speed = parseFloat(mVehicle.callSaicMethod("condition", "getCarSpeed"));
@@ -2358,7 +2455,7 @@ public class MainActivity extends Activity {
                 estRange, soh, isCharging, isDcfc, isParked, tpFl, tpFr, tpRl, tpRr);
             mAbrp.trySend();
         } catch (Exception e) {
-            Log.d(TAG, "ABRP feed: " + e.getMessage());
+            Log.e(TAG, "ABRP feed error: " + e.getMessage(), e);
         }
     }
 

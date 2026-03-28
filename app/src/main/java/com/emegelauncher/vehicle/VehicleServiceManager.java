@@ -111,6 +111,9 @@ public class VehicleServiceManager {
     private volatile Object mSysWifi;
     private volatile Object mSysDataUsage;
 
+    // Radio (Android native RadioManager)
+    private volatile boolean mRadioBound = false;
+
     // Layer 6: vehicleService_overseas
     private volatile Object mVehicleOverseas;
 
@@ -122,6 +125,7 @@ public class VehicleServiceManager {
         bindAdapterServices();
         bindSystemSettingsServices();
         bindVehicleOverseas();
+        bindRadioService();
     }
 
     // ==================== Layer 1: Android Car API ====================
@@ -387,6 +391,143 @@ public class VehicleServiceManager {
             },
             svc -> { mVehicleOverseas = svc; Log.d(TAG, "VehicleOverseas acquired"); });
     }
+
+    // ==================== Radio (Android native RadioManager HAL via reflection) ====================
+
+    private Object mRadioTuner; // RadioTuner obtained via reflection
+
+    private void bindRadioService() {
+        try {
+            // Get RadioManager via reflection (hidden API on API 28)
+            Object rm = mContext.getSystemService("broadcastradio");
+            if (rm == null) {
+                Log.w(TAG, "RadioManager: service not available");
+                FileLogger.getInstance(mContext).w(TAG, "RadioManager: service not available");
+                return;
+            }
+            Log.d(TAG, "RadioManager obtained: " + rm.getClass().getName());
+            FileLogger.getInstance(mContext).i(TAG, "RadioManager obtained: " + rm.getClass().getName());
+
+            // listModules
+            java.util.List modules = new java.util.ArrayList();
+            java.lang.reflect.Method listModules = rm.getClass().getMethod("listModules", java.util.List.class);
+            int status = (int) listModules.invoke(rm, modules);
+            Log.d(TAG, "RadioManager: " + modules.size() + " modules, status=" + status);
+
+            if (!modules.isEmpty()) {
+                Object module = modules.get(0);
+                java.lang.reflect.Method getId = module.getClass().getMethod("getId");
+                java.lang.reflect.Method getBands = module.getClass().getMethod("getBands");
+                int moduleId = (int) getId.invoke(module);
+                Object[] bands = (Object[]) getBands.invoke(module);
+                Log.d(TAG, "Radio module id=" + moduleId + " bands=" + bands.length);
+
+                // Find FM band
+                Object fmBand = null;
+                for (Object band : bands) {
+                    java.lang.reflect.Method getType = band.getClass().getMethod("getType");
+                    int type = (int) getType.invoke(band);
+                    Log.d(TAG, "Radio band type=" + type);
+                    if (type == 1) { fmBand = band; break; } // BAND_FM = 1
+                }
+                if (fmBand == null && bands.length > 0) fmBand = bands[0];
+
+                if (fmBand != null) {
+                    // openTuner — try different overloads
+                    // openTuner(int moduleId, BandConfig config, boolean withAudio, Callback cb, Handler h)
+                    for (java.lang.reflect.Method m : rm.getClass().getMethods()) {
+                        if (m.getName().equals("openTuner")) {
+                            Log.d(TAG, "RadioManager.openTuner params: " + java.util.Arrays.toString(m.getParameterTypes()));
+                            try {
+                                // Try without audio control (false) so we don't interfere with radio app
+                                mRadioTuner = m.invoke(rm, moduleId, fmBand, false, null, null);
+                                if (mRadioTuner != null) {
+                                    mRadioBound = true;
+                                    Log.d(TAG, "RadioTuner opened (no audio): " + mRadioTuner.getClass().getName());
+                                    break;
+                                }
+                            } catch (Exception e2) {
+                                Log.d(TAG, "RadioTuner open attempt failed: " + e2.getMessage());
+                            }
+                        }
+                    }
+                    if (mRadioTuner == null) Log.w(TAG, "RadioTuner: failed to open any tuner");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "RadioManager init failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** Radio: scan to next station */
+    public void radioNext(int radioType) {
+        if (mRadioTuner == null) { Log.d(TAG, "radioNext: no tuner"); return; }
+        try {
+            // RadioTuner.scan(int direction, boolean skipSubChannel) — DIRECTION_UP=0
+            java.lang.reflect.Method scan = mRadioTuner.getClass().getMethod("scan", int.class, boolean.class);
+            int result = (int) scan.invoke(mRadioTuner, 0, true); // 0 = DIRECTION_UP
+            Log.d(TAG, "radioNext scan result=" + result);
+        } catch (Exception e) { Log.e(TAG, "radioNext failed", e); }
+    }
+
+    /** Radio: scan to previous station */
+    public void radioPrevious(int radioType) {
+        if (mRadioTuner == null) { Log.d(TAG, "radioPrevious: no tuner"); return; }
+        try {
+            java.lang.reflect.Method scan = mRadioTuner.getClass().getMethod("scan", int.class, boolean.class);
+            int result = (int) scan.invoke(mRadioTuner, 1, true); // 1 = DIRECTION_DOWN
+            Log.d(TAG, "radioPrevious scan result=" + result);
+        } catch (Exception e) { Log.e(TAG, "radioPrevious failed", e); }
+    }
+
+    /** Radio: get current frequency in kHz (0 if unavailable) */
+    public int radioGetFrequency() {
+        if (mRadioTuner == null) return 0;
+        try {
+            java.lang.reflect.Method getProgramInfo = mRadioTuner.getClass().getMethod("getProgramInformation");
+            Object info = getProgramInfo.invoke(mRadioTuner);
+            if (info != null) {
+                java.lang.reflect.Method getSelector = info.getClass().getMethod("getSelector");
+                Object sel = getSelector.invoke(info);
+                if (sel != null) {
+                    java.lang.reflect.Method getPrimaryId = sel.getClass().getMethod("getPrimaryId");
+                    Object primaryId = getPrimaryId.invoke(sel);
+                    if (primaryId != null) {
+                        java.lang.reflect.Method getValue = primaryId.getClass().getMethod("getValue");
+                        return (int) (long) getValue.invoke(primaryId);
+                    }
+                }
+            }
+        } catch (Exception e) { Log.d(TAG, "radioGetFrequency: " + e.getMessage()); }
+        return 0;
+    }
+
+    /** Radio: get signal strength (0-200 range, 0 if unavailable) */
+    public int radioGetSignalStrength() {
+        if (mRadioTuner == null) return 0;
+        try {
+            java.lang.reflect.Method getProgramInfo = mRadioTuner.getClass().getMethod("getProgramInformation");
+            Object info = getProgramInfo.invoke(mRadioTuner);
+            if (info != null) {
+                // ProgramInfo.getSignalStrength() — available on API 28+
+                java.lang.reflect.Method getSignal = info.getClass().getMethod("getSignalStrength");
+                return (int) getSignal.invoke(info);
+            }
+        } catch (Exception e) { Log.d(TAG, "radioGetSignalStrength: " + e.getMessage()); }
+        return 0;
+    }
+
+    /** Radio: start playback (open tuner if needed) */
+    public void radioPlay() {
+        if (mRadioTuner == null) {
+            Log.d(TAG, "radioPlay: no tuner, trying to open");
+            bindRadioService();
+        }
+        Log.d(TAG, "radioPlay: tuner=" + (mRadioTuner != null));
+    }
+
+    /** Check if radio tuner is available */
+    public boolean isRadioBound() { return mRadioBound; }
 
     // ==================== Generic bind helpers ====================
 

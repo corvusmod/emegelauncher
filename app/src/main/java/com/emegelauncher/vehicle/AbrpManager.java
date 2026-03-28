@@ -36,12 +36,14 @@ public class AbrpManager {
     private static final String PREFS_NAME = "emegelauncher";
     private static final String BASE_URL = "https://api.iternio.com/1/tlm/send";
 
-    // API key from Iternio — TODO: replace with actual key when received
-    private static final String API_KEY = "";
+    // API key from Iternio (Telemetry-Only key for Emegelauncher)
+    private static final String API_KEY = "32b2162f-9599-4647-8139-66e9f9528370";
+
+    private static volatile AbrpManager sInstance;
 
     private final SharedPreferences mPrefs;
-    private boolean mEnabled = false;
-    private String mUserToken = null;
+    private volatile boolean mEnabled = false;
+    private volatile String mUserToken = null;
     private long mLastSendTime = 0;
     private static final long SEND_INTERVAL_MS = 5000; // send every 5 seconds max
 
@@ -54,11 +56,25 @@ public class AbrpManager {
     private float mOdometer, mEstRange;
     private boolean mIsCharging, mIsDcfc, mIsParked;
     private float mTirePressureFl, mTirePressureFr, mTirePressureRl, mTirePressureRr;
+    private float mBatteryCapacity = 70.0f; // updated from cloud
 
-    public AbrpManager(Context context) {
+    public static AbrpManager getInstance(Context context) {
+        if (sInstance == null) {
+            synchronized (AbrpManager.class) {
+                if (sInstance == null) sInstance = new AbrpManager(context.getApplicationContext());
+            }
+        }
+        return sInstance;
+    }
+
+    private Context mContext;
+
+    private AbrpManager(Context context) {
+        mContext = context;
         mPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         mUserToken = mPrefs.getString("abrp_token", null);
         mEnabled = mPrefs.getBoolean("abrp_enabled", false);
+        mBatteryCapacity = mPrefs.getFloat("battery_capacity_kwh", 70.0f);
     }
 
     /** Check if ABRP integration is configured and enabled */
@@ -71,15 +87,23 @@ public class AbrpManager {
         return !API_KEY.isEmpty();
     }
 
+    /** Get send statistics for UI display */
+    public int getSendCount() { return mSendCount; }
+    public int getFailCount() { return mFailCount; }
+    public long getLastSendTime() { return mLastSendTime; }
+    private int mFailCount = 0;
+
     /** Enable/disable ABRP telemetry */
     public void setEnabled(boolean enabled) {
         mEnabled = enabled;
         mPrefs.edit().putBoolean("abrp_enabled", enabled).apply();
+        Log.i(TAG, "ABRP enabled=" + enabled + " isEnabled()=" + isEnabled());
     }
 
     /** Set user token (from ABRP app Live Data settings) */
     public void setUserToken(String token) {
         mUserToken = token;
+        Log.i(TAG, "ABRP token set: " + (token != null ? token.substring(0, Math.min(8, token.length())) + "..." : "null"));
         mPrefs.edit().putString("abrp_token", token).apply();
     }
 
@@ -125,11 +149,14 @@ public class AbrpManager {
      * Called from the polling loop — handles rate limiting internally.
      * Runs the HTTP request on a background thread.
      */
+    private int mSendCount = 0;
+
     public void trySend() {
         if (!isEnabled()) return;
         long now = System.currentTimeMillis();
         if (now - mLastSendTime < SEND_INTERVAL_MS) return;
         mLastSendTime = now;
+        mSendCount++;
 
         // Build telemetry JSON
         try {
@@ -143,7 +170,7 @@ public class AbrpManager {
             tlm.put("is_charging", mIsCharging);
             tlm.put("is_dcfc", mIsDcfc);
             tlm.put("is_parked", mIsParked);
-            tlm.put("capacity", 65.0); // Marvel R usable battery capacity kWh
+            tlm.put("capacity", mBatteryCapacity);
             tlm.put("voltage", mVoltage);
             tlm.put("current", mCurrent);
             if (mSoh > 0) tlm.put("soh", mSoh);
@@ -187,17 +214,36 @@ public class AbrpManager {
                     String line;
                     while ((line = reader.readLine()) != null) sb.append(line);
                     reader.close();
-                    JSONObject resp = new JSONObject(sb.toString());
+                    String body = sb.toString();
+                    JSONObject resp = new JSONObject(body);
                     String status = resp.optString("status", "unknown");
+                    FileLogger fl = FileLogger.getInstance(mContext);
                     if (!"ok".equals(status)) {
-                        Log.w(TAG, "ABRP response: " + status);
+                        fl.w(TAG, "ABRP error: " + body);
+                        mFailCount++;
+                    } else {
+                        fl.i(TAG, "ABRP OK #" + mSendCount + " soc=" + mSoc + " spd=" + mSpeed + " lat=" + mLat);
                     }
+                    mPrefs.edit().putInt("abrp_send_count", mSendCount)
+                        .putInt("abrp_fail_count", mFailCount).apply();
                 } else {
-                    Log.w(TAG, "ABRP HTTP " + code);
+                    // Read error body too
+                    String errBody = "";
+                    try {
+                        BufferedReader er = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                        StringBuilder esb = new StringBuilder();
+                        String el;
+                        while ((el = er.readLine()) != null) esb.append(el);
+                        er.close();
+                        errBody = esb.toString();
+                    } catch (Exception ignored) {}
+                    FileLogger.getInstance(mContext).w(TAG, "ABRP HTTP " + code + ": " + errBody);
+                    mFailCount++;
                 }
                 conn.disconnect();
             } catch (Exception e) {
-                Log.d(TAG, "ABRP send failed: " + e.getMessage());
+                FileLogger.getInstance(mContext).e(TAG, "ABRP send failed: " + e.getMessage());
+                mFailCount++;
             }
         }).start();
     }

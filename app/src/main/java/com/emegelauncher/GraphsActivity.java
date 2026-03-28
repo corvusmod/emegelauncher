@@ -45,6 +45,7 @@ public class GraphsActivity extends Activity {
     private final Handler mHandler = new Handler(android.os.Looper.getMainLooper());
     private LinearLayout mContent;
     private int mCurrentTab = 0;
+    private boolean mChargeHistoryRefreshed = false;
     private double mEnergyAccumKwh = 0;
     private double mDistanceAccumKm = 0;
     private float mPrevSpeedMs = 0;
@@ -89,7 +90,7 @@ public class GraphsActivity extends Activity {
         resolveColors();
         TAB_NAMES = new String[]{
             getString(R.string.tab_dashboard), getString(R.string.tab_energy),
-            getString(R.string.tab_charging), getString(R.string.tab_health),
+            getString(R.string.tab_charge_history), getString(R.string.tab_health),
             getString(R.string.tab_tires), getString(R.string.tab_climate),
             getString(R.string.tab_trip), getString(R.string.tab_gmeter)
         };
@@ -178,7 +179,7 @@ public class GraphsActivity extends Activity {
         switch (tab) {
             case 0: buildDashboard(); break;
             case 1: buildEnergy(); break;
-            case 2: buildCharging(); break;
+            case 2: buildChargeHistory(); break;
             case 3: buildHealth(); break;
             case 4: buildTires(); break;
             case 5: buildClimate(); break;
@@ -334,6 +335,205 @@ public class GraphsActivity extends Activity {
         TextView schedInfo = newInfoLabel(getString(R.string.graph_scheduled_off));
         schedInfo.setTag("chrg_schedule");
         mContent.addView(schedInfo, infoLP());
+    }
+
+    // ==================== Charge History (from Cloud) ====================
+
+    private void buildChargeHistory() {
+        com.emegelauncher.vehicle.SaicCloudManager cloud = new com.emegelauncher.vehicle.SaicCloudManager(this);
+
+        // Check if currently charging — disable tab
+        String chrgStsStr = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_STS);
+        int chrgSts = 0;
+        try { chrgSts = (int) Float.parseFloat(chrgStsStr); } catch (Exception ignored) {}
+        boolean isCharging = chrgSts == 1 || chrgSts == 2;
+
+        if (isCharging) {
+            TextView msg = newInfoLabel(getString(R.string.charge_history_while_charging));
+            msg.setTextColor(C_ORANGE);
+            mContent.addView(msg, infoLP());
+            return;
+        }
+
+        // Auto-refresh from cloud in background (rebuild tab once with new data)
+        if (cloud.isLoggedIn() && !mChargeHistoryRefreshed) {
+            mChargeHistoryRefreshed = true;
+            cloud.queryCharging((ok, msg) -> {
+                if (ok) runOnUiThread(() -> {
+                    if (mCurrentTab == 2) switchTab(2);
+                });
+            });
+        }
+
+        // Refresh button — fetches latest from cloud
+        TextView refreshBtn = new TextView(this);
+        refreshBtn.setText(getString(R.string.charge_history_refresh));
+        refreshBtn.setTextSize(15);
+        refreshBtn.setTextColor(C_BLUE);
+        refreshBtn.setPadding(20, 14, 20, 14);
+        refreshBtn.setBackgroundColor(cCard);
+        refreshBtn.setGravity(android.view.Gravity.CENTER);
+        refreshBtn.setOnClickListener(v -> {
+            refreshBtn.setText(getString(R.string.charge_history_refreshing));
+            refreshBtn.setTextColor(cTextTert);
+            mChargeHistoryRefreshed = true; // prevent auto-refresh loop on rebuild
+            cloud.queryCharging((ok, msg) -> runOnUiThread(() -> {
+                if (ok) {
+                    int count = cloud.getChargeHistory().length();
+                    android.widget.Toast.makeText(this, getString(R.string.charge_hist_cloud_ok, count), android.widget.Toast.LENGTH_SHORT).show();
+                    switchTab(2);
+                } else {
+                    refreshBtn.setText(getString(R.string.charge_history_refresh));
+                    refreshBtn.setTextColor(C_BLUE);
+                    android.widget.Toast.makeText(this, "Cloud: " + msg, android.widget.Toast.LENGTH_SHORT).show();
+                }
+            }));
+        });
+        mContent.addView(refreshBtn, infoLP());
+
+        addDivider();
+
+        // Export all sessions button
+        TextView exportAllBtn = new TextView(this);
+        exportAllBtn.setText(getString(R.string.charge_history_export));
+        exportAllBtn.setTextSize(14);
+        exportAllBtn.setTextColor(C_TEAL);
+        exportAllBtn.setPadding(20, 10, 20, 10);
+        exportAllBtn.setBackgroundColor(cCard);
+        exportAllBtn.setGravity(android.view.Gravity.CENTER);
+        exportAllBtn.setOnClickListener(v -> exportChargeHistory(cloud));
+        mContent.addView(exportAllBtn, infoLP());
+
+        addDivider();
+
+        // Load stored sessions from SharedPreferences
+        org.json.JSONArray history = cloud.getChargeHistory();
+        if (history.length() == 0) {
+            TextView empty = newInfoLabel(getString(R.string.charge_history_empty));
+            empty.setTextColor(cTextTert);
+            mContent.addView(empty, infoLP());
+            return;
+        }
+
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
+
+        for (int i = 0; i < history.length(); i++) {
+            try {
+                org.json.JSONObject sess = history.getJSONObject(i);
+                long startTime = sess.optLong("startTime", 0) * 1000; // seconds to ms
+                long endTime = sess.optLong("endTime", 0) * 1000;
+                int duration = sess.optInt("chargingDuration", 0);
+                int chargingType = sess.optInt("chargingType", 0);
+                int soc = sess.optInt("bmsPackSOCDsp", 0);
+                int range = sess.optInt("bmsEstdElecRng", 0);
+                int addedRange = sess.optInt("chrgngAddedElecRng", 0);
+                double powerSinceCharge = sess.optDouble("powerUsageSinceLastCharge", 0);
+                double powerOfDay = sess.optDouble("powerUsageOfDay", 0);
+                int targetSoc = sess.optInt("bmsOnBdChrgTrgtSOCDspCmd", 0);
+                int stopReason = sess.optInt("bmsChrgSpRsn", 0);
+                double packVol = sess.optDouble("bmsPackVol", 0);
+                double packCrnt = sess.optDouble("bmsPackCrnt", 0);
+                int totalCapacity = sess.optInt("totalBatteryCapacity", 0);
+                int realTimePower = sess.optInt("realTimePower", 0);
+
+                String typeStr = chargingType == 2 ? "DC" : chargingType == 1 ? "AC" : "?";
+                String dateStr = startTime > 0 ? sdf.format(new java.util.Date(startTime)) : "--";
+                int durMin = duration > 0 ? duration : (endTime > startTime ? (int)((endTime - startTime) / 60000) : 0);
+
+                // Session card
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setBackgroundColor(cCard);
+                card.setPadding(16, 12, 16, 12);
+                LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+                cardLp.setMargins(0, 6, 0, 6);
+                card.setLayoutParams(cardLp);
+
+                // Header: date + type
+                TextView header = new TextView(this);
+                header.setText(dateStr + " | " + typeStr);
+                header.setTextSize(16);
+                header.setTextColor(cText);
+                header.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+                card.addView(header);
+
+                // Details
+                StringBuilder details = new StringBuilder();
+                details.append(getString(R.string.charge_hist_soc, String.valueOf(soc)));
+                if (targetSoc > 0) {
+                    int displayTarget = Math.min(100, (targetSoc + 3) * 10);
+                    details.append(" \u2192 ").append(getString(R.string.charge_hist_target, displayTarget));
+                }
+                details.append("\n");
+                if (durMin > 0) details.append(getString(R.string.charge_hist_duration, durMin > 60 ? (durMin/60) + "h " + (durMin%60) + "min" : durMin + " min")).append("\n");
+                if (addedRange > 0) details.append(getString(R.string.charge_hist_range_added, addedRange)).append("\n");
+                if (range > 0) details.append(getString(R.string.charge_hist_range, range)).append("\n");
+                if (packVol > 0) details.append(getString(R.string.charge_hist_pack, String.format("%.0fV / %.1fA", packVol, Math.abs(packCrnt)))).append("\n");
+                if (realTimePower > 0) details.append(getString(R.string.charge_hist_power, String.format("%.1f kW", realTimePower / 10.0))).append("\n");
+                if (powerSinceCharge > 0) details.append(getString(R.string.charge_hist_energy_since, String.format("%.1f kWh", powerSinceCharge / 10.0))).append("\n");
+                if (powerOfDay > 0) details.append(getString(R.string.charge_hist_energy_today, String.format("%.1f kWh", powerOfDay / 10.0))).append("\n");
+                if (totalCapacity > 0) details.append(getString(R.string.charge_hist_capacity, String.format("%.1f kWh", totalCapacity / 10.0))).append("\n");
+                if (stopReason > 0) details.append(getString(R.string.charge_hist_stop_reason, String.valueOf(stopReason))).append("\n");
+
+                TextView detailsTv = new TextView(this);
+                detailsTv.setText(details.toString().trim());
+                detailsTv.setTextSize(13);
+                detailsTv.setTextColor(cTextSec);
+                detailsTv.setPadding(0, 4, 0, 0);
+                card.addView(detailsTv);
+
+                mContent.addView(card);
+            } catch (Exception e) {
+                Log.e(TAG, "Parse charge history item " + i, e);
+            }
+        }
+
+        // SOH estimation from latest session
+        try {
+            org.json.JSONObject latest = history.getJSONObject(0);
+            int totalCap = latest.optInt("totalBatteryCapacity", 0);
+            if (totalCap > 0) {
+                float capKwh = totalCap / 10.0f;
+                float soh = capKwh / 70.0f * 100f; // 70 kWh nominal
+                TextView sohLabel = newInfoLabel(getString(R.string.charge_hist_soh, soh, capKwh));
+                sohLabel.setTextColor(soh > 90 ? C_GREEN : soh > 80 ? C_ORANGE : C_RED);
+                mContent.addView(sohLabel, infoLP());
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void exportChargeHistory(com.emegelauncher.vehicle.SaicCloudManager cloud) {
+        org.json.JSONArray history = cloud.getChargeHistory();
+        if (history.length() == 0) {
+            android.widget.Toast.makeText(this, getString(R.string.charge_history_empty), android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // Use same storage picker pattern
+        java.util.List<StorageVol> volumes = findAllVolumes();
+        if (volumes.isEmpty()) {
+            android.widget.Toast.makeText(this, getString(R.string.no_storage_found), android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[volumes.size()];
+        for (int i = 0; i < volumes.size(); i++) {
+            StorageVol vi = volumes.get(i);
+            long free = vi.path.getFreeSpace() / (1024 * 1024);
+            names[i] = vi.description + "\n" + vi.path.getAbsolutePath() + " (" + free + " MB free)";
+        }
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_storage))
+            .setItems(names, (d, idx) -> {
+                try {
+                    String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(new java.util.Date());
+                    java.io.File dest = new java.io.File(volumes.get(idx).path, "charge_history_" + ts + ".json");
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(dest);
+                    fos.write(history.toString(2).getBytes("UTF-8"));
+                    fos.close();
+                    android.widget.Toast.makeText(this, getString(R.string.exported_to, dest.getAbsolutePath()), android.widget.Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    android.widget.Toast.makeText(this, getString(R.string.export_failed), android.widget.Toast.LENGTH_SHORT).show();
+                }
+            }).show();
     }
 
     // ==================== Battery Health ====================
@@ -724,7 +924,7 @@ public class GraphsActivity extends Activity {
             switch (mCurrentTab) {
                 case 0: updateDashboard(); break;
                 case 1: updateEnergy(); break;
-                case 2: updateCharging(); break;
+                case 2: break; // Charge history: static, no polling
                 case 3: updateHealth(); break;
                 case 4: updateTires(); break;
                 case 5: updateClimate(); break;
@@ -758,7 +958,7 @@ public class GraphsActivity extends Activity {
         float packI = readFloat(YFVehicleProperty.BMS_PACK_CRNT);
         float powerKw = packV * packI / 1000f;
         // Instant consumption from power/speed (independent of VHAL)
-        float instantCons = speed > 1 ? Math.abs(powerKw) / speed * 100f : 0;
+        float instantCons = speed > 1 ? powerKw / speed * 100f : 0;
         if (mPrevSpeedTimeMs > 0) {
             float dt = (now - mPrevSpeedTimeMs) / 1000f;
             if (dt > 0 && dt < 5f && speed > 5) {
@@ -791,7 +991,10 @@ public class GraphsActivity extends Activity {
         mEfficiencyGauge.setValue(ecoD);
         String indicator;
         int indicatorColor;
-        if (powerKw > 50) {
+        if (speed <= 3) {
+            indicator = getString(R.string.eco_steady);
+            indicatorColor = 0xFF636366;
+        } else if (powerKw > 50) {
             indicator = getString(R.string.eco_hard_accel);
             indicatorColor = 0xFFFF3B30;
         } else if (powerKw > 30) {
@@ -892,7 +1095,7 @@ public class GraphsActivity extends Activity {
         float eSpeed = readSaicFloat("condition", "getCarSpeed");
         if (eSpeed == 0) eSpeed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
         float ePower = readFloat(YFVehicleProperty.BMS_PACK_VOL) * readFloat(YFVehicleProperty.BMS_PACK_CRNT) / 1000f;
-        mConsumptionChart.addPoint(eSpeed > 1 ? Math.abs(ePower) / eSpeed * 100f : 0);
+        mConsumptionChart.addPoint(eSpeed > 1 ? ePower / eSpeed * 100f : 0);
     }
 
     private void updateCharging() {
@@ -1142,7 +1345,7 @@ public class GraphsActivity extends Activity {
         float tripSpeed = readSaicFloat("condition", "getCarSpeed");
         if (tripSpeed == 0) tripSpeed = readFloat(YFVehicleProperty.PERF_VEHICLE_SPEED);
         float tripPower = pV * pI / 1000f;
-        float instantCons = tripSpeed > 1 ? Math.abs(tripPower) / tripSpeed * 100f : 0;
+        float instantCons = tripSpeed > 1 ? tripPower / tripSpeed * 100f : 0;
         mTotalConsumed.setText(getString(R.string.trip_instant, String.format("%.1f", instantCons)));
         float pKw = pV * pI / 1000f;
         mRegenEnergy.setText(pKw < 0

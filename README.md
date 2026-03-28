@@ -48,8 +48,8 @@ A custom home screen launcher for the **MG Marvel R** electric vehicle, designed
 
 ## Features
 
-### 4-Screen Swipeable Launcher
-Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
+### 5-Screen Swipeable Launcher
+Horizontal ViewPager with 5 pages: **Charging ← Graphs ← Main → Apps → Other**
 
 ### Main Screen (default)
 - **Weather**: Dynamic weather icon (sunny/cloudy/rain/snow/fog/storm), forecast temp, outside sensor temp, cabin temp from cloud (when available). Tap opens weather app.
@@ -61,6 +61,13 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 - **Drive Mode bar**: Current mode (Eco/Normal/Sport/Winter) + regen level
 - **Auto Theme**: Follows car display (day/night), or manual dark/light override
 - **Layout**: Row 1: Navigation | Battery. Row 2: Music | Radio. Row 3: Weather | Phone
+
+### Charging Dashboard (swipe far left)
+Live-only real-time charging monitor. Shows data while charging, retains last session display until next charge.
+- **Gauges**: SOC (0-100%) + Power (kW), auto-scaling
+- **Multi-series chart**: Power (green), Voltage (teal), SOC (blue) on shared timeline
+- **Info cards**: Time remaining, session energy (kWh), range gained, pack voltage/current, target SOC, peak power, BMS current limit, charge stop reason, cable status, scheduled charge time
+- **Cable detection**: Uses BMS_CHRG_PLUG_CNCTNIO (shows "connected" even before charging starts)
 
 ### Live Dashboard (swipe left)
 - **4 gauges**: Speed, Battery SOC, Consumption (dual-dot: instant from power÷speed, BMS-calculated session average), Eco Score — animated with color-coded labels (orange instant, teal average)
@@ -75,8 +82,8 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 |---|---|
 | **Dashboard** | Speed, SOC, Consumption, Eco Score gauges + energy flow + G-force + gear/range/mode |
 | **Energy** | SOC (display + BMS raw), pack voltage, pack current, consumption (kWh/100km) |
-| **Charging** | Live power/current/voltage charts when charging, stored session data when idle |
-| **Health** | Auto-calculated SOH estimation, capacity tracking, charge session history |
+| **Charges** | Cloud charge history — sessions from iSMART API, auto-refresh, export JSON, SOH estimation |
+| **Health** | Auto-calculated SOH estimation, capacity tracking, resting voltage analysis |
 | **Tires** | Top-down car silhouette with 4-corner pressure + temperature, color-coded (2.5-3.3 bar) |
 | **Climate** | HVAC status, outside temp, air quality sensors |
 | **Trip** | Trip Recorder (start/stop, GPX/JSON export to USB/storage), odometer, live consumption/power, stored trip history (max 5) |
@@ -86,13 +93,19 @@ Horizontal ViewPager with 4 pages: **Graphs ← Main → Apps → Other**
 Record GPS tracks while driving with full vehicle telemetry. Accessible from the Trip tab in Vehicle Graphs.
 
 - **Start/Stop** recording button — singleton pattern, continues recording across all screens
-- **Live data** per point: timestamp, GPS lat/lon, speed, power (kW), SOC%, consumption (kWh/100km), G-forces
-- **Export**: GPX (Google Earth compatible) + JSON (full telemetry) — storage selection dialog shows all available USB drives and internal storage
+- **Live data** per point: timestamp, GPS lat/lon/altitude (from TBox GNSS with nav service fallback), speed, power (kW), SOC%, consumption (kWh/100km), G-forces
+- **Export**: GPX + KML (Google Earth) + JSON (full telemetry) — storage selection dialog shows all available USB drives and internal storage
 - **Stored trips**: Last 5 trips kept with auto-pruning of oldest. Each trip shows summary (distance, max speed, avg consumption, duration, point count)
-- **Per-trip export buttons**: GPX and JSON buttons for each stored trip
+- **Per-trip export buttons**: GPX, KML, and JSON buttons for each stored trip
+
+### ABRP Integration (A Better Route Planner)
+Send live telemetry to ABRP for real-time trip planning. Configure in Settings with your ABRP user token.
+- **Data sent every 5s**: SOC, speed, power, GPS (lat/lon/altitude/heading from GNSS), range, odometer, voltage, current, temps, tire pressures, charging status, battery capacity (65 kWh)
+- **GPS from TBox GNSS**: Full GNSSInfoBean with altitude and heading (more accurate than nav service)
+- **Auto-detection**: Charging status (AC/DC/DCFC), parked state from gear
 
 ### iSMART Cloud Integration
-Connects to MG's cloud API for data not available locally. Auto re-login on token expiry. Cloud queries trigger automatically once TBox is online and internet connectivity is confirmed.
+Connects to MG's cloud API for data not available locally. Auto re-login on token expiry. Cloud queries trigger automatically once TBox is online and internet connectivity is confirmed (via HTTP HEAD check). Uses event-id polling pattern for endpoints that require TBox wake.
 
 **Vehicle status** (fetched when TBox + internet detected):
 - Cabin temperature, 12V battery voltage (÷10 scaling, with charging/resting/low status notes)
@@ -118,7 +131,7 @@ All cloud features are **greyed out and disabled** when not logged in.
 
 ### Apps Screen (swipe right)
 - **Top half**: Scrollable 4-column grid of user-installed apps (system apps hidden)
-- **Bottom half**: 4-3-3 button grid — CarPlay, Android Auto (disabled when not connected), Video, 360 View (disabled when no cameras), Car/System/Launcher Settings, Rescue, MG Support, Manual
+- **Bottom half**: 4-3-3 button grid — CarPlay, Android Auto (always enabled), Video, 360 View, Car/System/Launcher Settings, Rescue, MG Support, Manual
 
 ### Other Screen (swipe far right)
 - **Tool buttons**: Diagnostics, Vehicle Info, Location, TBox, Cloud, USB Camera
@@ -310,15 +323,15 @@ The app automatically uses the device locale. Additional languages can be added 
 
 | Screen | Activity | Description |
 |---|---|---|
-| Main | MainActivity (ViewPager) | 4-screen swipeable launcher: Graphs, Main, Apps, Other |
-| Graphs | GraphsActivity | 8-tab live vehicle data with gauges and charts |
+| Main | MainActivity (ViewPager) | 5-screen swipeable: Charging, Graphs, Main, Apps, Other |
+| Graphs | GraphsActivity | 8-tab vehicle data: Dashboard, Energy, Charges, Health, Tires, Climate, Trip, G-Meter |
 | Vehicle Info | VehicleInfoActivity | 100+ data points including cloud data |
 | Location | LocationActivity | GPS, satellites, address, JSON snapshot |
 | Cloud | CloudActivity | iSMART cloud: status, statistics, BT keys, geofence, POI |
 | TBox | TboxActivity | EngMode hardware data, security info, TBox network |
 | USB Camera | UvcCameraActivity | USB camera detection, preview via AndroidUSBCamera (UVC) |
 | Diagnostics | DebugActivity | 943 VHAL + 252 SAIC, filter, TX codes, export |
-| Settings | SettingsActivity | Theme, cloud login, profile, overlay, developer tools |
+| Settings | SettingsActivity | Theme, cloud login, ABRP, profile, overlay, stock AA toggle, developer tools |
 
 ---
 
@@ -343,7 +356,10 @@ app/src/main/java/com/emegelauncher/
 |   |- SaicCloudManager.java      # iSMART cloud API (auth, status, stats, keys, POI, geofence)
 |   |- WeatherManager.java        # Weather broadcast + polling
 |   |- BatteryHealthTracker.java   # SOH estimation from charge sessions
-|   |- TripRecorder.java          # GPS track logger with GPX/JSON export (singleton)
+|   |- TripRecorder.java          # GPS track logger with GPX/KML/JSON export (singleton)
+|   |- ChargingSessionManager.java # Live charging monitor (singleton)
+|   |- AbrpManager.java           # ABRP telemetry sender (singleton)
+|   |- FileLogger.java            # File-based logger (survives logcat eviction)
 |   |- YFVehicleProperty.java     # 943 VHAL property constants
 |- widget/
     |- ArcGaugeView.java      # Arc gauge with animated value + label below
@@ -351,6 +367,7 @@ app/src/main/java/com/emegelauncher/
     |- LineChartView.java     # Line chart with auto-scaling
     |- GMeterView.java        # Circular G-force meter (1G max) with peak tracking
     |- BarChartView.java      # Bar chart with x-axis date labels (cloud statistics)
+    |- ChargingChartView.java # Multi-series charging chart (Power/Voltage/SOC)
     |- TireDiagramView.java   # Top-down car silhouette + 4-corner tire pressure
     |- BatteryView.java       # Dynamic battery fill icon (SOC-based color)
 ```

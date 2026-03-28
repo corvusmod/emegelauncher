@@ -343,16 +343,192 @@ public class SaicCloudManager {
         if (!isLoggedIn() || mVin == null) { post(cb, false, "Not connected"); return; }
         new Thread(() -> {
             try {
-                String eventId = String.valueOf(System.currentTimeMillis());
-                String resp = doGetWithEvent("/vehicle/charging/mgmtData?vin=" + ue(sha256(mVin)), eventId);
-                if (resp == null) { post(cb, false, "Network error"); return; }
+                String path = "/vehicle/charging/mgmtData?vin=" + ue(sha256(mVin));
+                FileLogger fl = FileLogger.getInstance(mContext);
+
+                // First request with event-id "0" (same pattern as queryVehicleStatus)
+                String[] firstResp = doRequestWithEventId("GET", path, null, "application/json", "0", true);
+                if (firstResp == null || firstResp[0] == null) {
+                    fl.w(TAG, "queryCharging: network error on first request");
+                    post(cb, false, "Network error"); return;
+                }
+
+                String resp = firstResp[0];
+                String returnedEventId = firstResp[1];
+
+                // Check if we got data immediately
+                JSONObject json = new JSONObject(resp);
+                int code = json.optInt("code", -1);
+                JSONObject data = json.optJSONObject("data");
+
+                // If no data yet, poll with returned event-id (up to 10 retries)
+                if ((code != 0 || data == null) && returnedEventId != null && !returnedEventId.isEmpty()) {
+                    fl.d(TAG, "queryCharging: polling with event-id=" + returnedEventId + " (code=" + code + ")");
+                    for (int retry = 0; retry < 10; retry++) {
+                        Thread.sleep(2000);
+                        String[] retryResp = doRequestWithEventId("GET", path, null, "application/json", returnedEventId, true);
+                        if (retryResp != null && retryResp[0] != null) {
+                            JSONObject retryJson = new JSONObject(retryResp[0]);
+                            int retryCode = retryJson.optInt("code", -1);
+                            JSONObject retryData = retryJson.optJSONObject("data");
+                            if (retryCode == 0 && retryData != null) {
+                                resp = retryResp[0];
+                                code = retryCode;
+                                fl.i(TAG, "queryCharging: got data on retry " + (retry + 1));
+                                break;
+                            }
+                            // Update event-id if new one returned
+                            if (retryResp[1] != null && !retryResp[1].isEmpty()) {
+                                returnedEventId = retryResp[1];
+                            }
+                        }
+                    }
+                    // Re-parse final response
+                    json = new JSONObject(resp);
+                    code = json.optInt("code", -1);
+                }
+
+                if (code != 0) {
+                    String msg = json.optString("message", "Unknown error");
+                    fl.w(TAG, "queryCharging failed: code=" + code + " msg=" + msg);
+                    post(cb, false, "Cloud: " + msg + " (code " + code + ")");
+                    return;
+                }
+
+                fl.i(TAG, "queryCharging OK, processing session data");
                 mPrefs.edit().putString("charging", resp).apply();
+                processChargeSession(resp);
                 post(cb, true, resp);
-            } catch (Exception e) { post(cb, false, e.getMessage()); }
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).e(TAG, "queryCharging exception: " + e.getMessage());
+                post(cb, false, e.getMessage());
+            }
         }).start();
     }
 
     public String getCachedCharging() { return mPrefs.getString("charging", null); }
+
+    /**
+     * Parse the latest cloud charge session and store it in local history.
+     * Called after queryCharging succeeds. Extracts RvsChargeStatus + ChrgMgmtData.
+     * Only stores if startTime is new (not already in history).
+     */
+    public void processChargeSession(String chargingJson) {
+        try {
+            Log.d(TAG, "processChargeSession: response length=" + (chargingJson != null ? chargingJson.length() : 0));
+            JSONObject json = new JSONObject(chargingJson);
+            JSONObject data = json.optJSONObject("data");
+            if (data == null) {
+                Log.w(TAG, "processChargeSession: no 'data' in response. Keys: " + json.keys());
+                return;
+            }
+            JSONObject rvsData = data.optJSONObject("rvsChargeStatus");
+            JSONObject mgmtData = data.optJSONObject("chrgMgmtData");
+            Log.d(TAG, "processChargeSession: rvsChargeStatus=" + (rvsData != null) + " chrgMgmtData=" + (mgmtData != null));
+            FileLogger.getInstance(mContext).i(TAG, "processChargeSession: rvs=" + (rvsData != null) + " mgmt=" + (mgmtData != null));
+            if (rvsData == null && mgmtData == null) {
+                Log.w(TAG, "processChargeSession: no rvsChargeStatus or chrgMgmtData. Data keys: " + data.keys());
+                return;
+            }
+
+            // Build a session record from cloud data — all values stored as raw
+            JSONObject session = new JSONObject();
+            if (rvsData != null) {
+                session.put("startTime", rvsData.optLong("startTime", 0));
+                session.put("endTime", rvsData.optLong("endTime", 0));
+                session.put("chargingDuration", rvsData.optInt("chargingDuration", 0));
+                session.put("chargingType", rvsData.optInt("chargingType", 0));
+                session.put("chargingCurrent", rvsData.optInt("chargingCurrent", 0));
+                session.put("chargingVoltage", rvsData.optInt("chargingVoltage", 0));
+                session.put("realTimePower", rvsData.optInt("realTimePower", 0));
+                session.put("totalBatteryCapacity", rvsData.optInt("totalBatteryCapacity", 0));
+                session.put("lastChargeEndingPower", rvsData.optInt("lastChargeEndingPower", 0));
+                session.put("workingVoltage", rvsData.optInt("workingVoltage", 0));
+                session.put("workingCurrent", rvsData.optInt("workingCurrent", 0));
+                session.put("mileageSinceLastCharge", rvsData.optInt("mileageSinceLastCharge", 0));
+                session.put("mileageOfDay", rvsData.optInt("mileageOfDay", 0));
+                session.put("mileage", rvsData.optInt("mileage", 0));
+                session.put("powerUsageSinceLastCharge", rvsData.optInt("powerUsageSinceLastCharge", 0));
+                session.put("powerUsageOfDay", rvsData.optInt("powerUsageOfDay", 0));
+                session.put("fuelRangeElec", rvsData.optInt("fuelRangeElec", 0));
+                session.put("chargingGunState", rvsData.optInt("chargingGunState", 0));
+
+                // Save real battery capacity for SOH and ABRP
+                int rawCap = rvsData.optInt("totalBatteryCapacity", 0);
+                if (rawCap > 0) {
+                    float realCapKwh = rawCap / 10.0f;
+                    mPrefs.edit().putFloat("battery_capacity_kwh", realCapKwh).apply();
+                    Log.d(TAG, "Battery capacity from cloud: " + realCapKwh + " kWh");
+                }
+            }
+            if (mgmtData != null) {
+                // BMS data — store decoded values
+                int rawPackCrnt = mgmtData.optInt("bmsPackCrnt", 0);
+                int rawPackVol = mgmtData.optInt("bmsPackVol", 0);
+                session.put("bmsPackCrnt", rawPackCrnt * 0.05 - 1000);
+                session.put("bmsPackVol", rawPackVol * 0.25);
+                session.put("bmsPackSOCDsp", mgmtData.optInt("bmsPackSOCDsp", 0) / 10.0);
+                session.put("bmsEstdElecRng", mgmtData.optInt("bmsEstdElecRng", 0));
+                session.put("bmsChrgSts", mgmtData.optInt("bmsChrgSts", 0));
+                session.put("chrgngRmnngTime", mgmtData.optInt("chrgngRmnngTime", 0));
+                session.put("bmsChrgSpRsn", mgmtData.optInt("bmsChrgSpRsn", 0));
+                session.put("chrgngAddedElecRng", mgmtData.optInt("chrgngAddedElecRng", 0));
+                session.put("bmsOnBdChrgTrgtSOCDspCmd", mgmtData.optInt("bmsOnBdChrgTrgtSOCDspCmd", 0));
+                session.put("bmsReserCtrlDspCmd", mgmtData.optInt("bmsReserCtrlDspCmd", 0));
+            }
+            session.put("fetchTime", System.currentTimeMillis());
+
+            // Store in history if new (check startTime uniqueness)
+            storeChargeSession(session);
+        } catch (Exception e) {
+            Log.e(TAG, "processChargeSession failed", e);
+        }
+    }
+
+    private void storeChargeSession(JSONObject session) {
+        try {
+            String historyStr = mPrefs.getString("charge_history", "[]");
+            org.json.JSONArray history = new org.json.JSONArray(historyStr);
+
+            long startTime = session.optLong("startTime", 0);
+            long fetchTime = session.optLong("fetchTime", 0);
+
+            // Check for duplicate (same startTime)
+            for (int i = 0; i < history.length(); i++) {
+                JSONObject existing = history.getJSONObject(i);
+                if (existing.optLong("startTime", -1) == startTime && startTime > 0) {
+                    // Update existing with newer data
+                    history.put(i, session);
+                    mPrefs.edit().putString("charge_history", history.toString()).apply();
+                    Log.d(TAG, "Updated existing charge session: startTime=" + startTime);
+                    return;
+                }
+            }
+
+            // Add new session (at the beginning for newest-first)
+            org.json.JSONArray newHistory = new org.json.JSONArray();
+            newHistory.put(session);
+            for (int i = 0; i < Math.min(history.length(), 149); i++) { // keep max 150
+                newHistory.put(history.getJSONObject(i));
+            }
+            mPrefs.edit().putString("charge_history", newHistory.toString()).apply();
+            Log.d(TAG, "Stored new charge session: startTime=" + startTime + " total=" + newHistory.length());
+        } catch (Exception e) {
+            Log.e(TAG, "storeChargeSession failed", e);
+        }
+    }
+
+    /** Get stored charge session history (from cloud snapshots, newest first) */
+    public org.json.JSONArray getChargeHistory() {
+        try {
+            return new org.json.JSONArray(mPrefs.getString("charge_history", "[]"));
+        } catch (Exception e) { return new org.json.JSONArray(); }
+    }
+
+    /** Get real battery capacity from cloud (÷10 already applied), or default 70 kWh */
+    public float getBatteryCapacityKwh() {
+        return mPrefs.getFloat("battery_capacity_kwh", 70.0f);
+    }
 
     // ==================== Force Status Refresh (wake TBox) ====================
 

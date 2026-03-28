@@ -135,6 +135,12 @@
     <string name="tab_climate">Climate</string>
     <string name="tab_trip">Trip</string>
     <string name="tab_gmeter">G-Meter</string>
+    <string name="tab_charge_history">Charges</string>
+    <string name="charge_history_while_charging">Charge history not available while charging. Check again after the session ends.</string>
+    <string name="charge_history_refresh">Refresh from Cloud</string>
+    <string name="charge_history_refreshing">Fetching from cloud…</string>
+    <string name="charge_history_export">Export all sessions (JSON)</string>
+    <string name="charge_history_empty">No charge sessions stored yet. Press Refresh to fetch from cloud.</string>
     <!-- Controls -->
     <string name="quick_controls">Quick Controls</string>
     <string name="doors_windows">DOORS &amp; WINDOWS</string>
@@ -153,6 +159,10 @@
     <string name="overlay_label">Overlay (Back + Recents)</string>
     <string name="overlay_desc">Floating buttons on left edge</string>
     <string name="adb_debugging">ADB Debugging</string>
+    <string name="aa_stock_app">Stock Android Auto app</string>
+    <string name="aa_stock_desc">Disable to use an alternative AA app instead</string>
+    <string name="aa_stock_enabled">Stock Android Auto enabled</string>
+    <string name="aa_stock_disabled">Stock Android Auto disabled</string>
     <string name="key_capture">Key Capture Mode</string>
     <string name="key_capture_desc">Monitor HW_KEY_INPUT for steering wheel button identification</string>
     <string name="start">START</string>
@@ -498,6 +508,35 @@
     <string name="charge_view_graph">View graph</string>
     <string name="charge_target_soc">Target SOC: %1$s</string>
     <string name="charge_peak_power">Peak power: %1$s</string>
+    <string name="charge_cable_status">Cable: %1$s</string>
+    <string name="charge_cable_ac">AC plug connected</string>
+    <string name="charge_cable_dc">DC plug connected</string>
+    <string name="charge_cable_none">Not connected</string>
+    <string name="charge_cable_connected">Cable connected</string>
+    <string name="charge_charging_by">Charging by %1$s</string>
+    <string name="charge_bms_opt_current">BMS current limit: %1$s</string>
+    <string name="charge_stop_reason">Stop reason: %1$s</string>
+    <string name="charge_schedule_off">Scheduled charge: Off</string>
+    <string name="charge_schedule_active">Scheduled charge: %1$s</string>
+    <!-- Charge history (cloud) -->
+    <string name="charge_hist_cloud_ok">Cloud OK — %1$d sessions stored</string>
+    <string name="charge_hist_soh">Estimated SOH: %1$.1f%% (%2$.1f kWh / 70 kWh)</string>
+    <string name="charge_hist_soc">SOC: %1$s%%</string>
+    <string name="charge_hist_target">Target: %1$d%%</string>
+    <string name="charge_hist_duration">Duration: %1$s</string>
+    <string name="charge_hist_range_added">Range added: +%1$d km</string>
+    <string name="charge_hist_range">Range: %1$d km</string>
+    <string name="charge_hist_pack">Pack: %1$s</string>
+    <string name="charge_hist_power">Power: %1$s</string>
+    <string name="charge_hist_energy_since">Energy since charge: %1$s</string>
+    <string name="charge_hist_energy_today">Energy today: %1$s</string>
+    <string name="charge_hist_capacity">Battery capacity: %1$s</string>
+    <string name="charge_hist_stop_reason">Stop reason: %1$s</string>
+    <!-- TBox status -->
+    <string name="tbox_online">Online</string>
+    <string name="tbox_offline">Offline</string>
+    <string name="tbox_sleep">Sleep</string>
+    <string name="tbox_unknown">Unknown</string>
     <!-- ABRP Integration -->
     <string name="abrp_section">ABRP INTEGRATION</string>
     <string name="abrp_desc">Send live telemetry to A Better Route Planner for real-time trip planning. Get your user token from the ABRP app: Settings → Car → Live Data → Generic.</string>

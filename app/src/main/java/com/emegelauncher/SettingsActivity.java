@@ -92,6 +92,9 @@ public class SettingsActivity extends Activity {
         // ADB Debug toggle (via EngMode ISystemSettingsManager)
         addAdbToggle();
 
+        // Stock Android Auto app toggle
+        addAndroidAutoToggle();
+
         // Key Capture mode
         addKeyCaptureButton();
 
@@ -275,7 +278,7 @@ public class SettingsActivity extends Activity {
     private com.emegelauncher.vehicle.AbrpManager mAbrp;
 
     private void addAbrpSection() {
-        mAbrp = new com.emegelauncher.vehicle.AbrpManager(this);
+        mAbrp = com.emegelauncher.vehicle.AbrpManager.getInstance(this);
         LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
 
         // Section header
@@ -308,7 +311,9 @@ public class SettingsActivity extends Activity {
         toggleRow.addView(toggleLabel);
 
         android.widget.Switch toggleSwitch = new android.widget.Switch(this);
-        toggleSwitch.setChecked(mAbrp.isEnabled() || mAbrp.getUserToken() != null);
+        boolean hasToken = mAbrp.getUserToken() != null && !mAbrp.getUserToken().isEmpty();
+        toggleSwitch.setChecked(mAbrp.isEnabled());
+        toggleSwitch.setEnabled(hasToken); // disabled until token is entered
         toggleSwitch.setOnCheckedChangeListener((btn, checked) -> {
             mAbrp.setEnabled(checked);
             updateAbrpStatus();
@@ -348,11 +353,13 @@ public class SettingsActivity extends Activity {
             if (!token.isEmpty()) {
                 mAbrp.setUserToken(token);
                 mAbrp.setEnabled(true);
+                toggleSwitch.setEnabled(true);
                 toggleSwitch.setChecked(true);
                 android.widget.Toast.makeText(this, getString(R.string.abrp_token_saved), android.widget.Toast.LENGTH_SHORT).show();
             } else {
                 mAbrp.setUserToken(null);
                 mAbrp.setEnabled(false);
+                toggleSwitch.setEnabled(false);
                 toggleSwitch.setChecked(false);
             }
             updateAbrpStatus();
@@ -375,11 +382,18 @@ public class SettingsActivity extends Activity {
         TextView status = parent.findViewWithTag("abrp_status");
         if (status == null) return;
 
-        if (!mAbrp.hasApiKey()) {
-            status.setText(getString(R.string.abrp_no_api_key));
-            status.setTextColor(ThemeHelper.accentRed(this));
-        } else if (mAbrp.isEnabled()) {
-            status.setText(getString(R.string.abrp_active));
+        if (mAbrp.isEnabled()) {
+            // Show live send stats from the singleton in MainActivity
+            com.emegelauncher.vehicle.AbrpManager mainAbrp = null;
+            try {
+                // Read stats from SharedPreferences (updated by main instance)
+                android.content.SharedPreferences p = getSharedPreferences("emegelauncher", MODE_PRIVATE);
+                int sent = p.getInt("abrp_send_count", 0);
+                int fail = p.getInt("abrp_fail_count", 0);
+                status.setText(getString(R.string.abrp_active) + " | Sent: " + sent + " | Fail: " + fail);
+            } catch (Exception e) {
+                status.setText(getString(R.string.abrp_active));
+            }
             status.setTextColor(ThemeHelper.accentGreen(this));
         } else if (mAbrp.getUserToken() != null && !mAbrp.getUserToken().isEmpty()) {
             status.setText(getString(R.string.abrp_configured));
@@ -727,6 +741,62 @@ public class SettingsActivity extends Activity {
                 })
                 .setNegativeButton("Cancel", (d, w) -> btn.setChecked(!checked))
                 .show();
+        });
+        row.addView(toggle);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 2, 0, 2);
+        parent.addView(row, lp);
+    }
+
+    private void addAndroidAutoToggle() {
+        LinearLayout parent = (LinearLayout) findViewById(R.id.row_save_logs).getParent();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundResource(R.drawable.card_bg_selector);
+        row.setPadding(20, 16, 20, 16);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView label = new TextView(this);
+        label.setText(getString(R.string.aa_stock_app));
+        label.setTextSize(16);
+        label.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextPrimary));
+        textCol.addView(label);
+
+        TextView desc = new TextView(this);
+        desc.setText(getString(R.string.aa_stock_desc));
+        desc.setTextSize(12);
+        desc.setTextColor(ThemeHelper.resolveColor(this, R.attr.colorTextTertiary));
+        textCol.addView(desc);
+        row.addView(textCol);
+
+        android.widget.Switch toggle = new android.widget.Switch(this);
+        // Check if the stock AA app is currently enabled
+        boolean aaEnabled = true;
+        try {
+            int state = getPackageManager().getApplicationEnabledSetting("com.allgo.app.androidauto");
+            aaEnabled = (state == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                      || state == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
+        } catch (Exception ignored) {}
+        toggle.setChecked(aaEnabled);
+        toggle.setOnCheckedChangeListener((btn, checked) -> {
+            try {
+                getPackageManager().setApplicationEnabledSetting("com.allgo.app.androidauto",
+                    checked ? android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                            : android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER, 0);
+                Toast.makeText(this,
+                    getString(checked ? R.string.aa_stock_enabled : R.string.aa_stock_disabled),
+                    Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, "AA toggle failed: " + e.getMessage());
+                Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                btn.setChecked(!checked);
+            }
         });
         row.addView(toggle);
 
@@ -1302,7 +1372,20 @@ public class SettingsActivity extends Activity {
                 }
                 // Drain error stream to prevent process hang
                 proc.waitFor();
-                runOnUiThread(() -> Toast.makeText(this, "Logcat saved: " + logFile.getAbsolutePath(), Toast.LENGTH_LONG).show());
+                // Also copy our file-based debug log
+                try {
+                    File debugLog = com.emegelauncher.vehicle.FileLogger.getInstance(this).getLogFile();
+                    if (debugLog.exists()) {
+                        File debugDest = new File(destination, "emegelauncher_debug_" + ts + ".txt");
+                        try (InputStream dis = new java.io.FileInputStream(debugLog);
+                             FileOutputStream dos = new FileOutputStream(debugDest)) {
+                            byte[] dbuf = new byte[8192];
+                            int dlen;
+                            while ((dlen = dis.read(dbuf)) > 0) dos.write(dbuf, 0, dlen);
+                        }
+                    }
+                } catch (Exception ignored) {}
+                runOnUiThread(() -> Toast.makeText(this, "Logcat + debug log saved", Toast.LENGTH_LONG).show());
             } catch (Exception e) {
                 Log.e(TAG, "Logcat export failed", e);
                 runOnUiThread(() -> Toast.makeText(this, "Logcat failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());

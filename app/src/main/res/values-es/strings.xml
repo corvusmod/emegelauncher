@@ -9,7 +9,18 @@
     <string name="radio">Radio</string>
     <string name="music">Música</string>
     <string name="phone">Teléfono</string>
-    <!-- Tarjeta música -->
+    <!-- Tarjeta reproduciendo -->
+    <string name="now_playing">Reproduciendo</string>
+    <string name="now_playing_idle">Sin multimedia</string>
+    <string name="now_playing_fm">Radio FM</string>
+    <string name="now_playing_am">Radio AM</string>
+    <string name="now_playing_usb">Música</string>
+    <string name="now_playing_bt">Audio BT</string>
+    <string name="now_playing_dab">Radio DAB</string>
+    <string name="now_playing_online">Online</string>
+    <string name="now_playing_carplay">CarPlay</string>
+    <string name="now_playing_aa">Android Auto</string>
+    <!-- Tarjeta música (legacy) -->
     <string name="music_no_playing">Sin música</string>
     <string name="music_unknown_title">Título desconocido</string>
     <string name="music_unknown_artist">Artista desconocido</string>
@@ -26,6 +37,7 @@
     <string name="nav_speed_limit">%1$d</string>
     <string name="nav_home">Casa</string>
     <string name="nav_office">Trabajo</string>
+    <string name="nav_stop">Parar</string>
     <string name="nav_idle">Toca para navegar</string>
     <!-- Tarjeta teléfono -->
     <string name="phone_connected">Conectado: %1$s</string>
@@ -33,6 +45,20 @@
     <string name="phone_call_ringing">Llamada entrante</string>
     <string name="phone_call_active">Llamada en curso</string>
     <string name="phone_charger_active">Carga inalámbrica</string>
+    <!-- Menú contextual apps -->
+    <string name="app_open">Abrir</string>
+    <string name="app_open_floating">Ventana flotante</string>
+    <string name="app_open_split">Mitad superior de pantalla</string>
+    <string name="float_size_title">Tama\u00f1o de ventana</string>
+    <string name="float_size_small">Peque\u00f1a (%1$s)</string>
+    <string name="float_size_medium">Mediana (%1$s)</string>
+    <string name="float_size_large">Grande (%1$s)</string>
+    <string name="float_size_top_half">Mitad superior</string>
+    <string name="float_size_bottom_half">Mitad inferior</string>
+    <string name="float_size_left_half">Mitad izquierda</string>
+    <string name="float_size_right_half">Mitad derecha</string>
+    <string name="app_uninstall">Desinstalar</string>
+    <string name="app_info">Info de la app</string>
     <string name="view_360">Vista 360</string>
     <string name="carplay">CarPlay</string>
     <string name="android_auto">Android Auto</string>

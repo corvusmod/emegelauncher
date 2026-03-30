@@ -126,6 +126,7 @@ public class VehicleServiceManager {
         bindSystemSettingsServices();
         bindVehicleOverseas();
         bindRadioService();
+        bindMediaServices();
     }
 
     // ==================== Layer 1: Android Car API ====================
@@ -329,7 +330,7 @@ public class VehicleServiceManager {
         // Each adapter sub-service is a separate Android Service
         bindByComponent(ADAPTER_PKG, ADAPTER_PKG + ".services.GeneralService",
             new String[]{"com.saicmotor.adapterservice.IGeneralService$Stub"},
-            svc -> { mAdapterGeneral = svc; Log.d(TAG, "AdapterGeneral acquired"); });
+            svc -> { mAdapterGeneral = svc; Log.d(TAG, "AdapterGeneral acquired"); registerNavListener(); });
         bindByComponent(ADAPTER_PKG, ADAPTER_PKG + ".services.MapService",
             new String[]{"com.saicmotor.adapterservice.IMapService$Stub"},
             svc -> { mAdapterMap = svc; Log.d(TAG, "AdapterMap acquired"); });
@@ -1254,6 +1255,1677 @@ public class VehicleServiceManager {
             data.recycle();
             reply.recycle();
         }
+    }
+
+    // ==================== Layer 7: SAIC Media Services ====================
+    // IRadioAppService (FM/AM/DAB) & IPlayStatusBinderInterface (USB/BT/Online)
+    // See MEDIA_REFERENCE.md for full API documentation.
+
+    // getCurrentPlayer() return values (confirmed from decompiled MediaPlayControlManager)
+    public static final int MEDIA_SOURCE_USB = 2;
+    public static final int MEDIA_SOURCE_ONLINE = 3;
+    public static final int MEDIA_SOURCE_BT = 4;
+    public static final int MEDIA_SOURCE_CP = 5;   // CarPlay music
+    public static final int MEDIA_SOURCE_AA = 6;   // Android Auto music
+    // Radio type constants (RadioBean.mRadioType values — confirmed from car logs)
+    public static final int RADIO_TYPE_AM = 1;
+    public static final int RADIO_TYPE_FM = 2;
+    public static final int RADIO_TYPE_DAB = 3;  // Used by tune() and next()
+    public static final int RADIO_TYPE_DAB_ACTUAL = 4; // Actual value from RadioBean on Marvel R
+
+    // Active audio source tracking (our unified source IDs)
+    public static final int SOURCE_NONE = 0;
+    public static final int SOURCE_FM = 1;
+    public static final int SOURCE_AM = 2;
+    public static final int SOURCE_DAB = 3;
+    public static final int SOURCE_USB = 4;
+    public static final int SOURCE_BT = 5;
+    public static final int SOURCE_ONLINE = 6;
+    public static final int SOURCE_CARPLAY = 7;
+    public static final int SOURCE_AA = 8;
+
+    // RemoteUI (CarPlay/Android Auto) — device type constants from Allgo
+    public static final int REMOTE_DEVICE_CARPLAY = 1;
+    public static final int REMOTE_DEVICE_AA = 2;
+
+    private volatile Object mMediaService;       // IPlayStatusBinderInterface proxy
+    private volatile Object mRadioService;        // IRadioAppService proxy
+    private volatile Object mMediaPlayControlMgr; // MediaPlayControlManager SDK instance (if available)
+    private volatile boolean mMediaBound = false;
+    private volatile boolean mRadioSaicBound = false;
+    private volatile boolean mMusicSdkConnected = false;
+    private volatile int mActiveSource = SOURCE_NONE;
+
+    // Cached media state (updated via callbacks or polling)
+    private volatile String mMediaTitle = null;
+    private volatile String mMediaArtist = null;
+    private volatile String mMediaAlbum = null;
+    private volatile android.graphics.Bitmap mMediaCoverArt = null;
+    private volatile boolean mMediaPlaying = false;
+    private volatile long mMediaPosition = 0;
+    private volatile long mMediaDuration = 0;
+    private volatile int mMediaPlayerType = 0;
+
+    // Cached radio state (updated via polling)
+    private volatile String mRadioStationName = null;
+    private volatile int mRadioFreqKhz = 0;
+    private volatile int mRadioType = 0;
+    private volatile boolean mRadioPlaying = false;
+    private volatile String mRadioDabService = null;
+    private volatile android.graphics.Bitmap mRadioDabSlideshow = null;
+    private volatile int mRadioLoggedOnce = 0;
+
+    // Play state tracking
+    private volatile boolean mManualPaused = false;
+    private volatile long mSourceLockUntil = 0;
+    private int mPrevRadioType = 0;
+
+    // RemoteUI (CarPlay / Android Auto)
+    private volatile Object mRemoteUIService;     // IRemoteUIService proxy
+    private volatile boolean mRemoteUIBound = false;
+    private volatile int mConnectedDeviceType = 0; // 0=none, 1=CarPlay, 2=AA
+    private volatile Object mConnectedRemoteDevice = null;
+    private Runnable mOnProjectionConnected;       // Callback for auto-launch
+
+    public void bindMediaServices() {
+        addMediaClassLoaders();
+        bindMediaPlayControl();
+        bindSaicRadioService();
+        bindRemoteUIService();
+        initMediaPlayControlManager();
+    }
+
+    /**
+     * Bind to IPlayStatusBinderInterface via MediaService.
+     * CRITICAL: SAIC BaseManager uses BOTH setAction() AND setClassName() on the same Intent.
+     * Using only one or the other causes onServiceConnected to never fire.
+     */
+    private void bindMediaPlayControl() {
+        String pkg = "com.saicmotor.service.media";
+        String cls = "com.saicmotor.service.media.MediaService";
+        String[] stubs = { "com.saicmotor.sdk.media.IPlayStatusBinderInterface$Stub" };
+
+        // Bind with each action — each sub-service uses a different action but same class
+        String[] actions = {
+            "com.saicmotor.service.media.PLAY_STATUS_ACTION",   // MediaPlayControlManager
+            "com.saicmotor.service.media.MUSIC_PLAYER_ACTION",  // UsbMusicManager
+            "com.saicmotor.service.media.BT_MUSIC_ACTION",      // BtMusicManager
+            "com.saicmotor.service.media.ONLINE_MUSIC_ACTION",  // OnlineMusicManager
+        };
+        for (String action : actions) {
+            try {
+                Intent intent = new Intent();
+                intent.setAction(action);
+                intent.setClassName(pkg, cls);  // BOTH action AND className required
+                mContext.bindService(intent, new ServiceConnection() {
+                    @Override
+                    public void onServiceConnected(ComponentName name, IBinder service) {
+                        FileLogger.getInstance(mContext).i(TAG, "Media connected: " + action);
+                        Object svc = asInterface(stubs, service);
+                        if (svc != null && mMediaService == null) {
+                            mMediaService = svc;
+                            mMediaBound = true;
+                            FileLogger.getInstance(mContext).i(TAG, "IPlayStatusBinder acquired");
+                            logMediaMethods(svc);
+                        } else if (svc == null) {
+                            FileLogger.getInstance(mContext).w(TAG, "asInterface null for " + action);
+                        }
+                    }
+                    @Override public void onServiceDisconnected(ComponentName name) {
+                        mMediaService = null; mMediaBound = false;
+                    }
+                }, Context.BIND_AUTO_CREATE);
+            } catch (Exception e) {
+                Log.d(TAG, "Media bind " + action + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Bind to IRadioAppService via radio service.
+     * Uses action + package (confirmed from decompiled RadioOptionManager.connectService).
+     */
+    /**
+     * Try to instantiate MediaPlayControlManager from the SAIC SDK via DexClassLoader.
+     * This is how the original launcher gets music metadata — via IAudioStatusListener callbacks.
+     * If this works, we get real-time title/artist/cover/state for ALL music sources (USB/BT/Online).
+     * If it fails, we fall back to Android MediaSession (works for BT only).
+     */
+    private void initMediaPlayControlManager() {
+        new Thread(() -> {
+            try {
+                // Find the classes from DexClassLoader
+                Class<?> mpcmClass = findVsClass(new String[]{
+                    "com.saicmotor.sdk.media.mananger.MediaPlayControlManager"
+                });
+                Class<?> listenerClass = findVsClass(new String[]{
+                    "com.saicmotor.sdk.media.contractinterface.IMediaServiceListener"
+                });
+                Class<?> audioListenerClass = findVsClass(new String[]{
+                    "com.saicmotor.sdk.media.mananger.MediaPlayControlManager$IAudioStatusListener"
+                });
+
+                if (mpcmClass == null || listenerClass == null) {
+                    FileLogger.getInstance(mContext).w(TAG, "MusicSDK: MediaPlayControlManager or IMediaServiceListener class not found");
+                    return;
+                }
+
+                FileLogger.getInstance(mContext).i(TAG, "MusicSDK: classes found, creating service listener proxy");
+
+                // Create IMediaServiceListener proxy
+                Object serviceListener = java.lang.reflect.Proxy.newProxyInstance(
+                    listenerClass.getClassLoader(),
+                    new Class[]{listenerClass},
+                    (proxy, method, args) -> {
+                        String name = method.getName();
+                        if ("onServiceConnected".equals(name) && args != null && args.length > 0) {
+                            Object manager = args[0];
+                            FileLogger.getInstance(mContext).i(TAG, "MusicSDK: onServiceConnected, manager=" + manager.getClass().getName());
+                            mMediaPlayControlMgr = manager;
+                            mMusicSdkConnected = true;
+                            // Register IAudioStatusListener
+                            registerAudioStatusListener(manager, audioListenerClass);
+                        } else if ("onServiceDisconnected".equals(name)) {
+                            FileLogger.getInstance(mContext).i(TAG, "MusicSDK: onServiceDisconnected");
+                            mMusicSdkConnected = false;
+                        }
+                        return null;
+                    }
+                );
+
+                // Call MediaPlayControlManager.getInstance(context, listener)
+                Method getInstance = mpcmClass.getMethod("getInstance",
+                    android.content.Context.class, listenerClass);
+                Object mgr = getInstance.invoke(null, mContext, serviceListener);
+                FileLogger.getInstance(mContext).i(TAG, "MusicSDK: getInstance returned " + (mgr != null ? mgr.getClass().getName() : "null"));
+
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).w(TAG, "MusicSDK: init failed: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** Register IAudioStatusListener on the MediaPlayControlManager for real-time music callbacks */
+    private void registerAudioStatusListener(Object manager, Class<?> audioListenerClass) {
+        if (audioListenerClass == null) {
+            FileLogger.getInstance(mContext).w(TAG, "MusicSDK: IAudioStatusListener class not found");
+            return;
+        }
+        try {
+            Object audioListener = java.lang.reflect.Proxy.newProxyInstance(
+                audioListenerClass.getClassLoader(),
+                new Class[]{audioListenerClass},
+                (proxy, method, args) -> {
+                    String name = method.getName();
+                    switch (name) {
+                        case "onPlayStateChanged":
+                            if (args != null && args.length > 0 && args[0] instanceof Number) {
+                                int state = ((Number) args[0]).intValue();
+                                mMediaPlaying = (state == 3); // 3 = playing
+                                FileLogger.getInstance(mContext).d(TAG, "MusicSDK CB onPlayStateChanged: " + state);
+                            }
+                            break;
+                        case "onPlayerChanged":
+                            if (args != null && args.length > 0 && args[0] instanceof Number) {
+                                int resId = ((Number) args[0]).intValue();
+                                mMediaPlayerType = resId;
+                                FileLogger.getInstance(mContext).i(TAG, "MusicSDK CB onPlayerChanged: " + resId
+                                    + " (2=USB 3=Online 4=BT 5=CP 6=AA)");
+                            }
+                            break;
+                        case "onPlayMusicInfoChanged":
+                            if (args != null && args.length > 0 && args[0] != null) {
+                                Object bean = args[0];
+                                String title = readBeanField(bean, "mAudioName");
+                                String artist = readBeanField(bean, "mAudioArtistName");
+                                String album = readBeanField(bean, "mAudioAlbumName");
+                                android.graphics.Bitmap cover = getBeanBitmapField(bean, "mCpAlbumArt");
+                                if (cover == null) cover = getBeanBitmapField(bean, "mAlbumArt");
+                                if (title != null && !title.isEmpty()) mMediaTitle = title;
+                                if (artist != null && !artist.isEmpty()) mMediaArtist = artist;
+                                if (album != null && !album.isEmpty()) mMediaAlbum = album;
+                                if (cover != null) mMediaCoverArt = cover;
+                                FileLogger.getInstance(mContext).d(TAG, "MusicSDK CB onPlayMusicInfoChanged: "
+                                    + title + " / " + artist + " cover=" + (cover != null));
+                            }
+                            break;
+                        case "onProgressChanged":
+                            if (args != null && args.length >= 2) {
+                                if (args[0] instanceof Number) mMediaDuration = ((Number) args[0]).longValue();
+                                if (args[1] instanceof Number) mMediaPosition = ((Number) args[1]).longValue();
+                            }
+                            break;
+                    }
+                    return null;
+                }
+            );
+
+            Method addListener = manager.getClass().getMethod("addAudioStatusListener", audioListenerClass);
+            addListener.invoke(manager, audioListener);
+            FileLogger.getInstance(mContext).i(TAG, "MusicSDK: IAudioStatusListener registered");
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).w(TAG, "MusicSDK: registerAudioStatusListener failed: " + e.getMessage());
+        }
+    }
+
+    /** Check if music SDK callbacks are active (determines whether to use SDK data or MediaSession fallback) */
+    public boolean isMusicSdkConnected() { return mMusicSdkConnected; }
+
+    private void bindSaicRadioService() {
+        String[] stubs = { "com.saicmotor.sdk.radio.IRadioAppService$Stub" };
+        try {
+            Intent intent = new Intent();
+            intent.setAction("com.saicmotor.service.radio.radioservice");
+            intent.setPackage("com.saicmotor.service.radio");
+            mContext.bindService(intent, new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    FileLogger.getInstance(mContext).i(TAG, "Radio SAIC connected");
+                    Object svc = asInterface(stubs, service);
+                    if (svc != null) {
+                        mRadioService = svc;
+                        mRadioSaicBound = true;
+                        FileLogger.getInstance(mContext).i(TAG, "IRadioAppService acquired");
+                        logMediaMethods(svc);
+                    }
+                }
+                @Override public void onServiceDisconnected(ComponentName name) {
+                    mRadioService = null; mRadioSaicBound = false;
+                }
+            }, Context.BIND_AUTO_CREATE);
+        } catch (Exception e) {
+            Log.d(TAG, "Radio bind: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Bind to Allgo RemoteUIService for CarPlay/Android Auto detection and control.
+     * This is how the original SAIC launcher detects phone connections and launches projection.
+     */
+    private void bindRemoteUIService() {
+        try {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.allgo.rui", "com.allgo.rui.RemoteUIService"));
+            mContext.bindService(intent, new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    FileLogger.getInstance(mContext).i(TAG, "RemoteUIService connected");
+                    String[] stubs = { "com.allgo.rui.IRemoteUIService$Stub" };
+                    Object svc = asInterface(stubs, service);
+                    if (svc != null) {
+                        mRemoteUIService = svc;
+                        mRemoteUIBound = true;
+                        FileLogger.getInstance(mContext).i(TAG, "IRemoteUIService acquired");
+                        logMediaMethods(svc);
+                        registerRemoteUICallbacks(svc);
+                    }
+                }
+                @Override
+                public void onServiceDisconnected(ComponentName name) {
+                    mRemoteUIService = null;
+                    mRemoteUIBound = false;
+                    mConnectedDeviceType = 0;
+                    mConnectedRemoteDevice = null;
+                }
+            }, Context.BIND_AUTO_CREATE);
+        } catch (Exception e) {
+            Log.d(TAG, "RemoteUI bind: " + e.getMessage());
+            FileLogger.getInstance(mContext).d(TAG, "RemoteUI bind failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Register IRemoteDeviceCallback with RemoteUIService to receive device connection events.
+     * Uses dynamic proxy since the callback interface is in the Allgo APK classloader.
+     */
+    private void registerRemoteUICallbacks(Object service) {
+        try {
+            // Find the callback interface class (prefer interface over Stub)
+            Class<?> deviceCbClass = findVsClass(new String[]{
+                "com.allgo.rui.IRemoteDeviceCallback"
+            });
+            if (deviceCbClass == null) {
+                deviceCbClass = findVsClass(new String[]{
+                    "com.allgo.rui.IRemoteDeviceCallback$Stub"
+                });
+            }
+            Class<?> sessionCbClass = findVsClass(new String[]{
+                "com.allgo.rui.IRemoteSessionCallback",
+                "com.allgo.rui.IRemoteSessionCallback$Stub"
+            });
+            Class<?> errorCbClass = findVsClass(new String[]{
+                "com.allgo.rui.IErrorCallback",
+                "com.allgo.rui.IErrorCallback$Stub"
+            });
+
+            if (deviceCbClass == null) {
+                FileLogger.getInstance(mContext).w(TAG, "IRemoteDeviceCallback class not found");
+                // Fallback: try to get active device without callbacks
+                pollRemoteUIDevice(service);
+                return;
+            }
+
+            // Create dynamic proxy for IRemoteDeviceCallback
+            Object deviceCallback = java.lang.reflect.Proxy.newProxyInstance(
+                deviceCbClass.getClassLoader(),
+                new Class[]{deviceCbClass},
+                (proxy, method, args) -> {
+                    String mName = method.getName();
+                    FileLogger.getInstance(mContext).i(TAG, "RemoteUI callback: " + mName);
+                    if ("onDeviceConnected".equals(mName) && args != null && args.length > 0) {
+                        handleDeviceConnected(args[0]);
+                    } else if ("onDeviceDisconnected".equals(mName) && args != null && args.length > 0) {
+                        handleDeviceDisconnected(args[0]);
+                    } else if ("onDeviceUpdated".equals(mName) && args != null && args.length > 0) {
+                        handleDeviceConnected(args[0]);
+                    } else if ("onDeviceNotCapable".equals(mName)) {
+                        String reason = (args != null && args.length > 0) ? String.valueOf(args[0]) : "unknown";
+                        FileLogger.getInstance(mContext).w(TAG, "Device not capable: " + reason);
+                        mConnectedDeviceType = 0;
+                        mConnectedRemoteDevice = null;
+                    } else if ("asBinder".equals(mName)) {
+                        return null;
+                    }
+                    return null;
+                }
+            );
+
+            // Try register(IRemoteDeviceCallback, IRemoteSessionCallback, IErrorCallback)
+            boolean registered = false;
+            // Try with all 3 callback types if available
+            if (sessionCbClass != null && errorCbClass != null) {
+                try {
+                    Method register = service.getClass().getMethod("register",
+                        deviceCbClass, sessionCbClass, errorCbClass);
+                    register.invoke(service, deviceCallback, null, null);
+                    registered = true;
+                } catch (Exception ignored) {}
+            }
+            // Try finding register method by iterating all methods
+            if (!registered) {
+                for (Method m : service.getClass().getMethods()) {
+                    if ("register".equals(m.getName()) && m.getParameterTypes().length >= 1) {
+                        try {
+                            Class<?>[] params = m.getParameterTypes();
+                            Object[] invokeArgs = new Object[params.length];
+                            invokeArgs[0] = deviceCallback;
+                            // Fill remaining args with null
+                            m.invoke(service, invokeArgs);
+                            registered = true;
+                            break;
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+            if (registered) {
+                FileLogger.getInstance(mContext).i(TAG, "RemoteUI callbacks registered");
+            } else {
+                FileLogger.getInstance(mContext).d(TAG, "RemoteUI register failed, polling fallback");
+                pollRemoteUIDevice(service);
+            }
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "RemoteUI callbacks setup failed: " + e.getMessage());
+            pollRemoteUIDevice(service);
+        }
+    }
+
+    /** Poll RemoteUIService for active device — covers cases where callback missed the event */
+    private void pollRemoteUIDevice(Object service) {
+        try {
+            Method getActive = service.getClass().getMethod("getActiveRemoteDevice");
+            Object device = getActive.invoke(service);
+            if (device != null) {
+                int type = readBeanInt(device, "type");
+                if (type > 0 && type != mConnectedDeviceType) {
+                    FileLogger.getInstance(mContext).i(TAG, "Polled active device: type=" + type);
+                    handleDeviceConnected(device);
+                }
+            } else if (mConnectedDeviceType > 0) {
+                // Device was connected but now isn't
+                FileLogger.getInstance(mContext).d(TAG, "Polled: no active device (was " + mConnectedDeviceType + ")");
+                mConnectedDeviceType = 0;
+                mConnectedRemoteDevice = null;
+            }
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "getActiveRemoteDevice: " + e.getMessage());
+        }
+    }
+
+    private void handleDeviceConnected(Object remoteDevice) {
+        if (remoteDevice == null) return;
+        try {
+            // Read device type field
+            int type = readBeanInt(remoteDevice, "type");
+            String btMac = readBeanField(remoteDevice, "btMacAddress");
+            FileLogger.getInstance(mContext).i(TAG, "Device connected: type=" + type
+                + (type == 1 ? " (CarPlay)" : type == 2 ? " (AndroidAuto)" : "")
+                + " bt=" + btMac);
+
+            mConnectedDeviceType = type;
+            mConnectedRemoteDevice = remoteDevice;
+
+            // Auto-launch projection (same as SAIC launcher)
+            if (type == REMOTE_DEVICE_CARPLAY || type == REMOTE_DEVICE_AA) {
+                launchProjection(type);
+                if (mOnProjectionConnected != null) {
+                    mHandler.post(mOnProjectionConnected);
+                }
+            }
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).w(TAG, "handleDeviceConnected failed: " + e.getMessage());
+        }
+    }
+
+    private void handleDeviceDisconnected(Object remoteDevice) {
+        FileLogger.getInstance(mContext).i(TAG, "Device disconnected");
+        mConnectedDeviceType = 0;
+        mConnectedRemoteDevice = null;
+    }
+
+    // ==================== CarPlay/AA public API ====================
+
+    /** Launch projection screen for connected device. Called automatically on connect. */
+    public void launchProjection(int deviceType) {
+        if (mRemoteUIService != null) {
+            try {
+                // launchApp(int appId, int deviceType) — appId 0 = Home
+                Method launch = mRemoteUIService.getClass().getMethod("launchApp", int.class, int.class);
+                launch.invoke(mRemoteUIService, 0, deviceType);
+                FileLogger.getInstance(mContext).i(TAG, "launchApp(0, " + deviceType + ") OK");
+                return;
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "launchApp failed: " + e.getMessage());
+            }
+        }
+        // Fallback: try launching the Allgo activities directly
+        if (deviceType == REMOTE_DEVICE_CARPLAY) {
+            launchActivity("com.allgo.carplay.service", "com.allgo.carplay.service.CarPlayActivity");
+        } else if (deviceType == REMOTE_DEVICE_AA) {
+            launchActivity("com.allgo.app.androidauto", "com.allgo.app.androidauto.ProjectionActivity");
+        }
+    }
+
+    /** Resume projection after switching to another car app */
+    public void resumeProjection() {
+        if (mConnectedDeviceType == 0) return;
+        if (mRemoteUIService != null && mConnectedRemoteDevice != null) {
+            try {
+                Method resume = mRemoteUIService.getClass().getMethod("resumeRemoteSession",
+                    mConnectedRemoteDevice.getClass());
+                resume.invoke(mRemoteUIService, mConnectedRemoteDevice);
+                FileLogger.getInstance(mContext).d(TAG, "resumeRemoteSession OK");
+                return;
+            } catch (Exception e) {
+                // Try without specific class
+                try {
+                    for (Method m : mRemoteUIService.getClass().getMethods()) {
+                        if ("resumeRemoteSession".equals(m.getName())) {
+                            m.invoke(mRemoteUIService, mConnectedRemoteDevice);
+                            return;
+                        }
+                    }
+                } catch (Exception ignored) {}
+                FileLogger.getInstance(mContext).d(TAG, "resumeRemoteSession: " + e.getMessage());
+            }
+        }
+        // Fallback
+        launchProjection(mConnectedDeviceType);
+    }
+
+    /** Launch specific app on connected device (0=Home, 1=Music, 2=Maps, 3=Phone) */
+    public void launchProjectionApp(int appId) {
+        if (mRemoteUIService != null && mConnectedDeviceType > 0) {
+            try {
+                Method launch = mRemoteUIService.getClass().getMethod("launchApp", int.class, int.class);
+                launch.invoke(mRemoteUIService, appId, mConnectedDeviceType);
+                return;
+            } catch (Exception ignored) {}
+        }
+        resumeProjection();
+    }
+
+    public boolean isProjectionConnected() { return mConnectedDeviceType > 0; }
+    public boolean isCarPlayConnected() { return mConnectedDeviceType == REMOTE_DEVICE_CARPLAY; }
+    public boolean isAndroidAutoConnected() { return mConnectedDeviceType == REMOTE_DEVICE_AA; }
+    public int getConnectedDeviceType() { return mConnectedDeviceType; }
+
+    /** Set callback for when a projection device connects (for UI updates) */
+    public void setOnProjectionConnected(Runnable callback) {
+        mOnProjectionConnected = callback;
+    }
+
+    // ==================== Navigation (IGeneralNotificationListener) ====================
+
+    // Navigation state — updated via IGeneralNotificationListener callbacks (push-based)
+    private volatile boolean mNavIsNavigating = false;
+    private volatile int mNavIconIndex = -1;      // Turn icon index (0-39)
+    private volatile int mNavDistanceM = 0;       // Distance to next turn (meters)
+    private volatile String mNavDirection = null;  // Turn direction text
+    private volatile String mNavRoadName = null;   // Current road name
+    private volatile int mNavSpeedLimit = 0;       // Speed limit (km/h)
+    private volatile int mNavRemainingDistM = 0;   // Total remaining distance (m)
+    private volatile int mNavRemainingTimeSec = 0; // Total remaining time (sec)
+    private volatile boolean mNavHasHome = false;
+    private volatile boolean mNavHasOffice = false;
+    private volatile int mNavDistanceUnit = 1;     // 1=metric, 2=imperial
+
+    /**
+     * Register IGeneralNotificationListener with AdapterService using a raw Binder
+     * that implements onTransact() with the exact AIDL transaction codes.
+     * This replicates how the original SAIC launcher's NaviViewModel$1 Stub works.
+     * Transaction codes from decompiled IGeneralNotificationListener$Stub.
+     */
+    public void registerNavListener() {
+        if (mAdapterGeneral == null) return;
+
+        // AIDL transaction codes (from IGeneralNotificationListener$Stub.smali)
+        final int TX_GUIDE_STATUS = 1;
+        final int TX_GUIDE_INFOS = 2;
+        final int TX_ROAD_INFO = 3;
+        final int TX_SPEED_LIMIT = 4;
+        final int TX_MAP_REQUEST_PROJECTION = 5;
+        final int TX_DISPLAY_MODE = 6;
+        final int TX_CUR_TIMEZONE = 7;
+        final int TX_HOME_ADDRESS = 8;
+        final int TX_OFFICE_ADDRESS = 9;
+        final int TX_MD5_CHECK = 10;
+        final int TX_NETWORK_AVAILABLE = 11;
+        final int TX_REMAINING_TIMES = 12;
+        final int TX_REMAINING_DISTANCE = 13;
+        final int TX_REMAINING_RED_LIGHT = 14;
+        final int TX_NAV_APP_ACTIVATED = 15;
+        final int TX_DISTANCE_UNIT = 16;
+
+        final String DESCRIPTOR = "com.saicmotor.adapterservice.IGeneralNotificationListener";
+
+        // Create a raw Binder that handles the AIDL callbacks via onTransact
+        android.os.Binder navBinder = new android.os.Binder() {
+            @Override
+            protected boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags)
+                    throws android.os.RemoteException {
+                data.enforceInterface(DESCRIPTOR);
+                switch (code) {
+                    case TX_GUIDE_STATUS: {
+                        int status = data.readInt();
+                        mNavIsNavigating = status != 0;
+                        FileLogger.getInstance(mContext).d(TAG, "Nav CB guideStatus: " + status);
+                        break;
+                    }
+                    case TX_GUIDE_INFOS: {
+                        int icon = data.readInt();
+                        int distance = data.readInt();
+                        String direction = data.readString();
+                        mNavIconIndex = icon;
+                        mNavDistanceM = distance;
+                        mNavDirection = direction;
+                        mNavIsNavigating = true;
+                        FileLogger.getInstance(mContext).d(TAG, "Nav CB guideInfos: icon=" + icon
+                            + " dist=" + distance + " dir=" + direction);
+                        break;
+                    }
+                    case TX_ROAD_INFO: {
+                        String road = data.readString();
+                        mNavRoadName = road;
+                        FileLogger.getInstance(mContext).d(TAG, "Nav CB roadInfo: " + road);
+                        break;
+                    }
+                    case TX_SPEED_LIMIT: {
+                        int limit = data.readInt();
+                        mNavSpeedLimit = limit;
+                        FileLogger.getInstance(mContext).d(TAG, "Nav CB speedLimit: " + limit);
+                        break;
+                    }
+                    case TX_HOME_ADDRESS: {
+                        mNavHasHome = data.readInt() != 0;
+                        break;
+                    }
+                    case TX_OFFICE_ADDRESS: {
+                        mNavHasOffice = data.readInt() != 0;
+                        break;
+                    }
+                    case TX_REMAINING_DISTANCE: {
+                        mNavRemainingDistM = data.readInt();
+                        break;
+                    }
+                    case TX_REMAINING_TIMES: {
+                        mNavRemainingTimeSec = data.readInt();
+                        break;
+                    }
+                    case TX_DISTANCE_UNIT: {
+                        mNavDistanceUnit = data.readInt();
+                        break;
+                    }
+                    // Other callbacks — log but don't process
+                    default:
+                        FileLogger.getInstance(mContext).d(TAG, "Nav CB code=" + code);
+                        return super.onTransact(code, data, reply, flags);
+                }
+                if (reply != null) reply.writeNoException();
+                return true;
+            }
+        };
+        // Attach the AIDL interface descriptor so the service recognizes this as a valid listener
+        navBinder.attachInterface(null, DESCRIPTOR);
+
+        // Register with IGeneralService via raw Binder.transact()
+        // We can't use Method.invoke() because our navBinder doesn't implement IGeneralNotificationListener.
+        // Instead, call registerNotificationListener at the binder transport level directly.
+        try {
+            // Get the IBinder of mAdapterGeneral (the IGeneralService proxy)
+            IBinder serviceBinder = null;
+            try {
+                Method asBinder = mAdapterGeneral.getClass().getMethod("asBinder");
+                serviceBinder = (IBinder) asBinder.invoke(mAdapterGeneral);
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "Nav asBinder: " + e.getMessage());
+            }
+
+            if (serviceBinder != null) {
+                // Find the transaction code for registerNotificationListener
+                // From IGeneralService$Stub, look for TRANSACTION_registerNotificationListener
+                int regTxCode = -1;
+                // Try to find via the Stub class
+                for (Method m : mAdapterGeneral.getClass().getMethods()) {
+                    if ("registerNotificationListener".equals(m.getName())) {
+                        // Found the method — now find its TX code from the Stub's fields
+                        Class<?> stubClass = mAdapterGeneral.getClass();
+                        // The proxy's enclosing Stub class
+                        if (stubClass.getSimpleName().contains("Proxy")) {
+                            stubClass = stubClass.getEnclosingClass();
+                        }
+                        if (stubClass != null) {
+                            try {
+                                java.lang.reflect.Field txField = stubClass.getDeclaredField("TRANSACTION_registerNotificationListener");
+                                txField.setAccessible(true);
+                                regTxCode = txField.getInt(null);
+                                FileLogger.getInstance(mContext).d(TAG, "Nav registerNotificationListener TX code: " + regTxCode);
+                            } catch (Exception e) {
+                                FileLogger.getInstance(mContext).d(TAG, "Nav TX code lookup: " + e.getMessage());
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // If we couldn't find the TX code from fields, enumerate all TX codes
+                if (regTxCode < 0) {
+                    try {
+                        Class<?> stubClass = mAdapterGeneral.getClass().getEnclosingClass();
+                        if (stubClass == null) stubClass = mAdapterGeneral.getClass();
+                        for (java.lang.reflect.Field f : stubClass.getDeclaredFields()) {
+                            if (f.getName().startsWith("TRANSACTION_")) {
+                                f.setAccessible(true);
+                                int code = f.getInt(null);
+                                FileLogger.getInstance(mContext).d(TAG, "Nav TX: " + f.getName() + "=" + code);
+                                if (f.getName().contains("registerNotification")) {
+                                    regTxCode = code;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        FileLogger.getInstance(mContext).d(TAG, "Nav TX enum: " + e.getMessage());
+                    }
+                }
+
+                // Hardcoded fallback — confirmed from decompiled IGeneralService$Stub
+                if (regTxCode < 0) {
+                    regTxCode = 1; // TRANSACTION_registerNotificationListener = 0x1
+                    FileLogger.getInstance(mContext).d(TAG, "Nav TX using hardcoded fallback: 1");
+                }
+
+                if (regTxCode > 0) {
+                    // Build the Parcel to call registerNotificationListener(IBinder listener)
+                    // The AIDL method writes: interface token + listener.asBinder()
+                    String serviceDescriptor = null;
+                    try {
+                        serviceDescriptor = serviceBinder.getInterfaceDescriptor();
+                    } catch (Exception ignored) {}
+                    if (serviceDescriptor == null) serviceDescriptor = "com.saicmotor.adapterservice.IGeneralService";
+
+                    android.os.Parcel data = android.os.Parcel.obtain();
+                    android.os.Parcel reply = android.os.Parcel.obtain();
+                    try {
+                        data.writeInterfaceToken(serviceDescriptor);
+                        data.writeStrongBinder(navBinder);
+                        boolean ok = serviceBinder.transact(regTxCode, data, reply, 0);
+                        reply.readException();
+                        FileLogger.getInstance(mContext).i(TAG, "Nav listener registered via transact(TX="
+                            + regTxCode + ") ok=" + ok);
+                    } catch (Exception e) {
+                        FileLogger.getInstance(mContext).d(TAG, "Nav transact register: " + e.getMessage());
+                    } finally {
+                        data.recycle();
+                        reply.recycle();
+                    }
+                } else {
+                    FileLogger.getInstance(mContext).w(TAG, "Nav: registerNotificationListener TX code not found");
+                }
+            } else {
+                FileLogger.getInstance(mContext).w(TAG, "Nav: service binder is null");
+            }
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "Nav register: " + e.getMessage());
+        }
+
+        // Query initial state
+        try {
+            String homeStr = callServiceMethod(mAdapterGeneral, "getIsSetHomeAddress");
+            if (homeStr != null) mNavHasHome = "true".equalsIgnoreCase(homeStr);
+            String officeStr = callServiceMethod(mAdapterGeneral, "getIsSetOfficeAddress");
+            if (officeStr != null) mNavHasOffice = "true".equalsIgnoreCase(officeStr);
+        } catch (Exception ignored) {}
+    }
+
+    /** Poll navigation state from IGeneralService. Call from polling loop. */
+    private int mNavPollCount = 0;
+    private boolean mNavPrevNavigating = false;
+    private boolean mNavMethodsLogged = false;
+
+    public void pollNavState() {
+        if (mAdapterGeneral == null) {
+            if (mNavPollCount++ % 30 == 0) FileLogger.getInstance(mContext).d(TAG, "pollNav: adapterGeneral=null");
+            return;
+        }
+
+        // Log all available methods once for debugging
+        if (!mNavMethodsLogged) {
+            mNavMethodsLogged = true;
+            try {
+                StringBuilder sb = new StringBuilder("AdapterGeneral nav methods: ");
+                for (Method m : mAdapterGeneral.getClass().getMethods()) {
+                    String name = m.getName();
+                    if (name.contains("Nav") || name.contains("nav") || name.contains("Road")
+                        || name.contains("road") || name.contains("Guide") || name.contains("guide")
+                        || name.contains("Speed") || name.contains("speed") || name.contains("Remain")
+                        || name.contains("remain") || name.contains("Distance") || name.contains("distance")
+                        || name.contains("Map") || name.contains("map") || name.contains("Time")
+                        || name.contains("Lane") || name.contains("Red")) {
+                        sb.append(m.getReturnType().getSimpleName()).append(" ").append(name).append("() ");
+                    }
+                }
+                FileLogger.getInstance(mContext).i(TAG, sb.toString());
+            } catch (Exception ignored) {}
+        }
+
+        try {
+            String navigating = callServiceMethod(mAdapterGeneral, "isMapNavigating");
+            boolean wasNav = mNavIsNavigating;
+            mNavIsNavigating = "true".equalsIgnoreCase(navigating) || "1".equals(navigating);
+
+            // Log state transitions
+            if (mNavIsNavigating != mNavPrevNavigating) {
+                FileLogger.getInstance(mContext).i(TAG, "Nav state: " + mNavPrevNavigating + " → " + mNavIsNavigating
+                    + " (raw=" + navigating + ")");
+                mNavPrevNavigating = mNavIsNavigating;
+            }
+
+            if (mNavIsNavigating) {
+                String road = callServiceMethod(mAdapterGeneral, "getRoadName");
+                if (road != null && !road.equals("N/A") && !road.isEmpty()) mNavRoadName = road;
+
+                String sl = callServiceMethod(mAdapterGeneral, "getSpeedLimitValue");
+                if (sl != null && !sl.equals("N/A") && !sl.equals("0")) {
+                    try { mNavSpeedLimit = (int) Float.parseFloat(sl); } catch (Exception ignored) {}
+                }
+
+                String dist = callServiceMethod(mAdapterGeneral, "getRemainingDistance");
+                if (dist != null && !dist.equals("N/A") && !dist.equals("0")) {
+                    try { mNavRemainingDistM = (int) Float.parseFloat(dist); } catch (Exception ignored) {}
+                }
+
+                String time = callServiceMethod(mAdapterGeneral, "getRemainingTimes");
+                if (time != null && !time.equals("N/A") && !time.equals("0")) {
+                    try { mNavRemainingTimeSec = (int) Float.parseFloat(time); } catch (Exception ignored) {}
+                }
+
+                String guide = callServiceMethod(mAdapterGeneral, "getGuideStatus");
+                if (guide != null && !guide.equals("N/A")) mNavDirection = guide;
+
+                // Log nav data every 5 cycles while navigating
+                if (mNavPollCount++ % 5 == 0) {
+                    FileLogger.getInstance(mContext).d(TAG, "Nav data: road=" + mNavRoadName
+                        + " dist=" + mNavRemainingDistM + "m time=" + mNavRemainingTimeSec + "s"
+                        + " speed=" + mNavSpeedLimit + " guide=" + mNavDirection
+                        + " icon=" + mNavIconIndex + " distToTurn=" + mNavDistanceM + "m"
+                        + " raw=[nav=" + navigating + " road=" + road + " dist=" + dist
+                        + " time=" + time + " sl=" + sl + " guide=" + guide + "]");
+                }
+            } else {
+                // Log periodically when not navigating too
+                if (mNavPollCount++ % 15 == 0) {
+                    FileLogger.getInstance(mContext).d(TAG, "Nav: not navigating (raw=" + navigating + ")");
+                }
+            }
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "pollNavState error: " + e.getMessage());
+        }
+    }
+
+    // Navigation getters
+    public boolean isNavigating() { return mNavIsNavigating; }
+    public int getNavIconIndex() { return mNavIconIndex; }
+    public String getNavRoadName() { return mNavRoadName; }
+    public int getNavSpeedLimit() { return mNavSpeedLimit; }
+    public boolean hasHomeAddress() { return mNavHasHome; }
+    public boolean hasOfficeAddress() { return mNavHasOffice; }
+
+    /** Format distance to turn — same logic as SAIC NaviUtils */
+    public String getNavDistanceStr() {
+        if (mNavDistanceM <= 0) return "";
+        if (mNavDistanceUnit == 2) {
+            // Imperial: convert meters to feet/miles
+            float feet = mNavDistanceM * 3.28084f;
+            if (feet > 5280) return String.format("%.1f mi", feet / 5280f);
+            return String.format("%d ft", (int) feet);
+        }
+        // Metric
+        if (mNavDistanceM >= 1000) return String.format("%.1f km", mNavDistanceM / 1000f);
+        return mNavDistanceM + " m";
+    }
+
+    /** Format remaining trip distance + time */
+    public String getNavRemainingStr() {
+        StringBuilder sb = new StringBuilder();
+        if (mNavRemainingDistM > 0) {
+            if (mNavRemainingDistM >= 1000) sb.append(String.format("%.1f km", mNavRemainingDistM / 1000f));
+            else sb.append(mNavRemainingDistM).append(" m");
+        }
+        if (mNavRemainingTimeSec > 0) {
+            if (sb.length() > 0) sb.append(" \u2014 ");
+            if (mNavRemainingTimeSec > 3600) {
+                sb.append(mNavRemainingTimeSec / 3600).append("h ")
+                  .append((mNavRemainingTimeSec % 3600) / 60).append(" min");
+            } else {
+                sb.append(mNavRemainingTimeSec / 60).append(" min");
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Get turn direction arrow character based on icon index */
+    public String getNavTurnArrow() {
+        switch (mNavIconIndex) {
+            case 0: return "\u2B06";  // ⬆ straight
+            case 1: return "\u2197";  // ↗ slight right
+            case 2: return "\u27A1";  // ➡ right
+            case 3: return "\u2198";  // ↘ sharp right
+            case 4: return "\u21B6";  // ↶ U-turn right
+            case 5: return "\u2196";  // ↖ slight left
+            case 6: return "\u2B05";  // ⬅ left
+            case 7: return "\u2199";  // ↙ sharp left
+            case 8: return "\u21B7";  // ↷ U-turn left
+            default: return "\u25CF"; // ● dot for unknown
+        }
+    }
+
+    /** Stop active navigation via IGeneralService */
+    public void stopNavigation() {
+        if (mAdapterGeneral == null) return;
+        callServiceVoid(mAdapterGeneral, "stopNav");
+        mNavIsNavigating = false;
+        FileLogger.getInstance(mContext).d(TAG, "stopNav called");
+    }
+
+    /** Add media/radio APK packages to DexClassLoaders */
+    private void addMediaClassLoaders() {
+        String[] mediaPackages = {
+            "com.saicmotor.service.media",
+            "com.saicmotor.hmi.music",
+            "com.saicmotor.service.radio",
+            "com.saicmotor.hmi.radio",
+            "com.saicmotor.adapterservice",  // IGeneralNotificationListener for nav callbacks
+            "com.allgo.rui",
+            "com.allgo.carplay.service",
+            "com.allgo.app.androidauto",
+        };
+        PackageManager pm = mContext.getPackageManager();
+        java.util.List<ClassLoader> loaders = buildVsClassLoaders();
+        for (String pkg : mediaPackages) {
+            try {
+                ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                if (ai.sourceDir != null) {
+                    // Check if already added
+                    boolean alreadyAdded = false;
+                    for (ClassLoader cl : loaders) {
+                        if (cl.toString().contains(pkg.replace('.', '_'))) { alreadyAdded = true; break; }
+                    }
+                    if (!alreadyAdded) {
+                        java.io.File optDir = new java.io.File(mContext.getCodeCacheDir(), "dexopt_" + pkg.replace('.', '_'));
+                        optDir.mkdirs();
+                        DexClassLoader dcl = new DexClassLoader(
+                            ai.sourceDir, optDir.getAbsolutePath(), null, mContext.getClassLoader());
+                        loaders.add(loaders.size() - 1, dcl); // Insert before app classloader
+                        Log.d(TAG, "DexClassLoader added for media: " + pkg + " → " + ai.sourceDir);
+                    }
+                }
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.d(TAG, "Media package not found: " + pkg);
+            } catch (Exception e) {
+                Log.d(TAG, "DexClassLoader failed for media " + pkg + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /** Log all methods of a service for debugging */
+    private void logMediaMethods(Object svc) {
+        try {
+            Method[] methods = svc.getClass().getMethods();
+            StringBuilder sb = new StringBuilder("Methods on " + svc.getClass().getName() + ":\n");
+            for (Method m : methods) {
+                if (m.getDeclaringClass() == Object.class) continue;
+                sb.append("  ").append(m.getReturnType().getSimpleName()).append(" ")
+                  .append(m.getName()).append("(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(params[i].getSimpleName());
+                }
+                sb.append(")\n");
+            }
+            Log.d(TAG, sb.toString());
+            FileLogger.getInstance(mContext).d(TAG, sb.toString());
+        } catch (Exception e) {
+            Log.d(TAG, "logMediaMethods failed: " + e.getMessage());
+        }
+    }
+
+    // ==================== Media polling ====================
+
+    /** Poll current media info from SAIC services. Call from polling loop. */
+    public void pollMediaState() {
+        pollRadioState();
+        pollMusicState();
+        pollNavState();
+        // Periodic RemoteUI device check (covers AA device connected before launcher start)
+        if (mRemoteUIService != null && mRadioLoggedOnce % 5 == 0) {
+            pollRemoteUIDevice(mRemoteUIService);
+        }
+        detectActiveSource();
+    }
+
+    private void pollRadioState() {
+        if (mRadioService == null) return;
+        try {
+            Method m = mRadioService.getClass().getMethod("getCurrentRadioInfo");
+            Object bean = m.invoke(mRadioService);
+            if (bean == null) return;
+
+            // Full field dump on first read and on type changes
+            mRadioLoggedOnce++;
+            if (mRadioLoggedOnce == 1) {
+                try {
+                    java.lang.reflect.Field[] fields = bean.getClass().getDeclaredFields();
+                    StringBuilder sb = new StringBuilder("RadioBean ALL fields:\n");
+                    for (java.lang.reflect.Field f : fields) {
+                        if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                        f.setAccessible(true);
+                        Object val = f.get(bean);
+                        sb.append("  ").append(f.getName()).append(" (").append(f.getType().getSimpleName()).append(") = ");
+                        if (val == null) sb.append("null");
+                        else if (val instanceof char[]) sb.append("\"").append(new String((char[]) val)).append("\"");
+                        else if (val instanceof byte[]) sb.append("byte[").append(((byte[]) val).length).append("]");
+                        else if (val instanceof android.graphics.Bitmap) {
+                            android.graphics.Bitmap bmp = (android.graphics.Bitmap) val;
+                            sb.append("Bitmap ").append(bmp.getWidth()).append("x").append(bmp.getHeight());
+                        } else if (val instanceof android.graphics.Bitmap[]) {
+                            android.graphics.Bitmap[] arr = (android.graphics.Bitmap[]) val;
+                            sb.append("Bitmap[").append(arr.length).append("]");
+                            for (int i = 0; i < arr.length; i++) {
+                                if (arr[i] != null) sb.append(" #").append(i).append("=").append(arr[i].getWidth()).append("x").append(arr[i].getHeight());
+                            }
+                        } else if (val instanceof java.util.List) {
+                            java.util.List<?> list = (java.util.List<?>) val;
+                            sb.append("List[").append(list.size()).append("]");
+                            if (!list.isEmpty()) {
+                                Object first = list.get(0);
+                                if (first instanceof android.graphics.Bitmap) {
+                                    android.graphics.Bitmap bmp = (android.graphics.Bitmap) first;
+                                    sb.append(" Bitmap ").append(bmp.getWidth()).append("x").append(bmp.getHeight());
+                                } else if (first != null) {
+                                    sb.append(" ").append(first.getClass().getSimpleName());
+                                }
+                            }
+                        } else {
+                            sb.append(val);
+                        }
+                        sb.append("\n");
+                    }
+                    FileLogger.getInstance(mContext).i(TAG, sb.toString());
+                } catch (Exception e) {
+                    FileLogger.getInstance(mContext).d(TAG, "RadioBean dump failed: " + e.getMessage());
+                }
+            }
+
+            // Read fields — confirmed names from car log dump
+            mRadioStationName = readBeanField(bean, "mRadioName");
+            int prevType = mRadioType;
+            String typeStr = readBeanField(bean, "mRadioType");
+            if (typeStr != null) {
+                try { mRadioType = (int) Float.parseFloat(typeStr); } catch (Exception ignored) {}
+            }
+            String freqStr = readBeanField(bean, "mFrequencyKhz");
+            if (freqStr != null) {
+                try { mRadioFreqKhz = (int) Float.parseFloat(freqStr); } catch (Exception ignored) {}
+            }
+            // mRadioState: 0=off, 2=playing (confirmed from car). mRadioEnable also relevant.
+            String stateStr = readBeanField(bean, "mRadioState");
+            String enableStr = readBeanField(bean, "mRadioEnable");
+            if (stateStr != null) {
+                try {
+                    int st = (int) Float.parseFloat(stateStr);
+                    // mRadioState: 0=off, 2=playing (confirmed from car). mRadioEnable also relevant.
+                    mRadioPlaying = (st >= 1) && "true".equalsIgnoreCase(enableStr);
+                } catch (Exception ignored) {}
+            }
+            // DAB fields
+            mRadioDabService = readBeanField(bean, "mServiceName");
+            String ensembleName = readBeanField(bean, "mEnsembleName");
+            mRadioDabSlideshow = getBeanBitmapField(bean, "mDabSlideShow");
+
+            // Log on type change (steering wheel band switch or tune result)
+            if (mRadioType != prevType) {
+                FileLogger.getInstance(mContext).i(TAG, "Radio type changed: " + prevType + " → " + mRadioType
+                    + " name=" + mRadioStationName + " dabSvc=" + mRadioDabService
+                    + " ensemble=" + ensembleName + " freq=" + mRadioFreqKhz
+                    + " slideshow=" + (mRadioDabSlideshow != null ? mRadioDabSlideshow.getWidth() + "x" + mRadioDabSlideshow.getHeight() : "null"));
+            }
+
+            // Periodic log (every 10 cycles)
+            if (mRadioLoggedOnce % 10 == 0) {
+                FileLogger.getInstance(mContext).d(TAG, "Radio poll: type=" + mRadioType
+                    + " freq=" + mRadioFreqKhz + " name=" + mRadioStationName
+                    + " dabSvc=" + mRadioDabService + " playing=" + mRadioPlaying
+                    + " state=" + readBeanField(bean, "mRadioState")
+                    + " enable=" + readBeanField(bean, "mRadioEnable")
+                    + " slideshow=" + (mRadioDabSlideshow != null) + " src=" + mActiveSource);
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "pollRadioState: " + e.getMessage());
+        }
+
+        // Fallback frequency from Android HAL
+        if (mRadioFreqKhz <= 0) {
+            int halFreq = radioGetFrequency();
+            if (halFreq > 0) {
+                mRadioFreqKhz = halFreq;
+                if (mRadioType <= 0) mRadioType = halFreq > 50000 ? RADIO_TYPE_FM : RADIO_TYPE_AM;
+            }
+        }
+    }
+
+    private int mPrevMediaPlayer = 0;
+
+    private void pollMusicState() {
+        // SAIC IPlayStatusBinderInterface — getCurrentPlayer + metadata
+        if (mMediaService != null) {
+            try {
+                Method gcp = mMediaService.getClass().getMethod("getCurrentPlayer");
+                Object r = gcp.invoke(mMediaService);
+                if (r instanceof Number) {
+                    int p = ((Number) r).intValue();
+                    if (p > 0) {
+                        if (p != mPrevMediaPlayer) {
+                            FileLogger.getInstance(mContext).i(TAG, "getCurrentPlayer: " + mPrevMediaPlayer
+                                + " → " + p + " (0=none 2=USB 3=Online 4=BT 5=CP 6=AA)");
+                            mPrevMediaPlayer = p;
+                        }
+                        mMediaPlayerType = p;
+                        mMediaPlaying = true;
+                    } else if (mPrevMediaPlayer > 0) {
+                        FileLogger.getInstance(mContext).d(TAG, "getCurrentPlayer: stopped (was " + mPrevMediaPlayer + ")");
+                        mPrevMediaPlayer = 0;
+                        mMediaPlaying = false;
+                    }
+                }
+            } catch (Exception e) {
+                // Only log once
+                if (mRadioLoggedOnce % 60 == 1) {
+                    FileLogger.getInstance(mContext).d(TAG, "getCurrentPlayer failed: " + e.getMessage());
+                }
+            }
+        }
+
+        // Android MediaSession fallback (reliable for BT audio)
+        try {
+            android.media.session.MediaSessionManager msm =
+                (android.media.session.MediaSessionManager) mContext.getSystemService(Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(null);
+            if (controllers != null && !controllers.isEmpty()) {
+                android.media.session.MediaController mc = controllers.get(0);
+                android.media.session.PlaybackState state = mc.getPlaybackState();
+                boolean playing = state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+                String pkg = mc.getPackageName();
+                boolean isBt = pkg != null && (pkg.contains("bluetooth") || pkg.contains("bt"));
+
+                if (playing) {
+                    if (isBt) { mMediaPlayerType = MEDIA_SOURCE_BT; mMediaPlaying = true; }
+                    android.media.MediaMetadata meta = mc.getMetadata();
+                    if (meta != null && (mMediaTitle == null || mMediaTitle.isEmpty())) {
+                        String t = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+                        String a = meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+                        if (t != null && !t.isEmpty()) mMediaTitle = t;
+                        if (a != null && !a.isEmpty()) mMediaArtist = a;
+                        if (mMediaCoverArt == null) {
+                            mMediaCoverArt = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART);
+                            if (mMediaCoverArt == null)
+                                mMediaCoverArt = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART);
+                        }
+                    }
+                    if (state != null && mMediaPosition <= 0) mMediaPosition = state.getPosition();
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private int mDetectLogCount = 0;
+
+    private void detectActiveSource() {
+        long lockRemain = mSourceLockUntil - System.currentTimeMillis();
+        if (lockRemain > 0) {
+            if (mDetectLogCount++ % 10 == 0) {
+                FileLogger.getInstance(mContext).d(TAG, "detectSource: LOCKED for " + lockRemain + "ms, src=" + mActiveSource);
+            }
+            return;
+        }
+
+        int prevSource = mActiveSource;
+
+        // Music playing takes priority (BT/USB/Online/CP/AA)
+        if (mMediaPlaying && mMediaPlayerType > 0) {
+            int src = mActiveSource;
+            switch (mMediaPlayerType) {
+                case MEDIA_SOURCE_USB: src = SOURCE_USB; break;
+                case MEDIA_SOURCE_ONLINE: src = SOURCE_ONLINE; break;
+                case MEDIA_SOURCE_BT: src = SOURCE_BT; break;
+                case MEDIA_SOURCE_CP: src = SOURCE_CARPLAY; break;
+                case MEDIA_SOURCE_AA: src = SOURCE_AA; break;
+            }
+            if (src != mActiveSource) {
+                FileLogger.getInstance(mContext).i(TAG, "Source AUTO (media): " + mActiveSource + " → " + src
+                    + " playerType=" + mMediaPlayerType + " mediaPlaying=" + mMediaPlaying);
+                mActiveSource = src;
+            }
+            return;
+        }
+
+        // Radio band from RadioBean — only when radio is actually playing
+        if (mRadioPlaying && mRadioType > 0) {
+            int src;
+            switch (mRadioType) {
+                case RADIO_TYPE_AM: src = SOURCE_AM; break;
+                case RADIO_TYPE_FM: src = SOURCE_FM; break;
+                case RADIO_TYPE_DAB:
+                case RADIO_TYPE_DAB_ACTUAL:
+                default: src = SOURCE_DAB; break;
+            }
+            if (src != mActiveSource) {
+                FileLogger.getInstance(mContext).i(TAG, "Source AUTO (radio): " + mActiveSource + " → " + src
+                    + " radioType=" + mRadioType + " radioPlaying=" + mRadioPlaying);
+            }
+            mActiveSource = src;
+        }
+
+        // Periodic full state dump every 10 cycles
+        if (mDetectLogCount++ % 10 == 0) {
+            FileLogger.getInstance(mContext).d(TAG, "detectSource: src=" + mActiveSource
+                + " radioType=" + mRadioType + " radioPlaying=" + mRadioPlaying
+                + " mediaPlayer=" + mMediaPlayerType + " mediaPlaying=" + mMediaPlaying
+                + " lockExpired=" + (lockRemain <= 0));
+        }
+    }
+
+    // ==================== Media transport controls ====================
+
+    public void switchSource(int source) {
+        FileLogger.getInstance(mContext).i(TAG, "switchSource: " + source);
+        mManualPaused = false;
+        mActiveSource = source;
+        mSourceLockUntil = System.currentTimeMillis() + 5000;
+        switch (source) {
+            case SOURCE_FM: switchToRadio(RADIO_TYPE_FM); break;
+            case SOURCE_AM: switchToRadio(RADIO_TYPE_AM); break;
+            case SOURCE_DAB: switchToRadio(RADIO_TYPE_DAB); break;
+            case SOURCE_USB: switchToMusic(MEDIA_SOURCE_USB); break;
+            case SOURCE_BT: switchToMusic(MEDIA_SOURCE_BT); break;
+            case SOURCE_ONLINE: switchToMusic(MEDIA_SOURCE_ONLINE); break;
+        }
+    }
+
+    /**
+     * Switch radio band using IRadioAppService.tune(int radioType, int frequencyKhz).
+     * Pattern from decompiled RadioOptionManager: srcPlayRadio() → getLastModeRadio/getRadioList → tune()
+     */
+    private void switchToRadio(int radioType) {
+        FileLogger.getInstance(mContext).d(TAG, "switchToRadio: " + radioType + " cur=" + mRadioType);
+        if (mRadioService == null) {
+            launchActivity("com.saicmotor.hmi.radio", "com.saicmotor.hmi.radio.app.RadioHomeActivity");
+            return;
+        }
+
+        // Same band: just resume
+        if (mRadioType == radioType) {
+            callServiceMethod(mRadioService, "srcPlayRadio");
+            return;
+        }
+
+        // 1. Ensure radio hardware is active (like RadioOptionManager.play does)
+        try {
+            mRadioService.getClass().getMethod("srcPlayRadio").invoke(mRadioService);
+        } catch (Exception ignored) {}
+
+        // 2. For DAB: use tuneDab() with station from getRadioList
+        // Note: Marvel R uses radioType=4 for DAB in RadioBean, but the API may accept 3 or 4
+        if (radioType == RADIO_TYPE_DAB) {
+            boolean dabOk = false;
+            // Try both type 4 (actual car value) and type 3 (standard DAB)
+            for (int dabType : new int[]{RADIO_TYPE_DAB_ACTUAL, RADIO_TYPE_DAB}) {
+                if (dabOk) break;
+                try {
+                    Method gl = mRadioService.getClass().getMethod("getRadioList", int.class);
+                    Object list = gl.invoke(mRadioService, dabType);
+                    int listSize = (list instanceof java.util.List) ? ((java.util.List) list).size() : 0;
+                    FileLogger.getInstance(mContext).d(TAG, "DAB getRadioList(" + dabType + ") size=" + listSize);
+                    if (listSize > 0) {
+                        Object st = ((java.util.List) list).get(0);
+                        int eid = readBeanInt(st, "mEnsembleId");
+                        long sid = readBeanLong(st, "mServiceId");
+                        int fidx = readBeanInt(st, "mFrequencyIndex");
+                        int ssid = readBeanInt(st, "mSecondaryServiceId");
+                        int freq = readBeanInt(st, "mFrequencyKhz");
+                        String sName = readBeanField(st, "mServiceName");
+                        FileLogger.getInstance(mContext).d(TAG, "DAB station: eid=" + eid + " sid=" + sid
+                            + " fidx=" + fidx + " ssid=" + ssid + " freq=" + freq + " name=" + sName);
+                        if (eid > 0 || sid > 0) {
+                            Method td = mRadioService.getClass().getMethod("tuneDab", int.class, long.class, int.class, int.class);
+                            td.invoke(mRadioService, eid, sid, fidx, ssid);
+                            FileLogger.getInstance(mContext).d(TAG, "tuneDab(" + eid + "," + sid + "," + fidx + "," + ssid + ") OK");
+                            dabOk = true;
+                        }
+                    }
+                } catch (Exception e) {
+                    FileLogger.getInstance(mContext).d(TAG, "DAB list/tune(" + dabType + "): " + e.getMessage());
+                }
+            }
+            // Fallback: try tune(4, freq) then tune(3, freq)
+            if (!dabOk) {
+                for (int dabType : new int[]{RADIO_TYPE_DAB_ACTUAL, RADIO_TYPE_DAB}) {
+                    try {
+                        Method tune = mRadioService.getClass().getMethod("tune", int.class, int.class);
+                        tune.invoke(mRadioService, dabType, 174928);
+                        FileLogger.getInstance(mContext).d(TAG, "DAB tune(" + dabType + ",174928) OK");
+                        dabOk = true;
+                        break;
+                    } catch (Exception e) {
+                        FileLogger.getInstance(mContext).d(TAG, "DAB tune(" + dabType + "): " + e.getMessage());
+                    }
+                }
+            }
+            // Last resort: next(4) then next(3)
+            if (!dabOk) {
+                for (int dabType : new int[]{RADIO_TYPE_DAB_ACTUAL, RADIO_TYPE_DAB}) {
+                    try {
+                        Method next = mRadioService.getClass().getMethod("next", int.class);
+                        next.invoke(mRadioService, dabType);
+                        FileLogger.getInstance(mContext).d(TAG, "DAB next(" + dabType + ") OK");
+                        break;
+                    } catch (Exception ignored) {}
+                }
+            }
+            return;
+        }
+
+        // 3. For FM/AM: use tune(int radioType, int frequencyKhz)
+        int freq = 0;
+        // Try getRadioList for a known frequency
+        try {
+            Method gl = mRadioService.getClass().getMethod("getRadioList", int.class);
+            Object list = gl.invoke(mRadioService, radioType);
+            if (list instanceof java.util.List && !((java.util.List) list).isEmpty()) {
+                freq = readBeanInt(((java.util.List) list).get(0), "mFrequencyKhz");
+            }
+        } catch (Exception ignored) {}
+        // Default frequencies
+        if (freq <= 0) freq = radioType == RADIO_TYPE_FM ? 87500 : radioType == RADIO_TYPE_AM ? 531 : 174928;
+
+        try {
+            Method tune = mRadioService.getClass().getMethod("tune", int.class, int.class);
+            tune.invoke(mRadioService, radioType, freq);
+            FileLogger.getInstance(mContext).d(TAG, "tune(" + radioType + "," + freq + ") OK");
+            return;
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "tune: " + e.getMessage());
+        }
+
+        // 4. Fallback: next(int) also switches band
+        try {
+            Method next = mRadioService.getClass().getMethod("next", int.class);
+            next.invoke(mRadioService, radioType);
+            FileLogger.getInstance(mContext).d(TAG, "next(" + radioType + ") OK");
+        } catch (Exception e) {
+            FileLogger.getInstance(mContext).d(TAG, "next: " + e.getMessage());
+        }
+    }
+
+    private void switchToMusic(int playerType) {
+        FileLogger.getInstance(mContext).d(TAG, "switchToMusic: " + playerType + " bound=" + mMediaBound);
+        // Try SAIC IPlayStatusBinderInterface
+        if (mMediaService != null) {
+            try {
+                // setCurrentPlayer switches the active source
+                Method scp = mMediaService.getClass().getMethod("setCurrentPlayer", int.class);
+                scp.invoke(mMediaService, playerType);
+                FileLogger.getInstance(mContext).d(TAG, "setCurrentPlayer(" + playerType + ") OK");
+                return;
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "setCurrentPlayer: " + e.getMessage());
+            }
+        }
+        // Fallback: BT via media key, others via app launch
+        if (playerType == MEDIA_SOURCE_BT) {
+            sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PLAY);
+        } else {
+            launchActivity("com.saicmotor.hmi.music", "com.saicmotor.hmi.music.ui.activity.MusicActivity");
+        }
+    }
+
+    public void mediaPlay() {
+        FileLogger.getInstance(mContext).d(TAG, "mediaPlay: src=" + mActiveSource);
+        if (isRadioSource(mActiveSource)) {
+            if (mRadioService != null) callServiceMethod(mRadioService, "srcPlayRadio");
+        } else if (mMediaService != null) {
+            int id = mActiveSource == SOURCE_USB ? 2 : mActiveSource == SOURCE_ONLINE ? 3 : 4;
+            try {
+                mMediaService.getClass().getMethod("play", int.class).invoke(mMediaService, id);
+            } catch (Exception e) { callServiceVoid(mMediaService, "resume"); }
+        } else {
+            sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PLAY);
+        }
+    }
+
+    public void mediaPause() {
+        FileLogger.getInstance(mContext).d(TAG, "mediaPause: src=" + mActiveSource);
+        if (isRadioSource(mActiveSource)) {
+            if (mRadioService != null) callServiceVoid(mRadioService, "srcPauseRadio");
+        } else if (mMediaService != null) {
+            callServiceVoid(mMediaService, "pause");
+        } else {
+            sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PAUSE);
+        }
+    }
+
+    public void mediaNext() {
+        if (isRadioSource(mActiveSource)) {
+            int type = mRadioType > 0 ? mRadioType : RADIO_TYPE_FM;
+            if (mRadioService != null) {
+                try { mRadioService.getClass().getMethod("next", int.class).invoke(mRadioService, type); return; }
+                catch (Exception ignored) {}
+            }
+            radioNext(type);
+        } else if (mMediaService != null) {
+            callServiceVoid(mMediaService, "next");
+        } else {
+            sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_NEXT);
+        }
+    }
+
+    public void mediaPrevious() {
+        if (isRadioSource(mActiveSource)) {
+            int type = mRadioType > 0 ? mRadioType : RADIO_TYPE_FM;
+            if (mRadioService != null) {
+                try { mRadioService.getClass().getMethod("previous", int.class).invoke(mRadioService, type); return; }
+                catch (Exception ignored) {}
+            }
+            radioPrevious(type);
+        } else if (mMediaService != null) {
+            callServiceVoid(mMediaService, "prev");
+        } else {
+            sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+        }
+    }
+
+    public void mediaPlayPause() {
+        FileLogger.getInstance(mContext).d(TAG, "playPause: paused=" + mManualPaused + " src=" + mActiveSource);
+        if (mManualPaused) { mediaPlay(); mManualPaused = false; }
+        else { mediaPause(); mManualPaused = true; }
+    }
+
+    private boolean isRadioSource(int source) {
+        return source == SOURCE_FM || source == SOURCE_AM || source == SOURCE_DAB;
+    }
+
+    // ==================== Radio-specific controls (clone of RadioViewModel) ====================
+
+    // Track radio play state manually (mRadioPlaying from bean is unreliable — enable always false)
+    private volatile boolean mRadioManualPlaying = true; // Assume playing on start
+
+    /** Radio play/pause — toggles srcPlayRadio / srcPauseRadio on IRadioAppService */
+    public void radioPlayPause() {
+        if (mRadioService == null) { FileLogger.getInstance(mContext).d(TAG, "radioPlayPause: no service"); return; }
+        mRadioManualPlaying = !mRadioManualPlaying;
+        if (mRadioManualPlaying) {
+            try {
+                Method m = mRadioService.getClass().getMethod("srcPlayRadio");
+                boolean ok = (boolean) m.invoke(mRadioService);
+                FileLogger.getInstance(mContext).d(TAG, "radioPlayPause → srcPlayRadio: " + ok);
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "srcPlayRadio: " + e.getMessage());
+            }
+        } else {
+            callServiceVoid(mRadioService, "srcPauseRadio");
+            FileLogger.getInstance(mContext).d(TAG, "radioPlayPause → srcPauseRadio");
+        }
+    }
+
+    /** Radio next — calls next() on IRadioAppService with current radio type */
+    public void radioNext() {
+        if (mRadioService == null) { FileLogger.getInstance(mContext).d(TAG, "radioNext: no service"); return; }
+        int type = mRadioType > 0 ? mRadioType : RADIO_TYPE_FM;
+        try {
+            Method m = mRadioService.getClass().getMethod("next", int.class);
+            boolean ok = (boolean) m.invoke(mRadioService, type);
+            FileLogger.getInstance(mContext).d(TAG, "radioNext(" + type + "): " + ok);
+        } catch (Exception e) {
+            // Fallback to Android HAL
+            radioNext(type);
+            FileLogger.getInstance(mContext).d(TAG, "radioNext HAL fallback: " + e.getMessage());
+        }
+    }
+
+    /** Radio previous — calls previous() on IRadioAppService with current radio type */
+    public void radioPrev() {
+        if (mRadioService == null) { FileLogger.getInstance(mContext).d(TAG, "radioPrev: no service"); return; }
+        int type = mRadioType > 0 ? mRadioType : RADIO_TYPE_FM;
+        try {
+            Method m = mRadioService.getClass().getMethod("previous", int.class);
+            boolean ok = (boolean) m.invoke(mRadioService, type);
+            FileLogger.getInstance(mContext).d(TAG, "radioPrev(" + type + "): " + ok);
+        } catch (Exception e) {
+            radioPrevious(type);
+            FileLogger.getInstance(mContext).d(TAG, "radioPrev HAL fallback: " + e.getMessage());
+        }
+    }
+
+    // ==================== Music-specific controls (clone of MusicViewModel) ====================
+
+    /** Music play/pause — uses MediaSession key event (proper toggle) */
+    public void musicPlayPause() {
+        // MediaKey PLAY_PAUSE is a proper toggle — the active MediaSession handles it correctly
+        // This works for BT, USB, Online, CarPlay, AA — any source with an active MediaSession
+        sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+        FileLogger.getInstance(mContext).d(TAG, "musicPlayPause → MediaKey PLAY_PAUSE");
+    }
+
+    /** Music next — uses MediaPlayControlManager SDK or MediaSession key event */
+    public void musicNext() {
+        if (mMediaPlayControlMgr != null) {
+            try {
+                mMediaPlayControlMgr.getClass().getMethod("next").invoke(mMediaPlayControlMgr);
+                FileLogger.getInstance(mContext).d(TAG, "musicNext → SDK next()");
+                return;
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "musicNext SDK: " + e.getMessage());
+            }
+        }
+        sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_NEXT);
+        FileLogger.getInstance(mContext).d(TAG, "musicNext → MediaKey NEXT");
+    }
+
+    /** Music previous — uses MediaPlayControlManager SDK or MediaSession key event */
+    public void musicPrev() {
+        if (mMediaPlayControlMgr != null) {
+            try {
+                mMediaPlayControlMgr.getClass().getMethod("prev").invoke(mMediaPlayControlMgr);
+                FileLogger.getInstance(mContext).d(TAG, "musicPrev → SDK prev()");
+                return;
+            } catch (Exception e) {
+                FileLogger.getInstance(mContext).d(TAG, "musicPrev SDK: " + e.getMessage());
+            }
+        }
+        sendMediaKeyEvent(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+        FileLogger.getInstance(mContext).d(TAG, "musicPrev → MediaKey PREVIOUS");
+    }
+
+    public void sendMediaKeyEvent(int keyCode) {
+        try {
+            android.media.AudioManager am = (android.media.AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+            am.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode));
+            am.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode));
+        } catch (Exception e) { Log.d(TAG, "mediaKey: " + e.getMessage()); }
+    }
+
+    private void callServiceVoid(Object svc, String name) {
+        if (svc == null) return;
+        try { svc.getClass().getMethod(name).invoke(svc); }
+        catch (Exception e) { Log.d(TAG, name + ": " + e.getMessage()); }
+    }
+
+    private void launchActivity(String pkg, String cls) {
+        try {
+            Intent i = new Intent();
+            i.setComponent(new ComponentName(pkg, cls));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(i);
+        } catch (Exception e) { Log.d(TAG, "launch: " + e.getMessage()); }
+    }
+
+    // ==================== Media state getters ====================
+
+    public int getActiveSource() { return mActiveSource; }
+    public boolean isMediaBound() { return mMediaBound; }
+    public boolean isRadioSaicBound() { return mRadioSaicBound; }
+    public boolean isCurrentlyPlaying() { return !mManualPaused; }
+
+    // Independent radio getters (for radio card — always return radio data)
+    public String getRadioTitle() {
+        if (mRadioStationName != null && !mRadioStationName.isEmpty()) return mRadioStationName;
+        if (mRadioDabService != null && !mRadioDabService.isEmpty()) return mRadioDabService;
+        return getRadioFrequencyLabel();
+    }
+
+    public String getRadioSubtitle() {
+        if (mRadioStationName != null && !mRadioStationName.isEmpty()) return getRadioFrequencyLabel();
+        return mRadioDabService;
+    }
+
+    public String getMediaTitle() {
+        if (isRadioSource(mActiveSource)) {
+            if (mRadioStationName != null && !mRadioStationName.isEmpty()) return mRadioStationName;
+            // DAB: use service name when station name is empty
+            if (mRadioDabService != null && !mRadioDabService.isEmpty()) return mRadioDabService;
+            return getRadioFrequencyLabel();
+        }
+        return mMediaTitle;
+    }
+
+    public String getMediaSubtitle() {
+        if (isRadioSource(mActiveSource)) {
+            if (mRadioStationName != null && !mRadioStationName.isEmpty()) return getRadioFrequencyLabel();
+            return mRadioDabService;
+        }
+        return mMediaArtist;
+    }
+
+    public android.graphics.Bitmap getMediaCover() {
+        if (mActiveSource == SOURCE_DAB && mRadioDabSlideshow != null) return mRadioDabSlideshow;
+        if (isRadioSource(mActiveSource)) return null;
+        return mMediaCoverArt; // Also works for CP/AA — MediaSession provides cover art
+    }
+
+    public String getMediaArtist() { return mMediaArtist; }
+    public boolean isMediaPlaying() { return mMediaPlaying; }
+    public boolean isRadioManualPlaying() { return mRadioManualPlaying; }
+    public long getMediaPositionMs() { return mMediaPosition; }
+    public long getMediaDurationMs() { return isRadioSource(mActiveSource) ? 0 : mMediaDuration; }
+
+    private String getRadioFrequencyLabel() {
+        if (mRadioFreqKhz <= 0) {
+            int f = radioGetFrequency();
+            if (f > 0) mRadioFreqKhz = f;
+        }
+        if (mRadioFreqKhz > 50000) return String.format("%.1f MHz", mRadioFreqKhz / 1000f);
+        if (mRadioFreqKhz > 0) return String.format("%d kHz", mRadioFreqKhz);
+        return null;
+    }
+
+    // ==================== Bean field helpers (media) ====================
+
+    private String readBeanField(Object bean, String fieldName) {
+        if (bean == null) return null;
+        try {
+            java.lang.reflect.Field f = bean.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            Object v = f.get(bean);
+            if (v == null) return null;
+            // Handle char[] fields (e.g., mServiceName, mEnsembleName in RadioBean)
+            if (v instanceof char[]) return new String((char[]) v);
+            if (v instanceof byte[]) return new String((byte[]) v, "UTF-8").trim();
+            return String.valueOf(v);
+        } catch (Exception e) { return null; }
+    }
+
+    private int readBeanInt(Object bean, String fieldName) {
+        String s = readBeanField(bean, fieldName);
+        if (s == null) return 0;
+        try { return (int) Float.parseFloat(s); } catch (Exception e) { return 0; }
+    }
+
+    private long readBeanLong(Object bean, String fieldName) {
+        String s = readBeanField(bean, fieldName);
+        if (s == null) return 0;
+        try { return (long) Float.parseFloat(s); } catch (Exception e) { return 0; }
+    }
+
+    private android.graphics.Bitmap getBeanBitmapField(Object bean, String fieldName) {
+        if (bean == null) return null;
+        try {
+            java.lang.reflect.Field f = bean.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            Object v = f.get(bean);
+            if (v instanceof android.graphics.Bitmap) return (android.graphics.Bitmap) v;
+            // Handle Bitmap arrays (e.g., mDabSlideShow is Bitmap[])
+            if (v instanceof android.graphics.Bitmap[]) {
+                android.graphics.Bitmap[] arr = (android.graphics.Bitmap[]) v;
+                if (arr.length > 0 && arr[0] != null) return arr[0];
+            }
+            // Handle List<Bitmap>
+            if (v instanceof java.util.List) {
+                java.util.List<?> list = (java.util.List<?>) v;
+                if (!list.isEmpty() && list.get(0) instanceof android.graphics.Bitmap) {
+                    return (android.graphics.Bitmap) list.get(0);
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    public android.media.session.MediaController getActiveMediaSession(Context ctx) {
+        try {
+            android.media.session.MediaSessionManager msm =
+                (android.media.session.MediaSessionManager) ctx.getSystemService(Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> c = msm.getActiveSessions(null);
+            if (c != null && !c.isEmpty()) return c.get(0);
+        } catch (Exception ignored) {}
+        return null;
     }
 
     // ==================== Cleanup ====================

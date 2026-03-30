@@ -91,7 +91,10 @@ public class UvcCameraActivity extends Activity {
         mPreviewContainer.setBackgroundColor(0xFF000000);
         mPreview = new AspectRatioTextureView(this);
         mPreviewContainer.addView(mPreview, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(-1, 400);
+        // Use 4:3 aspect ratio based on screen width (matches 640x480 camera resolution)
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int previewHeight = (int) (dm.widthPixels * 3.0 / 4.0);
+        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(-1, previewHeight);
         previewLp.setMargins(0, 4, 0, 4);
         mPreviewContainer.setVisibility(View.GONE);
         root.addView(mPreviewContainer, previewLp);

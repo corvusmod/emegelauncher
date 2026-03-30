@@ -217,12 +217,9 @@ public class AbrpManager {
                     String body = sb.toString();
                     JSONObject resp = new JSONObject(body);
                     String status = resp.optString("status", "unknown");
-                    FileLogger fl = FileLogger.getInstance(mContext);
                     if (!"ok".equals(status)) {
-                        fl.w(TAG, "ABRP error: " + body);
+                        Log.w(TAG, "ABRP error: " + body);
                         mFailCount++;
-                    } else {
-                        fl.i(TAG, "ABRP OK #" + mSendCount + " soc=" + mSoc + " spd=" + mSpeed + " lat=" + mLat);
                     }
                     mPrefs.edit().putInt("abrp_send_count", mSendCount)
                         .putInt("abrp_fail_count", mFailCount).apply();
@@ -237,12 +234,12 @@ public class AbrpManager {
                         er.close();
                         errBody = esb.toString();
                     } catch (Exception ignored) {}
-                    FileLogger.getInstance(mContext).w(TAG, "ABRP HTTP " + code + ": " + errBody);
+                    Log.w(TAG, "ABRP HTTP " + code + ": " + errBody);
                     mFailCount++;
                 }
                 conn.disconnect();
             } catch (Exception e) {
-                FileLogger.getInstance(mContext).e(TAG, "ABRP send failed: " + e.getMessage());
+                Log.e(TAG, "ABRP send failed: " + e.getMessage());
                 mFailCount++;
             }
         }).start();

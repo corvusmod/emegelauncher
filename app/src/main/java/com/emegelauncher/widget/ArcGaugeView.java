@@ -85,12 +85,12 @@ public class ArcGaugeView extends View {
     }
     public void setMaxValue(float max) { this.maxValue = max; }
     public void setUnit(String u) { this.unit = u; }
-    public void setLabel(String l) { this.label = l; }
-    public void setLabel2(String l, int color) { this.label2 = l; this.label2Color = color; }
-    public void setFgColor(int c) { this.fgColor = c; this.fgColorEnd = lightenColor(c, 0.4f); }
-    public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.15f)); }
-    public void setTextColor(int c) { textPaint.setColor(c); }
-    public void setLabelColor(int c) { labelPaint.setColor(c); }
+    public void setLabel(String l) { this.label = l; invalidate(); }
+    public void setLabel2(String l, int color) { this.label2 = l; this.label2Color = color; invalidate(); }
+    public void setFgColor(int c) { this.fgColor = c; this.fgColorEnd = lightenColor(c, 0.4f); invalidate(); }
+    public void setBgArcColor(int c) { bgPaint.setColor(darkenColor(c, 0.15f)); invalidate(); }
+    public void setTextColor(int c) { textPaint.setColor(c); invalidate(); }
+    public void setLabelColor(int c) { labelPaint.setColor(c); invalidate(); }
     /** Set a secondary value shown as a second dot on the arc (e.g. average alongside instant) */
     public void setSecondaryValue(float val) { this.secondaryValue = Math.min(val, maxValue); invalidate(); }
     public void setSecondaryColor(int c) { this.secondaryColor = c; }

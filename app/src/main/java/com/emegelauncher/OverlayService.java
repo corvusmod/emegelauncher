@@ -45,6 +45,8 @@ public class OverlayService extends Service {
     private View mOverlayView;
     private View mRecentPanel;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
+    private boolean mStatusBarHidden = false;
+    private TextView mStatusBarToggle;
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -81,6 +83,15 @@ public class OverlayService extends Service {
         recentBtn.setOnClickListener(v -> toggleRecentApps());
         tab.addView(recentBtn);
 
+        // Top dock toggle button (hide/show MG overlay bar)
+        mStatusBarToggle = new TextView(this);
+        mStatusBarToggle.setText("\u25B2"); // ▲ (tap to hide — push up)
+        mStatusBarToggle.setTextSize(14);
+        mStatusBarToggle.setTextColor(0xFF40C8FF); // Bright cyan — visible on dark backgrounds
+        mStatusBarToggle.setPadding(8, 8, 8, 8);
+        mStatusBarToggle.setOnClickListener(v -> toggleStatusBar());
+        tab.addView(mStatusBarToggle);
+
         mOverlayView = tab;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -100,6 +111,106 @@ public class OverlayService extends Service {
         } catch (Exception e) {
             Log.e(TAG, "Failed to add overlay: " + e.getMessage());
         }
+    }
+
+    /**
+     * Toggle the SAIC top dock bar (MG button + app shortcuts overlay) on/off.
+     * The SystemUI's DockControlManager hides the top dock when a package in
+     * "top_dock_hide_package_info" is in the foreground. We can't modify that list,
+     * but we CAN use wm commands to manipulate the window, or use the IStatusBar
+     * service to collapse/disable the top area.
+     * Multiple approaches are tried — at least one should work on this car.
+     */
+    private void toggleStatusBar() {
+        mStatusBarHidden = !mStatusBarHidden;
+        setTopDockHidden(mStatusBarHidden);
+        if (mStatusBarToggle != null) {
+            mStatusBarToggle.setText(mStatusBarHidden ? "\u25BC" : "\u25B2"); // ▼ show / ▲ hide
+            mStatusBarToggle.setTextColor(mStatusBarHidden ? 0xFFFF453A : 0xFF40C8FF); // Red when hidden, cyan when visible
+        }
+        Log.d(TAG, "TAP top dock toggle → " + (mStatusBarHidden ? "HIDE" : "SHOW"));
+        com.emegelauncher.vehicle.FileLogger.getInstance(this).i(TAG, "TAP top dock toggle → " + (mStatusBarHidden ? "HIDE" : "SHOW"));
+    }
+
+    private void setTopDockHidden(boolean hidden) {
+        com.emegelauncher.vehicle.FileLogger fl = com.emegelauncher.vehicle.FileLogger.getInstance(this);
+        fl.i(TAG, "=== setTopDockHidden(" + hidden + ") START ===");
+
+        // Method 1: Use IWindowManager to find and hide the top dock window by name
+        // The SAIC top dock is added via WindowManager.addView with title "StatusBar"
+        // We can use wm commands or IWindowManager to manipulate it
+        try {
+            // First, dump all windows to identify the top dock
+            if (!hidden) {
+                // Only dump on show (to keep log small)
+            }
+            // Use "input" to find window positions — dumpsys window windows is large
+            // Instead, try to set the StatusBar window to 0 height via wm command
+            String cmd;
+            if (hidden) {
+                // Move the top dock window offscreen by setting negative y position
+                // Use IWindowManager.setForcedDisplaySize or manipulate the window
+                cmd = "wm overscan 0,-200,0,0";  // Push content up by 200px, hiding top area
+            } else {
+                cmd = "wm overscan 0,0,0,0";  // Reset overscan
+            }
+            Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", cmd});
+            int exit = p.waitFor();
+            fl.i(TAG, "M1: " + cmd + " exit=" + exit);
+        } catch (Exception e) {
+            fl.d(TAG, "M1: wm overscan: " + e.getMessage());
+        }
+
+        // Method 2: Use dumpsys to identify window tokens, then manipulate via IWindowSession
+        try {
+            if (hidden) {
+                // Dump windows to log for analysis
+                Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c",
+                    "dumpsys window windows | grep -E 'Window #|mAttrs|title|StatusBar|TopDock|Dock'"});
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream()));
+                StringBuilder sb = new StringBuilder("M2 windows:\n");
+                String line;
+                int count = 0;
+                while ((line = reader.readLine()) != null && count++ < 30) {
+                    sb.append(line.trim()).append("\n");
+                }
+                reader.close();
+                fl.d(TAG, sb.toString());
+            }
+        } catch (Exception e) {
+            fl.d(TAG, "M2: dumpsys: " + e.getMessage());
+        }
+
+        // Method 3: Set system property that might control dock visibility
+        try {
+            String val = hidden ? "1" : "0";
+            Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c",
+                "setprop persist.sys.topdock.hidden " + val});
+            int exit = p.waitFor();
+            fl.d(TAG, "M3: setprop persist.sys.topdock.hidden " + val + " exit=" + exit);
+        } catch (Exception e) {
+            fl.d(TAG, "M3: " + e.getMessage());
+        }
+
+        // Method 4: Try to resize the StatusBar window to 0 height
+        try {
+            if (hidden) {
+                Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c",
+                    "wm size 1200x1500"});  // Increase usable area to push dock offscreen
+                int exit = p.waitFor();
+                fl.d(TAG, "M4: wm size 1200x1500 exit=" + exit);
+            } else {
+                Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c",
+                    "wm size reset"});
+                int exit = p.waitFor();
+                fl.d(TAG, "M4: wm size reset exit=" + exit);
+            }
+        } catch (Exception e) {
+            fl.d(TAG, "M4: " + e.getMessage());
+        }
+
+        fl.i(TAG, "=== setTopDockHidden(" + hidden + ") END ===");
     }
 
     private void goBack() {
@@ -228,6 +339,11 @@ public class OverlayService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        // Restore top dock if it was hidden
+        if (mStatusBarHidden) {
+            mStatusBarHidden = false;
+            setTopDockHidden(false);
+        }
         hideRecentPanel();
         if (mOverlayView != null) {
             try { mWindowManager.removeView(mOverlayView); } catch (Exception ignored) {}

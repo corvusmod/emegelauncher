@@ -548,9 +548,17 @@ public class GraphsActivity extends Activity {
 
         addDivider();
 
-        // SOH estimate
-        float soh = mHealthTracker.getEstimatedSoh();
-        float cap = mHealthTracker.getEstimatedCapacity();
+        // SOH estimate — prefer cloud data (totalBatteryCapacity), fallback to BatteryHealthTracker
+        com.emegelauncher.vehicle.SaicCloudManager cloud = new com.emegelauncher.vehicle.SaicCloudManager(this);
+        float cap = cloud.getBatteryCapacityKwh(); // from cloud, default 70
+        float soh = cap / 70.0f * 100f; // nominal 70 kWh
+        // Check if cloud has real data (not just default)
+        boolean hasCloudCapacity = (cap != 70.0f && cap > 0);
+        if (!hasCloudCapacity) {
+            // Fallback to BatteryHealthTracker
+            soh = mHealthTracker.getEstimatedSoh();
+            cap = mHealthTracker.getEstimatedCapacity();
+        }
 
         ArcGaugeView sohGauge = newGauge(getString(R.string.graph_est_soh), "%", 100,
             soh >= 90 ? C_GREEN : soh >= 75 ? C_ORANGE : C_RED);
@@ -562,8 +570,10 @@ public class GraphsActivity extends Activity {
         capLabel.setTag("health_capacity");
         mContent.addView(capLabel, infoLP());
 
+        int cloudCount = cloud.getChargeHistory().length();
+        int localCount = mHealthTracker.getSessions().length();
         TextView sessionsCount = newInfoLabel(getString(R.string.graph_sessions_recorded,
-            mHealthTracker.getSessions().length()));
+            cloudCount + localCount) + (cloudCount > 0 ? " (" + cloudCount + " cloud)" : ""));
         mContent.addView(sessionsCount, infoLP());
 
         // Tracking status
@@ -609,27 +619,68 @@ public class GraphsActivity extends Activity {
         histHeader.setTextSize(12);
         mContent.addView(histHeader, infoLP());
 
-        JSONArray sessions = mHealthTracker.getSessions();
-        if (sessions.length() == 0) {
+        // Show cloud charge sessions first (from iSMART API)
+        org.json.JSONArray cloudHistory = cloud.getChargeHistory();
+        JSONArray localSessions = mHealthTracker.getSessions();
+        int totalSessions = cloudHistory.length() + localSessions.length();
+
+        if (totalSessions == 0) {
             mContent.addView(newInfoLabel(getString(R.string.graph_no_sessions_hint)), infoLP());
         } else {
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault());
-            // Show last 10 sessions, newest first
-            for (int i = sessions.length() - 1; i >= Math.max(0, sessions.length() - 10); i--) {
-                try {
-                    JSONObject s = sessions.getJSONObject(i);
-                    String date = sdf.format(new Date(s.getLong("ts")));
-                    String line = getString(R.string.graph_session_line,
-                        date,
-                        String.valueOf(s.getDouble("s0")),
-                        String.valueOf(s.getDouble("s1")),
-                        String.valueOf(s.getDouble("e")),
-                        String.valueOf(s.getDouble("cap")),
-                        String.valueOf(s.getDouble("soh")));
-                    TextView tv = newInfoLabel(line);
-                    tv.setTextSize(11);
-                    mContent.addView(tv, infoLP());
-                } catch (Exception ignored) {}
+
+            // Cloud sessions (from iSMART, newest first — already ordered)
+            if (cloudHistory.length() > 0) {
+                TextView cloudLabel = newInfoLabel("☁ Cloud sessions: " + cloudHistory.length());
+                cloudLabel.setTextColor(C_BLUE);
+                cloudLabel.setTextSize(12);
+                mContent.addView(cloudLabel, infoLP());
+
+                for (int i = 0; i < Math.min(cloudHistory.length(), 15); i++) {
+                    try {
+                        JSONObject s = cloudHistory.getJSONObject(i);
+                        String date = sdf.format(new Date(s.optLong("fetchTime", 0)));
+                        double socDsp = s.optDouble("bmsPackSOCDsp", 0);
+                        double packVol = s.optDouble("bmsPackVol", 0);
+                        double packCrnt = s.optDouble("bmsPackCrnt", 0);
+                        int chrgSts = s.optInt("bmsChrgSts", 0);
+                        int range = s.optInt("bmsEstdElecRng", 0);
+                        int totalCap = s.optInt("totalBatteryCapacity", 0);
+                        String capStr = totalCap > 0 ? String.format("%.1f kWh", totalCap / 10.0f) : "?";
+                        String chrgType = chrgSts == 1 ? "AC" : chrgSts == 2 ? "DC" : chrgSts == 0 ? "idle" : "sts=" + chrgSts;
+                        String line = String.format("%s | SOC %.1f%% | %.0fV %.1fA | %s | %dkm | cap=%s",
+                            date, socDsp, packVol, packCrnt, chrgType, range, capStr);
+                        TextView tv = newInfoLabel(line);
+                        tv.setTextSize(11);
+                        mContent.addView(tv, infoLP());
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // Local live sessions (from BatteryHealthTracker)
+            if (localSessions.length() > 0) {
+                addDivider();
+                TextView localLabel = newInfoLabel("📱 Local sessions: " + localSessions.length());
+                localLabel.setTextColor(C_GREEN);
+                localLabel.setTextSize(12);
+                mContent.addView(localLabel, infoLP());
+
+                for (int i = localSessions.length() - 1; i >= Math.max(0, localSessions.length() - 10); i--) {
+                    try {
+                        JSONObject s = localSessions.getJSONObject(i);
+                        String date = sdf.format(new Date(s.getLong("ts")));
+                        String line = getString(R.string.graph_session_line,
+                            date,
+                            String.valueOf(s.getDouble("s0")),
+                            String.valueOf(s.getDouble("s1")),
+                            String.valueOf(s.getDouble("e")),
+                            String.valueOf(s.getDouble("cap")),
+                            String.valueOf(s.getDouble("soh")));
+                        TextView tv = newInfoLabel(line);
+                        tv.setTextSize(11);
+                        mContent.addView(tv, infoLP());
+                    } catch (Exception ignored) {}
+                }
             }
         }
     }

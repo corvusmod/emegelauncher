@@ -104,12 +104,12 @@ public class ChargingSessionManager {
             String chrgStsStr = vehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_STS);
             int chrgSts = 0;
             try { chrgSts = (int) Float.parseFloat(chrgStsStr); } catch (Exception ignored) {}
-            boolean isCharging = (chrgSts == 1 || chrgSts == 2);
+            boolean isCharging = (chrgSts > 0 && chrgSts != 4);
             // Fallback: SAIC service
             if (!isCharging) {
                 int saicSts = 0;
                 try { saicSts = (int) Float.parseFloat(vehicle.callSaicMethod("charging", "getChargingStatus")); } catch (Exception ignored) {}
-                if (saicSts == 1 || saicSts == 2) { isCharging = true; if (chrgSts == 0) chrgSts = saicSts; }
+                if (saicSts > 0 && saicSts != 4) { isCharging = true; if (chrgSts == 0) chrgSts = saicSts; }
             }
             Log.d(TAG, "Charge detect: BMS_STS=" + chrgStsStr + " isCharging=" + isCharging + " type=" + chrgSts);
 

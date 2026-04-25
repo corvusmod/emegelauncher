@@ -346,7 +346,7 @@ public class GraphsActivity extends Activity {
         String chrgStsStr = mVehicle.getPropertyValue(YFVehicleProperty.BMS_CHRG_STS);
         int chrgSts = 0;
         try { chrgSts = (int) Float.parseFloat(chrgStsStr); } catch (Exception ignored) {}
-        boolean isCharging = chrgSts == 1 || chrgSts == 2;
+        boolean isCharging = chrgSts > 0 && chrgSts != 4;
 
         if (isCharging) {
             TextView msg = newInfoLabel(getString(R.string.charge_history_while_charging));
@@ -1155,7 +1155,7 @@ public class GraphsActivity extends Activity {
         // Charging status: try SAIC service → VHAL
         int chrgSts = (int) readSaicFloat("charging", "getChargingStatus");
         if (chrgSts == 0) chrgSts = (int) readFloat(YFVehicleProperty.BMS_CHRG_STS);
-        boolean isCharging = (chrgSts == 1 || chrgSts == 2);
+        boolean isCharging = (chrgSts > 0 && chrgSts != 4);
 
         if (isCharging) {
             updateChargingLive(chrgSts);
